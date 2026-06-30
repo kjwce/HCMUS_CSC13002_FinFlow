@@ -19,6 +19,7 @@ class _EditTransactionScreenState extends ConsumerState<EditTransactionScreen> {
   late final TextEditingController _titleController;
   late final TextEditingController _amountController;
   late String _selectedCategory;
+  var _isFormatting = false;
 
   /// All category keys: built-in 14 + user custom ones.
   late List<String> _allCategoryKeys;
@@ -28,8 +29,9 @@ class _EditTransactionScreenState extends ConsumerState<EditTransactionScreen> {
     super.initState();
     _titleController = TextEditingController(text: widget.transaction.title);
     _amountController = TextEditingController(
-      text: widget.transaction.amount.abs().toString(),
+      text: _addCommas(widget.transaction.amount.abs().toString()),
     );
+    _amountController.addListener(_formatAmount);
 
     // Build full list: built-in keys + any custom keys that exist in the store
     _allCategoryKeys = [
@@ -43,8 +45,37 @@ class _EditTransactionScreenState extends ConsumerState<EditTransactionScreen> {
         : 'Other';
   }
 
+  void _formatAmount() {
+    if (_isFormatting) return;
+    _isFormatting = true;
+    final text = _amountController.text.replaceAll(',', '');
+    final digits = text.replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) {
+      _amountController.text = '';
+    } else {
+      final formatted = _addCommas(digits);
+      _amountController.value = TextEditingValue(
+        text: formatted,
+        selection: TextSelection.collapsed(offset: formatted.length),
+      );
+    }
+    _isFormatting = false;
+  }
+
+  static String _addCommas(String digits) {
+    final buffer = StringBuffer();
+    int count = 0;
+    for (int i = digits.length - 1; i >= 0; i--) {
+      if (count > 0 && count % 3 == 0) buffer.write(',');
+      buffer.write(digits[i]);
+      count++;
+    }
+    return buffer.toString().split('').reversed.join();
+  }
+
   @override
   void dispose() {
+    _amountController.removeListener(_formatAmount);
     _titleController.dispose();
     _amountController.dispose();
     super.dispose();

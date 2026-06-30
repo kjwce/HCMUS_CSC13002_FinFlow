@@ -267,8 +267,28 @@ class _SettingsMenuRow extends StatelessWidget {
     final user = AuthService.instance.currentUser;
     final currentLimit = user?.budgetLimit ?? 0;
     final controller = TextEditingController(
-      text: currentLimit > 0 ? currentLimit.toString() : '',
+      text: currentLimit > 0 ? _addCommas(currentLimit.toString()) : '',
     );
+    var isFormatting = false;
+
+    void formatAmount() {
+      if (isFormatting) return;
+      isFormatting = true;
+      final text = controller.text.replaceAll(',', '');
+      final digits = text.replaceAll(RegExp(r'\D'), '');
+      if (digits.isEmpty) {
+        controller.text = '';
+      } else {
+        final formatted = _addCommas(digits);
+        controller.value = TextEditingValue(
+          text: formatted,
+          selection: TextSelection.collapsed(offset: formatted.length),
+        );
+      }
+      isFormatting = false;
+    }
+
+    controller.addListener(formatAmount);
 
     showDialog(
       context: context,
@@ -302,7 +322,11 @@ class _SettingsMenuRow extends StatelessWidget {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
+            onPressed: () {
+              controller.removeListener(formatAmount);
+              controller.dispose();
+              Navigator.of(ctx).pop();
+            },
             child: const Text('Cancel'),
           ),
           TextButton(
@@ -369,3 +393,15 @@ class _SettingsMenuRow extends StatelessWidget {
 }
 
 const _settingsText = Color(0xFF093030);
+
+/// Format a numeric string with thousand-separator commas.
+String _addCommas(String digits) {
+  final buffer = StringBuffer();
+  int count = 0;
+  for (int i = digits.length - 1; i >= 0; i--) {
+    if (count > 0 && count % 3 == 0) buffer.write(',');
+    buffer.write(digits[i]);
+    count++;
+  }
+  return buffer.toString().split('').reversed.join();
+}

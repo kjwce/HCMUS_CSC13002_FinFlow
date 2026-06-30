@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app/shell/finflow_app.dart';
 import 'features/auth/services/auth_service.dart';
+import 'features/finance/services/goal_service.dart';
 import 'features/finance/services/transaction_service.dart';
 
 final navigatorKey = GlobalKey<NavigatorState>();
@@ -26,8 +27,9 @@ Future<void> main() async {
   if (session != null) {
     try {
       await TransactionService.instance.fetchTransactions();
+      await GoalService.instance.fetchGoals();
     } catch (_) {
-      // Silently fail — user may not have transactions yet
+      // Silently fail — user may not have data yet
     }
   }
 

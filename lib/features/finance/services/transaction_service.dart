@@ -20,25 +20,17 @@ class TransactionService extends ChangeNotifier {
         .toList(growable: false);
   }
 
-  /// Income transactions in the current month only.
+  /// Income transactions across ALL time (used for monthly overview + goal).
   int get monthlyIncome {
-    final now = DateTime.now();
     return currentUserTransactions
-        .where((t) =>
-            t.amount > 0 &&
-            t.date.month == now.month &&
-            t.date.year == now.year)
+        .where((t) => t.amount > 0)
         .fold(0, (total, t) => total + t.amount);
   }
 
-  /// Expense transactions in the current month only. (amount < 0 on record)
+  /// Expense transactions across ALL time (used for budget progress bar).
   int get monthlyExpense {
-    final now = DateTime.now();
     return currentUserTransactions
-        .where((t) =>
-            t.amount < 0 &&
-            t.date.month == now.month &&
-            t.date.year == now.year)
+        .where((t) => t.amount < 0)
         .fold(0, (total, t) => total + t.amount.abs());
   }
 

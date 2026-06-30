@@ -8,6 +8,8 @@ import '../../features/auth/providers/auth_provider.dart';
 import '../../features/finance/models/transaction_category.dart';
 import '../../features/finance/presentation/dashboard.dart';
 import '../../features/finance/presentation/edit_transaction_screen.dart';
+import '../../features/finance/presentation/goal_setup_sheet.dart';
+import '../../features/finance/providers/goal_provider.dart';
 import '../../features/finance/providers/transaction_provider.dart';
 import '../../features/finance/services/transaction_service.dart';
 
@@ -314,40 +316,54 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   // --- 2. Goal Summary Card ---
   Widget _buildGoalSummaryCard() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: const Color(0xFF00D293),
-        borderRadius: BorderRadius.circular(30),
-      ),
-      child: Row(
-        children: [
-          Column(
-            children: [
-              Stack(
-                alignment: Alignment.center,
-                children: [
-                  const SizedBox(
-                    width: 60,
-                    height: 60,
-                    child: CircularProgressIndicator(
-                      value: 0.7,
-                      strokeWidth: 4,
-                      color: Color(0xFF007AFF),
-                      backgroundColor: Colors.white30,
+    final gs = ref.watch(goalServiceProvider);
+    final goal = gs.activeGoal;
+    final ts = ref.read(transactionServiceProvider);
+    final progress = goal != null ? gs.progressRatio(ts.transactions) : 0.0;
+
+    return GestureDetector(
+      onTap: () => GoalSetupSheet.show(context),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: const Color(0xFF00D293),
+          borderRadius: BorderRadius.circular(30),
+        ),
+        child: Row(
+          children: [
+            Column(
+              children: [
+                Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    SizedBox(
+                      width: 60,
+                      height: 60,
+                      child: CircularProgressIndicator(
+                        value: progress,
+                        strokeWidth: 4,
+                        color: const Color(0xFF007AFF),
+                        backgroundColor: Colors.white30,
+                      ),
                     ),
+                    const _FigmaCarIcon(color: Color(0xFF093030), size: 28),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  goal != null
+                      ? '${(progress * 100).toStringAsFixed(0)}%'
+                      : 'Savings\nOn Goals',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF093030),
                   ),
-                  const _FigmaCarIcon(color: Color(0xFF093030), size: 28),
-                ],
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Savings\nOn Goals',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontFamily: 'Poppins', fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFF093030)),
-              ),
-            ],
-          ),
+                ),
+              ],
+            ),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 15),
             child: SizedBox(
@@ -365,6 +381,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
         ],
+      ),
       ),
     );
   }

@@ -17,9 +17,45 @@ class BudgetSetupScreen extends ConsumerStatefulWidget {
 class _BudgetSetupScreenState extends ConsumerState<BudgetSetupScreen> {
   final _controller = TextEditingController();
   bool _isSaving = false;
+  var _isFormatting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_formatAmount);
+  }
+
+  void _formatAmount() {
+    if (_isFormatting) return;
+    _isFormatting = true;
+    final text = _controller.text.replaceAll(',', '');
+    final digits = text.replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) {
+      _controller.text = '';
+    } else {
+      final formatted = _addCommas(digits);
+      _controller.value = TextEditingValue(
+        text: formatted,
+        selection: TextSelection.collapsed(offset: formatted.length),
+      );
+    }
+    _isFormatting = false;
+  }
+
+  static String _addCommas(String digits) {
+    final buffer = StringBuffer();
+    int count = 0;
+    for (int i = digits.length - 1; i >= 0; i--) {
+      if (count > 0 && count % 3 == 0) buffer.write(',');
+      buffer.write(digits[i]);
+      count++;
+    }
+    return buffer.toString().split('').reversed.join();
+  }
 
   @override
   void dispose() {
+    _controller.removeListener(_formatAmount);
     _controller.dispose();
     super.dispose();
   }

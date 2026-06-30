@@ -81,9 +81,46 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   var _isExpense = true;
   var _selectedAccount = 'ING';
   var _selectedCategory = 'Food';
+  var _isFormatting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _amountController.addListener(_formatAmount);
+  }
+
+  void _formatAmount() {
+    if (_isFormatting) return;
+    _isFormatting = true;
+    final text = _amountController.text.replaceAll(',', '');
+    final digits = text.replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) {
+      _amountController.text = '';
+    } else {
+      final formatted = _addCommas(digits);
+      final pos = formatted.length;
+      _amountController.value = TextEditingValue(
+        text: formatted,
+        selection: TextSelection.collapsed(offset: pos),
+      );
+    }
+    _isFormatting = false;
+  }
+
+  static String _addCommas(String digits) {
+    final buffer = StringBuffer();
+    int count = 0;
+    for (int i = digits.length - 1; i >= 0; i--) {
+      if (count > 0 && count % 3 == 0) buffer.write(',');
+      buffer.write(digits[i]);
+      count++;
+    }
+    return buffer.toString().split('').reversed.join();
+  }
 
   @override
   void dispose() {
+    _amountController.removeListener(_formatAmount);
     _amountController.dispose();
     super.dispose();
   }
