@@ -44,7 +44,7 @@ class AppBottomNavBar extends StatelessWidget {
           height: 44,
           decoration: BoxDecoration(
             color: isSelected ? AppColors.primaryGreen : Colors.transparent,
-            shape: BoxShape.circle,
+            borderRadius: BorderRadius.circular(12),
           ),
           child: SizedBox(width: 22, height: 22, child: icon),
         ),
