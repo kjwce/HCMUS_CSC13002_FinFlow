@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="124"
+    android:viewportHeight="124">
+
+    <!--
+        Path data từ finflow_logo.svg (viewBox 118x124)
+        Scale 0.45 để vừa vòng tròn safe zone của adaptive icon
+    -->
+    <group
+        android:pivotX="59"
+        android:pivotY="62"
+        android:scaleX="0.45"
+        android:scaleY="0.45">
+
+        <!-- Bar 1 (medium) -->
+        <path
+            android:fillColor="@android:color/transparent"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="8.68735"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:pathData="M55.9255,119.451V66.5209H77.1915V119.451" />
+
+        <!-- Bar 2 (short) -->
+        <path
+            android:fillColor="@android:color/transparent"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="8.68735"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:pathData="M20.3187,119.451V93.7725H41.5847V119.451" />
+
+        <!-- Bar 3 (tall) -->
+        <path
+            android:fillColor="@android:color/transparent"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="8.68735"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:pathData="M92.3903,119.451V41.2305H113.656V119.451" />
+
+        <!-- Trendline -->
+        <path
+            android:fillColor="@android:color/transparent"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="8.68735"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:pathData="M4.34366,78.1447L49.8378,32.6505L65.3226,46.6032L106.547,5.39897" />
+
+        <!-- Arrowhead -->
+        <path
+            android:fillColor="@android:color/transparent"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="8.68735"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:pathData="M105.608,24.234L107.507,7.03327C107.543,6.67129 107.497,6.30599 107.374,5.96384C107.25,5.62169 107.053,5.31126 106.795,5.05507C106.536,4.79888 106.224,4.60336 105.881,4.48264C105.538,4.36192 105.173,4.31905 104.811,4.35714L87.6304,6.25698" />
+
+    </group>
+</vector>

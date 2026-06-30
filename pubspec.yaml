@@ -1,0 +1,29 @@
+name: finflow
+description: A Flutter base project for the FinFlow personal finance mobile app.
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^2.5.1
+  flutter_svg: ^2.3.0
+  image_picker: ^1.2.2
+  path: ^1.9.1
+  sqflite: ^2.4.2
+  supabase_flutter: ^2.15.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/
+    - assets/icons/
