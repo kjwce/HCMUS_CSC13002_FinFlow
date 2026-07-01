@@ -50,6 +50,26 @@ class TransactionService extends ChangeNotifier {
   /// Kept for backward compatibility — delegates to [totalBalance].
   int get monthlyBalance => totalBalance;
 
+  /// Sum of all income (amount > 0) in the last 7 rolling days.
+  int get revenueLast7Days {
+    final cutoff = DateTime.now().subtract(const Duration(days: 7));
+    return currentUserTransactions
+        .where((t) => t.amount > 0 && t.date.isAfter(cutoff))
+        .fold(0, (total, t) => total + t.amount);
+  }
+
+  /// Sum of all expense (amount < 0) for a given [category] in the last 7 rolling days.
+  /// Returns 0 if no matching transactions exist.
+  int categoryExpenseLast7Days(String category) {
+    final cutoff = DateTime.now().subtract(const Duration(days: 7));
+    return currentUserTransactions
+        .where((t) =>
+            t.amount < 0 &&
+            t.category == category &&
+            t.date.isAfter(cutoff))
+        .fold(0, (total, t) => total + t.amount.abs());
+  }
+
   Future<void> fetchTransactions() async {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) {

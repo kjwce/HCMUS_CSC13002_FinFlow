@@ -9,7 +9,8 @@ CREATE TABLE IF NOT EXISTS profiles (
   full_name TEXT NOT NULL DEFAULT 'New FinFlow User',
   email TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  budget_limit INTEGER NOT NULL DEFAULT 5000000
+  budget_limit INTEGER NOT NULL DEFAULT 5000000,
+  selected_category TEXT
 );
 
 -- ============================================================
@@ -67,13 +68,14 @@ CREATE POLICY "Users can delete own transactions"
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER SECURITY DEFINER SET search_path = public AS $$
 BEGIN
-  INSERT INTO public.profiles (id, full_name, email, created_at, budget_limit)
+  INSERT INTO public.profiles (id, full_name, email, created_at, budget_limit, selected_category)
   VALUES (
     NEW.id,
     COALESCE(NEW.raw_user_meta_data ->> 'full_name', 'New FinFlow User'),
     NEW.email,
     NOW(),
-    5000000
+    5000000,
+    NULL
   );
   RETURN NEW;
 END;

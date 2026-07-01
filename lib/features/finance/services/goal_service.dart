@@ -25,41 +25,20 @@ class GoalService extends ChangeNotifier {
     }
   }
 
-  /// Compute progress toward the active goal:
-  /// savedAmount = all income after goal.createdAt - all expense after goal.createdAt
-  double progressRatio(List<TransactionModel> allTransactions) {
+  /// Compute progress toward the active goal.
+  /// [totalBalance] = lifetime income - lifetime expense (from TransactionService).
+  double progressRatio(int totalBalance) {
     final goal = activeGoal;
     if (goal == null) return 0.0;
-
-    final userTransactions = allTransactions
-        .where((t) => t.userId == goal.userId)
-        .toList(growable: false);
-
-    int saved = 0;
-    for (final t in userTransactions) {
-      if (t.date.isBefore(goal.createdAt)) continue;
-      saved += t.amount; // positive = income, negative = expense
-    }
-
-    if (saved <= 0) return 0.0;
-    return (saved / goal.targetAmount).clamp(0.0, 1.0);
+    if (totalBalance <= 0) return 0.0;
+    return (totalBalance / goal.targetAmount).clamp(0.0, 1.0);
   }
 
-  /// The raw saved amount (for display).
-  int savedAmount(List<TransactionModel> allTransactions) {
+  /// The raw saved amount = totalBalance (lifetime net balance).
+  int savedAmount(int totalBalance) {
     final goal = activeGoal;
     if (goal == null) return 0;
-
-    final userTransactions = allTransactions
-        .where((t) => t.userId == goal.userId)
-        .toList(growable: false);
-
-    int saved = 0;
-    for (final t in userTransactions) {
-      if (t.date.isBefore(goal.createdAt)) continue;
-      saved += t.amount;
-    }
-    return saved < 0 ? 0 : saved;
+    return totalBalance < 0 ? 0 : totalBalance;
   }
 
   Future<void> fetchGoals() async {

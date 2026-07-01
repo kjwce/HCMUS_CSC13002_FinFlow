@@ -17,7 +17,14 @@ class AuthService extends ChangeNotifier {
   UserModel? _currentUser;
   StreamSubscription<dynamic>? _authSubscription;
 
+  /// In-memory fallback for selectedCategory when the DB column doesn't exist yet.
+  /// Gets priority over [_currentUser.selectedCategory].
+  String? _selectedCategoryOverride;
+
   UserModel? get currentUser => _currentUser;
+
+  /// Effective selected category: local override wins, then DB value.
+  String? get selectedCategory => _selectedCategoryOverride ?? _currentUser?.selectedCategory;
 
   /// Initialize Supabase and start listening for auth state changes.
   Future<void> init() async {
@@ -201,20 +208,30 @@ class AuthService extends ChangeNotifier {
     String? phone,
     int? budgetLimit,
     String? avatarUrl,
+    String? selectedCategory,
   }) async {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) throw Exception('No authenticated user');
+    if (selectedCategory != null) {
+      _selectedCategoryOverride = selectedCategory;
+    }
 
     // 1. Update public.profiles — ensure non-nullable fields are always sent
     final currentEmail = _currentUser?.email ?? Supabase.instance.client.auth.currentUser?.email;
-    await Supabase.instance.client.from('profiles').upsert({
-      'id': userId,
-      'full_name': fullName,
-      'email': email ?? currentEmail,
-      if (phone != null) 'phone': phone,
-      if (budgetLimit != null) 'budget_limit': budgetLimit,
-      if (avatarUrl != null) 'avatar_url': avatarUrl,
-    });
+    try {
+      await Supabase.instance.client.from('profiles').upsert({
+        'id': userId,
+        'full_name': fullName,
+        'email': email ?? currentEmail,
+        if (phone != null) 'phone': phone,
+        if (budgetLimit != null) 'budget_limit': budgetLimit,
+        if (avatarUrl != null) 'avatar_url': avatarUrl,
+        if (selectedCategory != null) 'selected_category': selectedCategory,
+      });
+    } catch (e) {
+      // Column may not exist yet — continue with local override
+      debugPrint('updateProfile: column selected_category not available yet: $e');
+    }
 
     // 2. Also update user_metadata in auth.users so Supabase Auth reflects the new name
     await Supabase.instance.client.auth.updateUser(
@@ -228,6 +245,27 @@ class AuthService extends ChangeNotifier {
 
     await _fetchCurrentUserProfile();
     notifyListeners();
+  }
+
+  /// Persist the user's chosen dynamic category in the goal summary card.
+  Future<void> saveSelectedCategory(String category) async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) throw Exception('No authenticated user');
+
+    // Always keep local override in sync
+    _selectedCategoryOverride = category;
+
+    try {
+      await Supabase.instance.client.from('profiles').update({
+        'selected_category': category,
+      }).eq('id', userId);
+      await _fetchCurrentUserProfile();
+      notifyListeners();
+    } catch (e) {
+      // Column may not exist in DB schema yet — local override is enough for now
+      debugPrint('saveSelectedCategory: column not available yet: $e');
+      notifyListeners();
+    }
   }
 
   Future<void> signOut() async {

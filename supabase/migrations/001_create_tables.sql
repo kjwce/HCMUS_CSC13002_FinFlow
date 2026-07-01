@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   email TEXT NOT NULL DEFAULT '',
   avatar_url TEXT,
   budget_limit BIGINT NOT NULL DEFAULT 5000000,
+  selected_category TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

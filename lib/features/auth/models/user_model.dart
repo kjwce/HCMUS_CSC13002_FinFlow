@@ -7,6 +7,7 @@ class UserModel {
     required this.budgetLimit,
     this.phone,
     this.avatarUrl,
+    this.selectedCategory,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
@@ -18,6 +19,7 @@ class UserModel {
       budgetLimit: json['budget_limit'] as int? ?? 0,
       phone: json['phone'] as String?,
       avatarUrl: json['avatar_url'] as String?,
+      selectedCategory: json['selected_category'] as String?,
     );
   }
 
@@ -29,6 +31,7 @@ class UserModel {
         'budget_limit': budgetLimit,
         if (phone != null) 'phone': phone,
         if (avatarUrl != null) 'avatar_url': avatarUrl,
+        if (selectedCategory != null) 'selected_category': selectedCategory,
       };
 
   final String id;
@@ -38,4 +41,5 @@ class UserModel {
   final int budgetLimit;
   final String? phone;
   final String? avatarUrl;
+  final String? selectedCategory;
 }

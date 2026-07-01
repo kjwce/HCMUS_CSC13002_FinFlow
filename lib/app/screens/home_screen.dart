@@ -5,12 +5,14 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../core/i18n/app_language.dart';
 import '../../core/widgets/notification_bell.dart';
 import '../../features/auth/providers/auth_provider.dart';
+import '../../features/auth/services/auth_service.dart';
 import '../../features/finance/models/transaction_category.dart';
 import '../../features/finance/presentation/dashboard.dart';
 import '../../features/finance/presentation/edit_transaction_screen.dart';
 import '../../features/finance/presentation/goal_setup_sheet.dart';
 import '../../features/finance/providers/goal_provider.dart';
 import '../../features/finance/providers/transaction_provider.dart';
+import '../../features/finance/services/goal_service.dart';
 import '../../features/finance/services/transaction_service.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -28,9 +30,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    // Force refresh transactions on init
+    // TransactionService is a ChangeNotifier but uses a plain Provider,
+    // so we subscribe manually to rebuild the UI after data loads.
+    TransactionService.instance.addListener(_onTransactionsChanged);
+    GoalService.instance.addListener(_onTransactionsChanged);
     Future.microtask(() => ref.read(transactionServiceProvider).fetchTransactions());
+    Future.microtask(() => ref.read(goalServiceProvider).fetchGoals());
   }
+
+  @override
+  void dispose() {
+    TransactionService.instance.removeListener(_onTransactionsChanged);
+    GoalService.instance.removeListener(_onTransactionsChanged);
+    super.dispose();
+  }
+
+  void _onTransactionsChanged() => setState(() {});
 
   @override
   Widget build(BuildContext context) {
@@ -318,8 +333,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget _buildGoalSummaryCard() {
     final gs = ref.watch(goalServiceProvider);
     final goal = gs.activeGoal;
-    final ts = ref.read(transactionServiceProvider);
-    final progress = goal != null ? gs.progressRatio(ts.transactions) : 0.0;
+    final ts = ref.watch(transactionServiceProvider);
+    final authService = ref.watch(authServiceProvider);
+    final selectedCategory = authService.selectedCategory;
+    final progress = goal != null ? gs.progressRatio(ts.totalBalance) : 0.0;
+
+    // Computed values
+    final revenue = ts.revenueLast7Days;
+    final categoryExpense = selectedCategory != null
+        ? ts.categoryExpenseLast7Days(selectedCategory)
+        : 0;
 
     return GestureDetector(
       onTap: () => GoalSetupSheet.show(context),
@@ -373,16 +396,146 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             child: Column(
               children: [
                 _buildSummaryRow(const _FigmaWalletIcon(color: Color(0xFF052224), size: 22),
-                    'Revenue Last Week', '\$4.000.00', const Color(0xFF052224)),
+                    'Revenue Last Week', '+${_formatMoney(revenue)}', const Color(0xFF052224)),
                 const Divider(color: Colors.white54),
-                _buildSummaryRow(const _FigmaFoodIcon(color: Color(0xFF0068FF), size: 22),
-                    'Food Last Week', '-\$100.00', const Color(0xFF0068FF)),
+                _buildCategoryRow(selectedCategory, categoryExpense),
               ],
             ),
           ),
         ],
       ),
       ),
+    );
+  }
+
+  /// Build the dynamic category row (formerly hardcoded "Food Last Week").
+  Widget _buildCategoryRow(String? selectedCategory, int expense) {
+    final label = selectedCategory ?? 'Select category';
+    final amount = selectedCategory != null ? '${expense > 0 ? '-' : ''}${_formatMoney(expense)}' : '—';
+    final color = selectedCategory != null
+        ? const Color(0xFF0068FF)
+        : Colors.black38;
+
+    return GestureDetector(
+      onTap: () => _showCategoryPicker(selectedCategory),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 24,
+            height: 24,
+            child: selectedCategory != null
+                ? Icon(_iconForCategory(selectedCategory), size: 22, color: const Color(0xFF0068FF))
+                : const Icon(Icons.category_outlined, size: 22, color: Colors.black38),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(selectedCategory != null ? '$selectedCategory Last Week' : label,
+                        style: const TextStyle(fontFamily: 'Poppins', fontSize: 12, fontWeight: FontWeight.w400, color: Color(0xFF052224))),
+                    const SizedBox(width: 4),
+                    Icon(Icons.expand_more, size: 16, color: color),
+                  ],
+                ),
+                Text(amount,
+                    style: TextStyle(
+                        fontFamily: 'Poppins', fontSize: 15, fontWeight: FontWeight.w700, color: color)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Show a bottom sheet with all categories for the user to pick from.
+  void _showCategoryPicker(String? currentSelected) {
+    // Build full category list: 14 built-in + custom
+    final builtIn = TransactionCategory.all;
+    final custom = CustomCategoryStore.instance.items.map((c) =>
+      TransactionCategory(key: c.name, label: c.name, icon: c.iconData, color: c.color),
+    );
+    final allCategories = [...builtIn, ...custom];
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(
+                padding: EdgeInsets.only(left: 8, bottom: 12),
+                child: Text(
+                  'Select category to track',
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF003829),
+                  ),
+                ),
+              ),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 320),
+                child: SingleChildScrollView(
+                  child: Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: allCategories.map((cat) {
+                      final isSelected = currentSelected == cat.key;
+                      return GestureDetector(
+                        onTap: () {
+                          AuthService.instance.saveSelectedCategory(cat.key);
+                          Navigator.of(ctx).pop();
+                        },
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 50,
+                              height: 50,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: isSelected ? cat.color : cat.color.withValues(alpha: 0.5),
+                                  width: isSelected ? 3 : 2,
+                                ),
+                                color: isSelected ? cat.color.withValues(alpha: 0.1) : const Color(0xFFF5F5F5),
+                              ),
+                              child: Icon(cat.icon, color: isSelected ? cat.color : cat.color.withValues(alpha: 0.7), size: 22),
+                            ),
+                            const SizedBox(height: 4),
+                            SizedBox(
+                              width: 56,
+                              child: Text(cat.label,
+                                  textAlign: TextAlign.center,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                      fontSize: 10,
+                                      color: const Color(0xFF052224),
+                                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400)),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -547,8 +700,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  static IconData _iconForCategory(String category) =>
-      TransactionCategory.fromKey(category).icon;
+  static IconData _iconForCategory(String category) {
+    final custom = CustomCategoryStore.instance.findByKey(category);
+    if (custom != null) return custom.iconData;
+    return TransactionCategory.fromKey(category).icon;
+  }
 
   static Color _iconColorForCategory(String category) =>
       TransactionCategory.fromKey(category).color;
@@ -635,27 +791,6 @@ class _FigmaWalletIcon extends StatelessWidget {
         canvas.save(); canvas.scale(sc);
         final p = Path()
           ..moveTo(21.6682, 14.3281)..lineTo(12.8841, 19.9656)..cubicTo(12.7171, 20.0728, 12.5042, 20.0774, 12.3328, 19.9775)..lineTo(1.31931, 13.5628)..cubicTo(0.978071, 13.3641, 0.967569, 12.8749, 1.29997, 12.6617)..lineTo(19.2617, 1.14022)..cubicTo(19.4286, 1.03318, 19.6414, 1.02858, 19.8127, 1.1283)..lineTo(30.826, 7.53796)..cubicTo(31.1674, 7.73662, 31.178, 8.22591, 30.8456, 8.4392)..lineTo(25.6599, 11.7665)..moveTo(21.6735, 18.8056)..lineTo(12.8839, 24.4432)..cubicTo(12.717, 24.5503, 12.5043, 24.5549, 12.333, 24.4551)..lineTo(1.31917, 18.0452)..cubicTo(0.977933, 17.8466, 0.967187, 17.3575, 1.29938, 17.1441)..lineTo(4.2337, 15.2591)..moveTo(27.912, 10.3243)..lineTo(30.8258, 12.0205)..cubicTo(31.1672, 12.2192, 31.1777, 12.7087, 30.8451, 12.9219)..lineTo(25.6119, 16.2763)..moveTo(28.1254, 14.6618)..lineTo(30.8608, 16.357)..cubicTo(31.1911, 16.5617, 31.1948, 17.0408, 30.8678, 17.2507)..lineTo(12.8841, 28.7913)..cubicTo(12.7171, 28.8985, 12.5042, 28.903, 12.3328, 28.8032)..lineTo(1.31931, 22.3885)..cubicTo(0.978067, 22.1898, 0.967564, 21.7005, 1.29996, 21.4873)..lineTo(4.12163, 19.6774)..moveTo(13.8573, 4.94937)..lineTo(25.3494, 11.6406)..cubicTo(25.5119, 11.7352, 25.6119, 11.9091, 25.6119, 12.0972)..lineTo(25.6119, 20.3306)..cubicTo(25.6119, 20.5104, 25.5204, 20.6779, 25.3691, 20.7751)..lineTo(22.4873, 22.6258)..cubicTo(22.1357, 22.8516, 21.6735, 22.5992, 21.6735, 22.1813)..lineTo(21.6735, 14.6318)..cubicTo(21.6735, 14.4438, 21.5736, 14.2699, 21.4112, 14.1753)..lineTo(10.3854, 7.7506)..cubicTo(10.0443, 7.55186, 10.0338, 7.06291, 10.3659, 6.84961)..lineTo(13.306, 4.96139)..cubicTo(13.473, 4.85419, 13.6859, 4.84954, 13.8573, 4.94937)..close();
-        canvas.drawPath(p, paint);
-        canvas.restore();
-      }),
-    );
-  }
-}
-
-class _FigmaFoodIcon extends StatelessWidget {
-  const _FigmaFoodIcon({this.color = const Color.fromARGB(255, 9, 57, 57), this.size = 22});
-  final Color color;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      size: Size(size * 0.6, size),
-      painter: _HomeIconPainter(color: color, path: (Canvas canvas, Size size, Paint paint) {
-        final sc = size.shortestSide / 25;
-        canvas.save(); canvas.scale(sc);
-        final p = Path()
-          ..moveTo(2.26327, 2.23547)..lineTo(1.04138, 13.3435)..cubicTo(1.04503, 14.2284, 1.31071, 15.0923, 1.80496, 15.8262)..cubicTo(2.2992, 16.5602, 2.99985, 17.1313, 3.81839, 17.4674)..lineTo(2.97125, 32.5465)..cubicTo(2.95443, 33.2034, 3.19846, 33.8402, 3.64991, 34.3177)..cubicTo(4.10136, 34.7952, 4.72365, 35.0745, 5.38046, 35.0944)..cubicTo(6.03726, 35.0745, 6.65938, 34.7952, 7.11083, 34.3177)..cubicTo(7.56229, 33.8402, 7.80631, 33.2034, 7.78949, 32.5465)..lineTo(7.21321, 17.4674)..cubicTo(8.03228, 17.132, 8.73346, 16.5612, 9.22783, 15.827)..cubicTo(9.72219, 15.0929, 9.98748, 14.2286, 9.99021, 13.3435)..lineTo(8.99748, 2.23547)..moveTo(5.50535, 2.61038)..lineTo(5.50535, 14.0794)..moveTo(19.7097, 17.2591)..cubicTo(19.3092, 17.3127, 18.9436, 17.5155, 18.6861, 17.827)..cubicTo(18.4287, 18.1385, 18.2984, 18.5357, 18.3212, 18.9392)..lineTo(19.085, 32.5535)..cubicTo(19.1018, 33.2104, 18.8577, 33.8472, 18.4063, 34.3247)..cubicTo(17.9548, 34.8021, 17.3326, 35.0814, 16.6757, 35.1014)..cubicTo(16.0189, 35.0814, 15.3968, 34.8021, 14.9454, 34.3247)..cubicTo(14.4939, 33.8472, 14.2499, 33.2104, 14.2667, 32.5535)..lineTo(14.8013, 18.3005)..cubicTo(14.8115, 18.0375, 14.7697, 17.7751, 14.6779, 17.5284)..cubicTo(14.5862, 17.2818, 14.4463, 17.0557, 14.2667, 16.8634)..lineTo(14.2667, 1.04138)..cubicTo(14.2667, 1.04138, 22.2159, 1.37461, 19.6889, 17.2591)..lineTo(19.7097, 17.2591)..close();
         canvas.drawPath(p, paint);
         canvas.restore();
       }),

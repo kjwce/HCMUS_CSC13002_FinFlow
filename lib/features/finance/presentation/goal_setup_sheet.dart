@@ -79,8 +79,8 @@ class _GoalSetupSheetState extends ConsumerState<GoalSetupSheet> {
   Widget build(BuildContext context) {
     final gs = ref.watch(goalServiceProvider);
     final goal = gs.activeGoal;
-    final saved = goal != null ? gs.savedAmount(ref.read(transactionServiceProvider).transactions) : 0;
-    final progress = goal != null ? gs.progressRatio(ref.read(transactionServiceProvider).transactions) : 0.0;
+    final saved = goal != null ? gs.savedAmount(ref.read(transactionServiceProvider).totalBalance) : 0;
+    final progress = goal != null ? gs.progressRatio(ref.read(transactionServiceProvider).totalBalance) : 0.0;
 
     return Padding(
       padding: EdgeInsets.only(
