@@ -6,6 +6,7 @@ class TransactionModel {
     required this.category,
     required this.amount,
     required this.date,
+    this.walletId,
   });
 
   factory TransactionModel.fromJson(Map<String, dynamic> json) {
@@ -16,6 +17,7 @@ class TransactionModel {
       category: json['category'] as String,
       amount: json['amount'] as int,
       date: DateTime.parse(json['date'] as String),
+      walletId: json['wallet_id'] as String?,
     );
   }
 
@@ -26,6 +28,7 @@ class TransactionModel {
         'category': category,
         'amount': amount,
         'date': date.toIso8601String(),
+        if (walletId != null) 'wallet_id': walletId,
       };
 
   final String id;
@@ -34,4 +37,5 @@ class TransactionModel {
   final String category;
   final int amount;
   final DateTime date;
+  final String? walletId;
 }

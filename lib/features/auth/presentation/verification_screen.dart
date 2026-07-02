@@ -135,9 +135,9 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(AppStrings.otpVerified)),
         );
-        // New user → go to budget setup first
+        // New user → go to wallet onboarding first, then budget setup
         Navigator.of(context).pushNamedAndRemoveUntil(
-          AppRoutes.budgetSetup,
+          AppRoutes.walletOnboarding,
           (route) => false,
         );
       } else {

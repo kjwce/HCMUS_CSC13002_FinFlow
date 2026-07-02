@@ -16,6 +16,7 @@ class AuthService extends ChangeNotifier {
 
   UserModel? _currentUser;
   StreamSubscription<dynamic>? _authSubscription;
+  bool _initialized = false;
 
   /// In-memory fallback for selectedCategory when the DB column doesn't exist yet.
   /// Gets priority over [_currentUser.selectedCategory].
@@ -24,27 +25,29 @@ class AuthService extends ChangeNotifier {
   UserModel? get currentUser => _currentUser;
 
   /// Effective selected category: local override wins, then DB value.
-  String? get selectedCategory => _selectedCategoryOverride ?? _currentUser?.selectedCategory;
+  String? get selectedCategory =>
+      _selectedCategoryOverride ?? _currentUser?.selectedCategory;
 
   /// Initialize Supabase and start listening for auth state changes.
+  /// Safe to call multiple times — subsequent calls are a no-op.
   Future<void> init() async {
+    if (_initialized) return;
+    _initialized = true;
+
     await Supabase.initialize(
       url: SupabaseConstants.url,
       publishableKey: SupabaseConstants.anonKey,
     );
 
     _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen(
-      (authState) async {
+      (authState) {
         if (authState.session != null) {
-          try {
-            await _fetchCurrentUserProfile();
-          } catch (_) {
-            debugPrint('Auth changed but profile fetch failed');
-          }
+          // Session is present — signIn() / completeRegistration() already
+          // fetched the profile synchronously, so there is nothing to do.
         } else {
           _currentUser = null;
+          notifyListeners();
         }
-        notifyListeners();
       },
     );
 
@@ -110,7 +113,10 @@ class AuthService extends ChangeNotifier {
               : fullName.trim(),
         },
       );
-      debugPrint('AuthService: signUp response user=${response.user?.id}, session=${response.session != null}');
+      debugPrint(
+        'AuthService: signUp response user=${response.user?.id}, '
+        'session=${response.session != null}',
+      );
     } on AuthException catch (e) {
       debugPrint('AuthService: signUp AuthException: ${e.message}');
       throw ArgumentError(e.message);
@@ -181,7 +187,7 @@ class AuthService extends ChangeNotifier {
   /// Whether the current user still needs to set their budget limit.
   bool get needsBudgetSetup {
     final u = _currentUser;
-    return u == null || u.budgetLimit <= 0;
+    return u != null && u.budgetLimit <= 0;
   }
 
   /// Upload avatar file and return the public URL.
@@ -198,7 +204,8 @@ class AuthService extends ChangeNotifier {
           fileOptions: FileOptions(upsert: true),
         );
 
-    final url = Supabase.instance.client.storage.from('avatars').getPublicUrl(path);
+    final url =
+        Supabase.instance.client.storage.from('avatars').getPublicUrl(path);
     return '$url?t=${DateTime.now().millisecondsSinceEpoch}';
   }
 
@@ -217,7 +224,8 @@ class AuthService extends ChangeNotifier {
     }
 
     // 1. Update public.profiles — ensure non-nullable fields are always sent
-    final currentEmail = _currentUser?.email ?? Supabase.instance.client.auth.currentUser?.email;
+    final currentEmail = _currentUser?.email ??
+        Supabase.instance.client.auth.currentUser?.email;
     try {
       await Supabase.instance.client.from('profiles').upsert({
         'id': userId,
@@ -229,17 +237,13 @@ class AuthService extends ChangeNotifier {
         if (selectedCategory != null) 'selected_category': selectedCategory,
       });
     } catch (e) {
-      // Column may not exist yet — continue with local override
       debugPrint('updateProfile: column selected_category not available yet: $e');
     }
 
-    // 2. Also update user_metadata in auth.users so Supabase Auth reflects the new name
+    // 2. Also update user_metadata in auth.users
     await Supabase.instance.client.auth.updateUser(
       UserAttributes(
         data: {'full_name': fullName},
-        // Note: phone is NOT passed here — it lives only in public.profiles.
-        // Passing phone to updateUser() triggers SMS verification which
-        // requires an SMS provider configured in Supabase.
       ),
     );
 
@@ -252,23 +256,24 @@ class AuthService extends ChangeNotifier {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) throw Exception('No authenticated user');
 
-    // Always keep local override in sync
     _selectedCategoryOverride = category;
 
     try {
-      await Supabase.instance.client.from('profiles').update({
-        'selected_category': category,
-      }).eq('id', userId);
+      await Supabase.instance.client
+          .from('profiles')
+          .update({'selected_category': category}).eq('id', userId);
       await _fetchCurrentUserProfile();
       notifyListeners();
     } catch (e) {
-      // Column may not exist in DB schema yet — local override is enough for now
       debugPrint('saveSelectedCategory: column not available yet: $e');
       notifyListeners();
     }
   }
 
+  /// Sign out and immediately clear local state so the UI never reads stale data.
   Future<void> signOut() async {
+    _currentUser = null;
+    notifyListeners();
     await Supabase.instance.client.auth.signOut();
   }
 
@@ -280,7 +285,7 @@ class AuthService extends ChangeNotifier {
       );
       await _fetchCurrentUserProfile();
       notifyListeners();
-      return true;
+      return _currentUser != null;
     } on AuthException {
       return false;
     }
@@ -294,7 +299,7 @@ class AuthService extends ChangeNotifier {
       );
       await _fetchCurrentUserProfile();
       notifyListeners();
-      return true;
+      return _currentUser != null;
     } on AuthException {
       return false;
     }
@@ -308,7 +313,7 @@ class AuthService extends ChangeNotifier {
       );
       await _fetchCurrentUserProfile();
       notifyListeners();
-      return true;
+      return _currentUser != null;
     } on AuthException {
       return false;
     }

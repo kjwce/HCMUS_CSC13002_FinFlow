@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/transaction_model.dart';
+import 'wallet_service.dart';
 
 /// Service handling all transaction CRUD operations via Supabase.
 class TransactionService extends ChangeNotifier {
@@ -20,22 +21,27 @@ class TransactionService extends ChangeNotifier {
         .toList(growable: false);
   }
 
-  /// Income transactions across ALL time (used for monthly overview + goal).
+  /// Income transactions across ALL time.
   int get monthlyIncome {
+    final now = DateTime.now();
     return currentUserTransactions
-        .where((t) => t.amount > 0)
+        .where((t) => t.amount > 0 && _sameMonth(t.date, now))
         .fold(0, (total, t) => total + t.amount);
   }
 
-  /// Expense transactions across ALL time (used for budget progress bar).
+  /// Expense transactions across ALL time.
   int get monthlyExpense {
+    final now = DateTime.now();
     return currentUserTransactions
-        .where((t) => t.amount < 0)
+        .where((t) => t.amount < 0 && _sameMonth(t.date, now))
         .fold(0, (total, t) => total + t.amount.abs());
   }
 
-  /// Lifetime cumulative balance: all income - all expense (never resets).
+  /// Lifetime cumulative balance = initial balances of all wallets
+  /// + total income - total expense of all transactions.
   int get totalBalance {
+    final walletService = WalletService.instance;
+    final initialSum = walletService.totalInitialBalance;
     int income = 0, expense = 0;
     for (final t in currentUserTransactions) {
       if (t.amount > 0) {
@@ -44,10 +50,10 @@ class TransactionService extends ChangeNotifier {
         expense += t.amount.abs();
       }
     }
-    return income - expense;
+    return initialSum + income - expense;
   }
 
-  /// Kept for backward compatibility — delegates to [totalBalance].
+  /// Kept for backward compatibility.
   int get monthlyBalance => totalBalance;
 
   /// Sum of all income (amount > 0) in the last 7 rolling days.
@@ -59,7 +65,6 @@ class TransactionService extends ChangeNotifier {
   }
 
   /// Sum of all expense (amount < 0) for a given [category] in the last 7 rolling days.
-  /// Returns 0 if no matching transactions exist.
   int categoryExpenseLast7Days(String category) {
     final cutoff = DateTime.now().subtract(const Duration(days: 7));
     return currentUserTransactions
@@ -69,6 +74,66 @@ class TransactionService extends ChangeNotifier {
             t.date.isAfter(cutoff))
         .fold(0, (total, t) => total + t.amount.abs());
   }
+
+  /// Balance for a specific wallet.
+  /// = wallet's initialBalance + income - expense of its transactions.
+  int balanceByWallet(String walletId) {
+    final wallet = WalletService.instance.byId(walletId);
+    final initial = wallet?.initialBalance ?? 0;
+    final txs =
+        currentUserTransactions.where((t) => t.walletId == walletId);
+    int income = 0, expense = 0;
+    for (final t in txs) {
+      if (t.amount > 0) {
+        income += t.amount;
+      } else {
+        expense += t.amount.abs();
+      }
+    }
+    return initial + income - expense;
+  }
+
+  /// Income for a specific wallet this month.
+  int monthlyIncomeByWallet(String walletId) {
+    final now = DateTime.now();
+    return currentUserTransactions
+        .where((t) =>
+            t.walletId == walletId &&
+            t.amount > 0 &&
+            _sameMonth(t.date, now))
+        .fold(0, (total, t) => total + t.amount);
+  }
+
+  /// Expense for a specific wallet this month.
+  int monthlyExpenseByWallet(String walletId) {
+    final now = DateTime.now();
+    return currentUserTransactions
+        .where((t) =>
+            t.walletId == walletId &&
+            t.amount < 0 &&
+            _sameMonth(t.date, now))
+        .fold(0, (total, t) => total + t.amount.abs());
+  }
+
+  /// Total balance accumulated up to a given date.
+  int balanceAtDate(DateTime date) {
+    final walletService = WalletService.instance;
+    final initialSum = walletService.totalInitialBalance;
+    final txs = currentUserTransactions
+        .where((t) => !t.date.isAfter(date));
+    int income = 0, expense = 0;
+    for (final t in txs) {
+      if (t.amount > 0) {
+        income += t.amount;
+      } else {
+        expense += t.amount.abs();
+      }
+    }
+    return initialSum + income - expense;
+  }
+
+  static bool _sameMonth(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month;
 
   Future<void> fetchTransactions() async {
     final userId = Supabase.instance.client.auth.currentUser?.id;
@@ -99,6 +164,7 @@ class TransactionService extends ChangeNotifier {
       'category': transaction.category,
       'amount': transaction.amount,
       'date': transaction.date.toIso8601String(),
+      if (transaction.walletId != null) 'wallet_id': transaction.walletId,
     });
     await fetchTransactions();
   }
@@ -114,6 +180,7 @@ class TransactionService extends ChangeNotifier {
           'category': transaction.category,
           'amount': transaction.amount,
           'date': transaction.date.toIso8601String(),
+          if (transaction.walletId != null) 'wallet_id': transaction.walletId,
         })
         .eq('id', transaction.id)
         .eq('user_id', userId);

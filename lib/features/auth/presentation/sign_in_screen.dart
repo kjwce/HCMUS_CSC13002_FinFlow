@@ -30,6 +30,22 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     super.dispose();
   }
 
+  /// Navigate to the correct destination after a successful sign-in.
+  /// Must be called after [AuthService] has a [currentUser].
+  void _navigateAfterSignIn() {
+    final authService = ref.read(authServiceProvider);
+    String destination;
+    if (authService.needsBudgetSetup) {
+      destination = AppRoutes.walletOnboarding;
+    } else {
+      destination = AppRoutes.dashboard;
+    }
+    Navigator.of(context).pushNamedAndRemoveUntil(
+      destination,
+      (route) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return AuthShell(
@@ -53,7 +69,12 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                 onTap: () async {
                   setState(() => _isSubmitting = true);
                   try {
-                    await ref.read(authServiceProvider).signInWithGoogle();
+                    final ok =
+                        await ref.read(authServiceProvider).signInWithGoogle();
+                    if (!context.mounted) return;
+                    if (ok) {
+                      _navigateAfterSignIn();
+                    }
                   } catch (e) {
                     debugPrint('Google sign-in error: $e');
                   }
@@ -65,7 +86,12 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
               _SocialButton(icon: Icons.facebook, onTap: () async {
                 setState(() => _isSubmitting = true);
                 try {
-                  await ref.read(authServiceProvider).signInWithFacebook();
+                  final ok =
+                      await ref.read(authServiceProvider).signInWithFacebook();
+                  if (!context.mounted) return;
+                  if (ok) {
+                    _navigateAfterSignIn();
+                  }
                 } catch (e) {
                   debugPrint('Facebook sign-in error: $e');
                 }
@@ -76,7 +102,12 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
               _SocialButton(icon: Icons.apple, onTap: () async {
                 setState(() => _isSubmitting = true);
                 try {
-                  await ref.read(authServiceProvider).signInWithApple();
+                  final ok =
+                      await ref.read(authServiceProvider).signInWithApple();
+                  if (!context.mounted) return;
+                  if (ok) {
+                    _navigateAfterSignIn();
+                  }
                 } catch (e) {
                   debugPrint('Apple sign-in error: $e');
                 }
@@ -109,7 +140,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
               icon: Icon(
                 _obscurePassword ? Icons.visibility_off : Icons.visibility,
               ),
-              onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+              onPressed: () =>
+                  setState(() => _obscurePassword = !_obscurePassword),
             ),
           ),
         ),
@@ -135,19 +167,14 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                           password: _passwordController.text,
                         );
                     if (!context.mounted) return;
-                    setState(() => _isSubmitting = false);
 
                     if (success) {
-                      // Check if user needs to set budget limit
-                      final authService = ref.read(authServiceProvider);
-                      final destination = authService.needsBudgetSetup
-                          ? AppRoutes.budgetSetup
-                          : AppRoutes.dashboard;
-                      Navigator.of(context).pushNamedAndRemoveUntil(
-                        destination,
-                        (route) => false,
-                      );
+                      // Profile is already loaded inside signIn(), so
+                      // currentUser is ready — navigate immediately.
+                      // No setState needed: we are navigating away.
+                      _navigateAfterSignIn();
                     } else {
+                      setState(() => _isSubmitting = false);
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text(AppStrings.invalidEmailOrPassword),

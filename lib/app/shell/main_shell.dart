@@ -22,25 +22,30 @@ class MainShell extends ConsumerStatefulWidget {
 
 class _MainShellState extends ConsumerState<MainShell> {
   var _index = 0;
+  bool _argsRead = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Read the tab index passed as route argument
-    final args = ModalRoute.of(context)?.settings.arguments;
-    if (args is int && args >= 0 && args <= 4) {
-      _index = args;
-    }
-    // Redirect new users (from social sign-in) to budget setup.
-    // Only redirect when there is an authenticated user who hasn't set
-    // a budget.  After logout (currentUser == null) this check must be
-    // skipped, otherwise the user is sent to the budget screen instead
-    // of the sign-in screen.
-    final user = AuthService.instance.currentUser;
-    if (user != null && user.budgetLimit <= 0) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        Navigator.of(context).pushReplacementNamed(AppRoutes.budgetSetup);
-      });
+    // Read the tab index passed as route argument only once to avoid
+    // re-triggering on every rebuild.
+    if (!_argsRead) {
+      _argsRead = true;
+      final args = ModalRoute.of(context)?.settings.arguments;
+      if (args is int && args >= 0 && args <= 4) {
+        _index = args;
+      }
+      // Redirect new users (from social sign-in) to budget setup.
+      // Only redirect when there is an authenticated user who hasn't set
+      // a budget.  After logout (currentUser == null) this check must be
+      // skipped, otherwise the user is sent to the budget screen instead
+      // of the sign-in screen.
+      final user = AuthService.instance.currentUser;
+      if (user != null && user.budgetLimit <= 0) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          Navigator.of(context).pushReplacementNamed(AppRoutes.budgetSetup);
+        });
+      }
     }
   }
 

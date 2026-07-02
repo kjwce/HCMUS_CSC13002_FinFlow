@@ -5,8 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/responsive.dart';
+import '../models/transaction_category.dart';
+import '../models/wallet_model.dart';
 import '../providers/transaction_provider.dart';
+import '../providers/wallet_provider.dart';
 import '../services/transaction_service.dart';
+import '../services/wallet_service.dart';
 
 class DashboardPage extends ConsumerStatefulWidget {
   const DashboardPage({super.key});
@@ -16,22 +20,17 @@ class DashboardPage extends ConsumerStatefulWidget {
 }
 
 class _DashboardPageState extends ConsumerState<DashboardPage> {
-  var _selectedPeriodFilter = 0; // 0=ING, 1=BRD, 2=Cash
+  var _selectedPeriodFilter = 0;
 
   @override
   Widget build(BuildContext context) {
     final ts = ref.watch(transactionServiceProvider);
+    final ws = ref.watch(walletServiceProvider);
+    final wallets = ws.currentUserWallets;
 
     return Column(
       children: [
-        // =====================================================================
-        // 1. HEADER FIXED — không cuộn
-        // =====================================================================
         _buildHeader(),
-
-        // =====================================================================
-        // 2. NỘI DUNG CUỘN — các card dashboard
-        // =====================================================================
         Expanded(
           child: SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
@@ -40,15 +39,15 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 SizedBox(height: Responsive.h(context, 16)),
-                _buildAccountBalanceCard(ts),
+                _buildAccountBalanceCard(ts, wallets),
                 SizedBox(height: Responsive.h(context, 14)),
-                _buildEarningsSpentRow(ts),
+                _buildEarningsSpentRow(ts, wallets),
                 SizedBox(height: Responsive.h(context, 14)),
-                _buildBarChart(),
+                _buildBarChart(ts, wallets),
                 SizedBox(height: Responsive.h(context, 14)),
-                _buildLineChart(),
+                _buildLineChart(ts),
                 SizedBox(height: Responsive.h(context, 14)),
-                _buildComparingPeriods(),
+                _buildComparingPeriods(ts, wallets),
                 SizedBox(height: Responsive.h(context, 40)),
               ],
             ),
@@ -59,7 +58,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   }
 
   // --------------------------------------------------------------------------
-  // 1. Header Dashboard (cố định)
+  // 1. Header Dashboard
   // --------------------------------------------------------------------------
   Widget _buildHeader() {
     return Container(
@@ -73,7 +72,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       ),
       child: Row(
         children: [
-          // Back button
           IconButton(
             icon: const Icon(
               Icons.arrow_back_ios_new_rounded,
@@ -100,12 +98,13 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   }
 
   // --------------------------------------------------------------------------
-  // 2. Account Balance Card
+  // 2. Account Balance Card (dynamic)
   // --------------------------------------------------------------------------
-  Widget _buildAccountBalanceCard(TransactionService ts) {
-    const ingValue = 423.55;
-    const brdValue = 577.45;
-    const totalBalance = 60.28;
+  Widget _buildAccountBalanceCard(TransactionService ts, List<WalletModel> wallets) {
+    final balance = ts.totalBalance;
+    final segments = wallets.map((w) => ts.balanceByWallet(w.id).toDouble()).toList();
+    final colors = wallets.map((w) => w.brandColor).toList();
+    final segSum = segments.fold(0.0, (a, b) => a + b);
 
     return Container(
       margin: EdgeInsets.symmetric(horizontal: Responsive.w(context, 20)),
@@ -123,7 +122,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       ),
       child: Row(
         children: [
-          // Left side: text
           Expanded(
             flex: 3,
             child: Column(
@@ -139,7 +137,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 ),
                 SizedBox(height: Responsive.h(context, 4)),
                 Text(
-                  totalBalance.toString(),
+                  _formatCompact(balance),
                   style: TextStyle(
                     fontFamily: 'Roboto',
                     fontWeight: FontWeight.w500,
@@ -148,42 +146,33 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                   ),
                 ),
                 SizedBox(height: Responsive.h(context, 14)),
-                _accountRow('ING', '423,55', AppColors.ingTextBlue),
-                SizedBox(height: Responsive.h(context, 8)),
-                _accountRow('BRD', '577,45', AppColors.brdTextGreen),
-                SizedBox(height: Responsive.h(context, 8)),
-                Text(
-                  'Cash: 0',
-                  style: TextStyle(
-                    fontSize: Responsive.sp(context, 14),
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.mutedGray,
-                  ),
-                ),
+                ...List.generate(wallets.length, (i) {
+                  final w = wallets[i];
+                  return Padding(
+                    padding: EdgeInsets.only(bottom: Responsive.h(context, 8)),
+                    child: _accountRow(w.shortName, _formatCompact(ts.balanceByWallet(w.id)), w.brandColor),
+                  );
+                }),
               ],
             ),
           ),
           SizedBox(width: Responsive.w(context, 16)),
-          // Right side: donut chart
           SizedBox(
             width: Responsive.w(context, 110),
             height: Responsive.w(context, 110),
             child: Stack(
               alignment: Alignment.center,
               children: [
-                CustomPaint(
-                  size: Size(Responsive.w(context, 110), Responsive.w(context, 110)),
-                  painter: _DonutPainter(
-                    segments: [ingValue, brdValue],
-                    segmentColors: [
-                      AppColors.ingBlue,
-                      AppColors.brdTeal,
-                    ],
-                    holeRadiusRatio: 0.58,
+                if (segSum > 0)
+                  CustomPaint(
+                    painter: _DonutPainter(
+                      segments: segments,
+                      segmentColors: colors,
+                      holeRadiusRatio: 0.58,
+                    ),
                   ),
-                ),
                 Text(
-                  (ingValue + brdValue).toStringAsFixed(0),
+                  _formatCompact(balance),
                   style: TextStyle(
                     fontSize: Responsive.sp(context, 13),
                     fontWeight: FontWeight.w600,
@@ -223,9 +212,26 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   }
 
   // --------------------------------------------------------------------------
-  // 3. Earnings / Spent row
+  // 3. Earnings / Spent row (dynamic)
   // --------------------------------------------------------------------------
-  Widget _buildEarningsSpentRow(TransactionService ts) {
+  Widget _buildEarningsSpentRow(TransactionService ts, List<WalletModel> wallets) {
+    // Earnings: segment by wallet income this month
+    final earningsSegments = wallets.map((w) => ts.monthlyIncomeByWallet(w.id).toDouble()).toList();
+    final earningsColors = wallets.map((w) => w.brandColor).toList();
+    final earningsLabels = wallets.map((w) => w.shortName).toList();
+
+    // Spent: segment by top 3 categories this month
+    final spentByCat = <String, int>{};
+    for (final t in ts.currentUserTransactions.where((t) => t.amount < 0)) {
+      spentByCat.update(t.category, (v) => v + t.amount.abs(), ifAbsent: () => t.amount.abs());
+    }
+    final sortedCats = spentByCat.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final topCats = sortedCats.take(3).toList();
+    final spentSegments = topCats.map((e) => e.value.toDouble()).toList();
+    final spentColors = topCats.map((e) => TransactionCategory.fromKey(e.key).color).toList();
+    final spentLabels = topCats.map((e) => e.key).toList();
+
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 20)),
       child: Row(
@@ -233,27 +239,19 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           Expanded(child: _buildMiniCard(
             title: 'Earnings this month',
             amount: _formatCompact(ts.monthlyIncome),
-            segments: [423.55, 577.45],
-            segmentColors: [AppColors.ingBlue, AppColors.brdTeal],
-            labels: const ['ING', 'BRD'],
-            labelColors: [AppColors.ingBlue, AppColors.brdTeal],
+            segments: earningsSegments,
+            segmentColors: earningsColors,
+            labels: earningsLabels,
+            labelColors: earningsColors,
           )),
           SizedBox(width: Responsive.w(context, 14)),
           Expanded(child: _buildMiniCard(
             title: 'Spent this month',
             amount: '-${_formatCompact(ts.monthlyExpense)}',
-            segments: [45, 30, 25],
-            segmentColors: [
-              AppColors.ingBlue,
-              AppColors.brdTeal,
-              AppColors.accentTeal,
-            ],
-            labels: const ['Rent', 'Food', 'Other'],
-            labelColors: [
-              AppColors.ingBlue,
-              AppColors.brdTeal,
-              AppColors.accentTeal,
-            ],
+            segments: spentSegments.isEmpty ? [1] : spentSegments,
+            segmentColors: spentColors.isEmpty ? [AppColors.accentTeal] : spentColors,
+            labels: spentLabels.isEmpty ? ['None'] : spentLabels,
+            labelColors: spentColors.isEmpty ? [AppColors.accentTeal] : spentColors,
           )),
         ],
       ),
@@ -306,7 +304,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             width: Responsive.w(context, 72),
             height: Responsive.w(context, 72),
             child: CustomPaint(
-              size: Size(Responsive.w(context, 72), Responsive.w(context, 72)),
               painter: _DonutPainter(
                 segments: segments,
                 segmentColors: segmentColors,
@@ -347,16 +344,22 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   }
 
   // --------------------------------------------------------------------------
-  // 4. Balance Bar Chart
+  // 4. Balance Bar Chart (dynamic by wallet)
   // --------------------------------------------------------------------------
-  Widget _buildBarChart() {
-    const bars = <_BarItem>[
-      _BarItem(label: 'ING', value: 40, fill: Color(0xFFD4EAFE), border: Color(0xFF2A96FA)),
-      _BarItem(label: 'BRD', value: 88, fill: Color(0xFFCCF1E5), border: Color(0xFF63DBB6)),
-      _BarItem(label: 'Cash1', value: 60, fill: Color(0xFFFFE0D0), border: Color(0xFFFF897A)),
-      _BarItem(label: 'Revolut', value: 35, fill: Color(0xFFD4EAFE), border: Color(0xFF2A96FA)),
-      _BarItem(label: 'BT', value: 70, fill: Color(0xFFCCF1E5), border: Color(0xFF63DBB6)),
-    ];
+  Widget _buildBarChart(TransactionService ts, List<WalletModel> wallets) {
+    final bars = wallets.map((w) {
+      final bal = ts.balanceByWallet(w.id);
+      return _BarItem(
+        label: w.shortName,
+        value: bal.abs().toDouble(),
+        fill: w.brandColor.withValues(alpha: 0.18),
+        border: w.brandColor,
+      );
+    }).toList();
+
+    final maxVal = bars.isEmpty
+        ? 100.0
+        : bars.map((b) => b.value).reduce((a, b) => a > b ? a : b);
 
     return Container(
       margin: EdgeInsets.symmetric(horizontal: Responsive.w(context, 20)),
@@ -391,10 +394,11 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           SizedBox(height: Responsive.h(context, 16)),
           SizedBox(
             height: Responsive.h(context, 180),
-            child: CustomPaint(
-              size: Size(double.infinity, Responsive.h(context, 180)),
-              painter: _BarChartPainter(bars: bars, maxValue: 100),
-            ),
+            child: bars.isEmpty
+                ? const Center(child: Text('No wallets'))
+                : CustomPaint(
+                    painter: _BarChartPainter(bars: bars, maxValue: maxVal),
+                  ),
           ),
         ],
       ),
@@ -402,12 +406,33 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   }
 
   // --------------------------------------------------------------------------
-  // 5. This Month Balance Line Chart
+  // 5. This Month Balance Line Chart (real data)
   // --------------------------------------------------------------------------
-  Widget _buildLineChart() {
-    const points = [10.0, 35.0, 55.0, 68.0];
-    const xLabels = ['10 May', '20 May', '30 May', 'Today'];
-    const yLabels = [0.0, 20.0, 40.0, 60.0, 80.0];
+  Widget _buildLineChart(TransactionService ts) {
+    final now = DateTime.now();
+    final dayCount = now.day;
+
+    // 4 milestones: day 1, 10, 20, today
+    final milestones = {1, 10, 20, dayCount}.toList()..sort();
+    final points = milestones.map((d) {
+      final date = DateTime(now.year, now.month, d, 23, 59, 59);
+      return ts.balanceAtDate(date).toDouble();
+    }).toList();
+
+    final xLabels = milestones.map((d) => '$d ${_months[now.month - 1]}').toList();
+    xLabels[xLabels.length - 1] = 'Today';
+
+    final minY = points.isEmpty ? 0.0 : points.reduce((a, b) => a < b ? a : b);
+    final maxY = points.isEmpty ? 100.0 : points.reduce((a, b) => a > b ? a : b);
+    final padding = ((maxY - minY) * 0.15).clamp(1.0, double.infinity);
+    final adjustedMin = minY - padding;
+    final adjustedMax = maxY + padding;
+    final step = _niceStep(adjustedMax - adjustedMin, 4);
+
+    final List<double> yLabels = [];
+    for (double y = adjustedMin; y <= adjustedMax + 0.01; y += step) {
+      yLabels.add(y);
+    }
 
     return Container(
       margin: EdgeInsets.symmetric(horizontal: Responsive.w(context, 20)),
@@ -443,7 +468,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           SizedBox(
             height: Responsive.h(context, 180),
             child: CustomPaint(
-              size: Size(double.infinity, Responsive.h(context, 180)),
               painter: _LineChartPainter(
                 points: points,
                 xLabels: xLabels,
@@ -459,10 +483,52 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   }
 
   // --------------------------------------------------------------------------
-  // 6. Comparing Between Periods
+  // 6. Comparing Between Periods (dynamic)
   // --------------------------------------------------------------------------
-  Widget _buildComparingPeriods() {
-    const filterLabels = ['ING', 'BRD', 'Cash'];
+  Widget _buildComparingPeriods(TransactionService ts, List<WalletModel> wallets) {
+    final filterLabels = wallets.map((w) => w.shortName).toList();
+    if (filterLabels.isEmpty) filterLabels.add('Cash');
+
+    if (_selectedPeriodFilter >= filterLabels.length) {
+      _selectedPeriodFilter = 0;
+    }
+
+    final now = DateTime.now();
+    final selectedWalletId = _selectedPeriodFilter < wallets.length
+        ? wallets[_selectedPeriodFilter].id
+        : null;
+
+    // Compute cumulative balance at N equally spaced points this year
+    const dataPointCount = 8;
+    final List<double> presentPoints = [];
+    final List<double> oneYearAgoPoints = [];
+    final List<double> twoYearsAgoPoints = [];
+
+    for (int i = 0; i < dataPointCount; i++) {
+      final frac = (i + 1) / dataPointCount;
+      final dayOfYear = (frac * 365).round().clamp(1, 365);
+      final presentDate = DateTime(now.year, 1, 1).add(Duration(days: dayOfYear - 1));
+      final oneYearDate = DateTime(now.year - 1, 1, 1).add(Duration(days: dayOfYear - 1));
+      final twoYearDate = DateTime(now.year - 2, 1, 1).add(Duration(days: dayOfYear - 1));
+
+      if (presentDate.isBefore(now) || presentDate.day == now.day) {
+        presentPoints.add(_balanceAtDateForWallet(ts, presentDate, selectedWalletId).toDouble());
+      }
+      oneYearAgoPoints.add(_balanceAtDateForWallet(ts, oneYearDate, selectedWalletId).toDouble());
+      twoYearsAgoPoints.add(_balanceAtDateForWallet(ts, twoYearDate, selectedWalletId).toDouble());
+    }
+
+    // Pad to same length
+    while (presentPoints.length < dataPointCount) {
+      presentPoints.add(presentPoints.isEmpty ? 0 : presentPoints.last);
+    }
+
+    final allValues = [...presentPoints, ...oneYearAgoPoints, ...twoYearsAgoPoints];
+    final minY = allValues.isEmpty ? 0.0 : allValues.reduce((a, b) => a < b ? a : b);
+    final maxY = allValues.isEmpty ? 100.0 : allValues.reduce((a, b) => a > b ? a : b);
+    final padding = ((maxY - minY) * 0.15).clamp(1.0, double.infinity);
+    final adjustedMin = minY - padding;
+    final adjustedMax = maxY + padding;
 
     return Container(
       margin: EdgeInsets.symmetric(horizontal: Responsive.w(context, 20)),
@@ -495,7 +561,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             ),
           ),
           SizedBox(height: Responsive.h(context, 14)),
-          // Filter tabs
           Container(
             padding: EdgeInsets.all(Responsive.w(context, 4)),
             decoration: BoxDecoration(
@@ -532,16 +597,19 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             ),
           ),
           SizedBox(height: Responsive.h(context, 14)),
-          // Chart
           SizedBox(
             height: Responsive.h(context, 180),
             child: CustomPaint(
-              size: Size(double.infinity, Responsive.h(context, 180)),
-              painter: _MultiLineChartPainter(),
+              painter: _MultiLineChartPainter(
+                presentPoints: presentPoints,
+                oneYearAgoPoints: oneYearAgoPoints,
+                twoYearsAgoPoints: twoYearsAgoPoints,
+                minY: adjustedMin,
+                maxY: adjustedMax,
+              ),
             ),
           ),
           SizedBox(height: Responsive.h(context, 12)),
-          // Legend
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -555,6 +623,21 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         ],
       ),
     );
+  }
+
+  int _balanceAtDateForWallet(TransactionService ts, DateTime date, String? walletId) {
+    final w = walletId != null ? WalletService.instance.byId(walletId) : null;
+    final initial = w?.initialBalance ?? 0;
+    int income = 0, expense = 0;
+    for (final t in ts.currentUserTransactions.where((t) =>
+        !t.date.isAfter(date) && (walletId == null || t.walletId == walletId))) {
+      if (t.amount > 0) {
+        income += t.amount;
+      } else {
+        expense += t.amount.abs();
+      }
+    }
+    return initial + income - expense;
   }
 
   Widget _legendDot(Color color, String label) {
@@ -581,6 +664,28 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   // --------------------------------------------------------------------------
   // Helpers
   // --------------------------------------------------------------------------
+  static const _months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+
+  static double _niceStep(double range, int targetSteps) {
+    final roughStep = range / targetSteps;
+    final magnitude = math.pow(10, (math.log(roughStep) / math.ln10).floor()).toDouble();
+    final residual = roughStep / magnitude;
+    double niceStep;
+    if (residual <= 1.5) {
+      niceStep = 1;
+    } else if (residual <= 3) {
+      niceStep = 2;
+    } else if (residual <= 7) {
+      niceStep = 5;
+    } else {
+      niceStep = 10;
+    }
+    return niceStep * magnitude;
+  }
+
   static String _formatCompact(int amount) {
     if (amount >= 1000000000) {
       return '${(amount / 1000000000).toStringAsFixed(1)}B';
@@ -651,7 +756,6 @@ class _DonutPainter extends CustomPainter {
       startAngle += sweepAngle;
     }
 
-    // Donut hole
     canvas.drawCircle(
       center,
       radius * holeRadiusRatio,
@@ -683,23 +787,20 @@ class _BarChartPainter extends CustomPainter {
     final chartWidth = size.width - leftMargin;
     final chartHeight = size.height - topMargin - bottomMargin;
 
-    // Y-axis labels & grid lines
     const yLabelValues = [0.0, 50.0, 100.0];
     final gridPaint = Paint()
       ..color = Colors.grey.withValues(alpha: 0.2)
       ..strokeWidth = 1;
 
     for (final label in yLabelValues) {
-      final y = topMargin + chartHeight * (1 - label / maxValue);
+      final y = topMargin + chartHeight * (1 - label / (maxValue > 0 ? maxValue : 100));
 
-      // Grid line
       canvas.drawLine(
         Offset(leftMargin, y),
         Offset(size.width, y),
         gridPaint,
       );
 
-      // Label
       _drawText(
         canvas,
         label.toInt().toString(),
@@ -711,15 +812,15 @@ class _BarChartPainter extends CustomPainter {
       );
     }
 
-    // Bars
     final barCount = bars.length;
+    if (barCount == 0) return;
     final totalBarAreaWidth = chartWidth;
     final barSpacing = totalBarAreaWidth / (barCount * 2 + 1);
     final barWidth = barSpacing;
 
     for (int i = 0; i < barCount; i++) {
       final bar = bars[i];
-      final barHeight = chartHeight * (bar.value / maxValue);
+      final barHeight = chartHeight * (bar.value / (maxValue > 0 ? maxValue : 1));
       final x = leftMargin + barSpacing * (2 * i + 1) - barWidth / 2;
       final y = topMargin + chartHeight - barHeight;
 
@@ -729,10 +830,8 @@ class _BarChartPainter extends CustomPainter {
         topRight: const Radius.circular(3),
       );
 
-      // Fill
       canvas.drawRRect(barRect, Paint()..color = bar.fill);
 
-      // Border
       canvas.drawRRect(
         barRect,
         Paint()
@@ -741,7 +840,6 @@ class _BarChartPainter extends CustomPainter {
           ..strokeWidth = 1.5,
       );
 
-      // X-axis label
       _drawText(
         canvas,
         bar.label,
@@ -808,17 +906,17 @@ class _LineChartPainter extends CustomPainter {
     final chartWidth = size.width - leftMargin;
     final chartHeight = size.height - topMargin - bottomMargin;
 
+    if (yLabels.isEmpty) return;
     final maxY = yLabels.last;
     final minY = yLabels.first;
     final yRange = maxY - minY;
 
-    // Y-axis labels & grid lines
     final gridPaint = Paint()
       ..color = Colors.grey.withValues(alpha: 0.2)
       ..strokeWidth = 1;
 
     for (final label in yLabels) {
-      final y = topMargin + chartHeight * (1 - (label - minY) / yRange);
+      final y = topMargin + chartHeight * (1 - (label - minY) / (yRange > 0 ? yRange : 1));
 
       canvas.drawLine(
         Offset(leftMargin, y),
@@ -828,7 +926,7 @@ class _LineChartPainter extends CustomPainter {
 
       _drawText(
         canvas,
-        label.toInt().toString(),
+        _formatLabel(label),
         Offset(leftMargin - 6, y),
         Colors.grey.shade600,
         10,
@@ -837,17 +935,15 @@ class _LineChartPainter extends CustomPainter {
       );
     }
 
-    // Compute data point positions
     final dataPoints = <Offset>[];
     for (int i = 0; i < points.length; i++) {
-      final x = leftMargin + chartWidth * (i / (points.length - 1));
-      final y = topMargin + chartHeight * (1 - (points[i] - minY) / yRange);
+      final x = leftMargin + chartWidth * (i / ((points.length - 1).clamp(1, points.length - 1)));
+      final y = topMargin + chartHeight * (1 - (points[i] - minY) / (yRange > 0 ? yRange : 1));
       dataPoints.add(Offset(x, y));
     }
 
     if (dataPoints.isEmpty) return;
 
-    // Area fill
     final fillPath = Path();
     fillPath.moveTo(dataPoints.first.dx, topMargin + chartHeight);
     for (final pt in dataPoints) {
@@ -858,7 +954,6 @@ class _LineChartPainter extends CustomPainter {
 
     canvas.drawPath(fillPath, Paint()..color = fillColor);
 
-    // Line
     final linePath = Path();
     linePath.moveTo(dataPoints.first.dx, dataPoints.first.dy);
     for (int i = 1; i < dataPoints.length; i++) {
@@ -875,7 +970,6 @@ class _LineChartPainter extends CustomPainter {
         ..strokeJoin = StrokeJoin.round,
     );
 
-    // Points
     for (final pt in dataPoints) {
       canvas.drawCircle(pt, 4, Paint()..color = Colors.white);
       canvas.drawCircle(
@@ -888,7 +982,6 @@ class _LineChartPainter extends CustomPainter {
       );
     }
 
-    // X-axis labels
     for (int i = 0; i < xLabels.length; i++) {
       _drawText(
         canvas,
@@ -927,6 +1020,12 @@ class _LineChartPainter extends CustomPainter {
     tp.paint(canvas, Offset(dx, dy));
   }
 
+  static String _formatLabel(double v) {
+    if (v >= 1000000) return '${(v / 1000000).toStringAsFixed(0)}M';
+    if (v >= 1000) return '${(v / 1000).toStringAsFixed(0)}K';
+    return v.toInt().toString();
+  }
+
   @override
   bool shouldRepaint(covariant _LineChartPainter oldDelegate) {
     return oldDelegate.points != points;
@@ -934,6 +1033,20 @@ class _LineChartPainter extends CustomPainter {
 }
 
 class _MultiLineChartPainter extends CustomPainter {
+  _MultiLineChartPainter({
+    required this.presentPoints,
+    required this.oneYearAgoPoints,
+    required this.twoYearsAgoPoints,
+    required this.minY,
+    required this.maxY,
+  });
+
+  final List<double> presentPoints;
+  final List<double> oneYearAgoPoints;
+  final List<double> twoYearsAgoPoints;
+  final double minY;
+  final double maxY;
+
   @override
   void paint(Canvas canvas, Size size) {
     const leftMargin = 32.0;
@@ -941,17 +1054,19 @@ class _MultiLineChartPainter extends CustomPainter {
     const topMargin = 8.0;
     final chartWidth = size.width - leftMargin;
     final chartHeight = size.height - topMargin - bottomMargin;
+    final yRange = maxY - minY;
 
     // Y-axis grid
-    const yLabels = [0.0, 20.0, 40.0, 60.0, 80.0];
-    const maxY = 80.0;
-
     final gridPaint = Paint()
       ..color = Colors.grey.withValues(alpha: 0.2)
       ..strokeWidth = 1;
 
-    for (final label in yLabels) {
-      final y = topMargin + chartHeight * (1 - label / maxY);
+    // Create ~5 evenly spaced Y labels
+    final int ySteps = 5;
+    for (int i = 0; i <= ySteps; i++) {
+      final label = minY + (yRange * i / ySteps);
+      final y = topMargin + chartHeight * (1 - (label - minY) / (yRange > 0 ? yRange : 1));
+
       canvas.drawLine(
         Offset(leftMargin, y),
         Offset(size.width, y),
@@ -959,7 +1074,7 @@ class _MultiLineChartPainter extends CustomPainter {
       );
       _drawText(
         canvas,
-        label.toInt().toString(),
+        _formatLabel(label),
         Offset(leftMargin - 6, y),
         Colors.grey.shade600,
         10,
@@ -971,20 +1086,20 @@ class _MultiLineChartPainter extends CustomPainter {
     // X labels
     const xLabels = ['May', 'Jun'];
 
-    // Three lines: One year ago, Two years ago, Present
+    // Three lines
     final lines = <_LineData>[
       _LineData(
-        points: [10.0, 18.0, 25.0, 30.0, 35.0, 42.0, 48.0, 50.0],
+        points: oneYearAgoPoints,
         color: AppColors.chartBlueBorder,
         areaColor: AppColors.chartBlueBorder.withValues(alpha: 0.08),
       ),
       _LineData(
-        points: [15.0, 22.0, 28.0, 32.0, 40.0, 45.0, 52.0, 55.0],
+        points: twoYearsAgoPoints,
         color: AppColors.chartOrangeBorder,
         areaColor: AppColors.chartOrangeBorder.withValues(alpha: 0.08),
       ),
       _LineData(
-        points: [20.0, 30.0, 38.0, 45.0, 55.0, 60.0, 65.0, 70.0],
+        points: presentPoints,
         color: AppColors.primaryGreen,
         areaColor: AppColors.primaryGreen.withValues(alpha: 0.08),
       ),
@@ -996,13 +1111,12 @@ class _MultiLineChartPainter extends CustomPainter {
       final dataPoints = <Offset>[];
       for (int i = 0; i < line.points.length; i++) {
         final x = leftMargin + chartWidth * (i / (dataPointCount - 1));
-        final y = topMargin + chartHeight * (1 - line.points[i] / maxY);
+        final y = topMargin + chartHeight * (1 - (line.points[i] - minY) / (yRange > 0 ? yRange : 1));
         dataPoints.add(Offset(x, y));
       }
 
       if (dataPoints.isEmpty) continue;
 
-      // Area fill
       final fillPath = Path();
       fillPath.moveTo(dataPoints.first.dx, topMargin + chartHeight);
       for (final pt in dataPoints) {
@@ -1012,7 +1126,6 @@ class _MultiLineChartPainter extends CustomPainter {
       fillPath.close();
       canvas.drawPath(fillPath, Paint()..color = line.areaColor);
 
-      // Line
       final linePath = Path();
       linePath.moveTo(dataPoints.first.dx, dataPoints.first.dy);
       for (int i = 1; i < dataPoints.length; i++) {
@@ -1029,7 +1142,6 @@ class _MultiLineChartPainter extends CustomPainter {
       );
     }
 
-    // X-axis labels
     _drawText(canvas, xLabels[0], Offset(leftMargin, size.height - 2), Colors.grey.shade600, 10, anchorCenterX: true);
     _drawText(canvas, xLabels[1], Offset(size.width - 2, size.height - 2), Colors.grey.shade600, 10, anchorRight: true);
   }
@@ -1058,6 +1170,12 @@ class _MultiLineChartPainter extends CustomPainter {
     if (anchorCenterX) dx -= tp.width / 2;
     if (anchorCenterY) dy -= tp.height / 2;
     tp.paint(canvas, Offset(dx, dy));
+  }
+
+  static String _formatLabel(double v) {
+    if (v >= 1000000) return '${(v / 1000000).toStringAsFixed(0)}M';
+    if (v >= 1000) return '${(v / 1000).toStringAsFixed(0)}K';
+    return v.toInt().toString();
   }
 
   @override

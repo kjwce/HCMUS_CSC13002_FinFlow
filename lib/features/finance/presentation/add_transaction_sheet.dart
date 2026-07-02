@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/theme/app_colors.dart';
-import '../../auth/providers/auth_provider.dart';
 import '../../../core/i18n/app_language.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/responsive.dart';
+import '../../auth/providers/auth_provider.dart';
+import '../../auth/services/auth_service.dart';
+import '../models/bank_preset.dart';
+import '../models/ewallet_preset.dart';
 import '../models/transaction_category.dart';
 import '../models/transaction_model.dart';
+import '../models/wallet_model.dart';
 import '../providers/transaction_provider.dart';
-
-const _accounts = ['ING', 'BRD', 'Cash'];
+import '../services/wallet_service.dart';
 
 /// Available icons for custom categories.
 const _customIcons = <IconData>[
@@ -77,12 +80,16 @@ class AddTransactionSheet extends ConsumerStatefulWidget {
   ConsumerState<AddTransactionSheet> createState() => _AddTransactionSheetState();
 }
 
+enum _AccountCategory { bank, ewallet, cash }
+
 class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   final _amountController = TextEditingController();
   var _isExpense = true;
-  var _selectedAccount = 'ING';
+  String? _selectedWalletId;
+  String? _selectedWalletName;
   var _selectedCategory = 'Food';
   var _isFormatting = false;
+  _AccountCategory? _selectedAcctCategory;
 
   @override
   void initState() {
@@ -245,7 +252,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
             ),
             SizedBox(height: Responsive.h(context, 20)),
 
-            // ── From account ──
+            // ── From account (Bank / Wallet / Cash) ──
             Text('From account',
                 style: TextStyle(
                   fontWeight: FontWeight.w500,
@@ -253,45 +260,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                   color: const Color(0xFF747875),
                 )),
             SizedBox(height: Responsive.h(context, 8)),
-            Row(
-              children: _accounts.map((account) {
-                final isSelected = _selectedAccount == account;
-                return Padding(
-                  padding: EdgeInsets.only(right: Responsive.w(context, 8)),
-                  child: GestureDetector(
-                    onTap: () => setState(() => _selectedAccount = account),
-                    child: Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: Responsive.w(context, 20),
-                        vertical: Responsive.h(context, 8),
-                      ),
-                      decoration: BoxDecoration(
-                        color: isSelected ? const Color(0xFF1CA380) : Colors.white,
-                        borderRadius: BorderRadius.circular(34),
-                        border: Border.all(
-                          color: isSelected ? const Color(0xFF1CA380) : const Color(0xFFBFC9C3),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (isSelected)
-                            Padding(
-                              padding: EdgeInsets.only(right: Responsive.w(context, 6)),
-                              child: const Icon(Icons.check, size: 14, color: Colors.white),
-                            ),
-                          Text(account,
-                              style: TextStyle(
-                                fontSize: Responsive.sp(context, 14),
-                                color: isSelected ? Colors.white : const Color(0xFF707974),
-                              )),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
+            _buildAccountCategorySelector(),
             SizedBox(height: Responsive.h(context, 20)),
 
             // ── Category grid ──
@@ -324,6 +293,12 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                   return;
                 }
 
+                if (_selectedWalletId == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Please select an account')),
+                  );
+                  return;
+                }
                 try {
                   final sign = _isExpense ? -1 : 1;
                   await ref.read(transactionServiceProvider).add(
@@ -334,6 +309,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                       category: _selectedCategory,
                       amount: amount * sign,
                       date: DateTime.now(),
+                      walletId: _selectedWalletId,
                     ),
                   );
                   if (!context.mounted) return;
@@ -359,6 +335,233 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
         ),
       ),
     );
+  }
+
+  // ── Account category selector: Bank | E-Wallet | Cash ──
+  Widget _buildAccountCategorySelector() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 3 category chips on one line
+        Row(
+          children: [
+            Expanded(child: _accountChip('Bank', Icons.account_balance, _AccountCategory.bank)),
+            SizedBox(width: Responsive.w(context, 8)),
+            Expanded(child: _accountChip('E-Wallet', Icons.wallet, _AccountCategory.ewallet)),
+            SizedBox(width: Responsive.w(context, 8)),
+            Expanded(child: _accountChip('Cash', Icons.money, _AccountCategory.cash)),
+          ],
+        ),
+        // Show selected wallet name below
+        if (_selectedWalletName != null) ...[
+          SizedBox(height: Responsive.h(context, 8)),
+          Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: Responsive.w(context, 12),
+              vertical: Responsive.h(context, 6),
+            ),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE8F5E9),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Text(
+              _selectedWalletName!,
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: Responsive.sp(context, 13),
+                fontWeight: FontWeight.w500,
+                color: const Color(0xFF2E7D32),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _accountChip(String label, IconData icon, _AccountCategory cat) {
+    final isSelected = _selectedAcctCategory == cat;
+    return GestureDetector(
+      onTap: () async => _onAccountCategoryTap(cat),
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: Responsive.w(context, 14),
+          vertical: Responsive.h(context, 8),
+        ),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF1CA380) : Colors.white,
+          borderRadius: BorderRadius.circular(34),
+          border: Border.all(
+            color: isSelected ? const Color(0xFF1CA380) : const Color(0xFFBFC9C3),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: Responsive.w(context, 16),
+              color: isSelected ? Colors.white : const Color(0xFF707974),
+            ),
+            SizedBox(width: Responsive.w(context, 6)),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: Responsive.sp(context, 13),
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                color: isSelected ? Colors.white : const Color(0xFF707974),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _onAccountCategoryTap(_AccountCategory cat) async {
+    setState(() => _selectedAcctCategory = cat);
+    switch (cat) {
+      case _AccountCategory.bank:
+        _showPresetPicker('Chọn ngân hàng', bankPresets);
+      case _AccountCategory.ewallet:
+        _showPresetPicker(
+          'Chọn ví điện tử',
+          ewalletPresets.where((p) => p.type == WalletType.ewallet).toList(),
+        );
+      case _AccountCategory.cash:
+        _selectedWalletName = 'Tiền mặt';
+        await _createWalletSync(
+          name: 'Tiền mặt',
+          shortName: 'CASH',
+          logoAssetPath: 'assets/logos/ewallets/cash.png',
+          brandColor: const Color(0xFF4CAF50),
+          type: WalletType.cash,
+        );
+        if (!mounted) return;
+        setState(() {});
+    }
+  }
+
+  void _showPresetPicker(String title, List<WalletPreset> presets) {
+    showModalBottomSheet(
+      context: context,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.symmetric(
+            vertical: Responsive.h(context, 20),
+            horizontal: Responsive.w(context, 16),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: Responsive.sp(context, 16),
+                  color: const Color(0xFF003829),
+                ),
+              ),
+              SizedBox(height: Responsive.h(context, 12)),
+              Expanded(
+                child: GridView(
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    mainAxisSpacing: Responsive.h(context, 16),
+                    crossAxisSpacing: Responsive.w(context, 16),
+                    childAspectRatio: 1.2,
+                  ),
+                  children: presets.map((p) {
+                    return GestureDetector(
+                      onTap: () async {
+                        _selectedWalletName = '${p.shortName} - ${p.name}';
+                        await _createWalletSync(
+                          name: p.name,
+                          shortName: p.shortName,
+                          logoAssetPath: p.logoAssetPath,
+                          brandColor: p.brandColor,
+                          type: p.type,
+                        );
+                        if (!mounted) return;
+                        setState(() {});
+                        if (ctx.mounted) Navigator.of(ctx).pop();
+                      },
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Image.asset(
+                            p.logoAssetPath,
+                            width: Responsive.w(context, 130),
+                            height: Responsive.w(context, 130),
+                            errorBuilder: (_, __, ___) => Container(
+                              width: Responsive.w(context, 130),
+                              height: Responsive.w(context, 130),
+                              decoration: BoxDecoration(
+                                color: p.brandColor,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  p.shortName.substring(0, 1),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 48,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _createWalletSync({
+    required String name,
+    required String shortName,
+    required String logoAssetPath,
+    required Color brandColor,
+    required WalletType type,
+  }) async {
+    // Check if wallet already exists for this user
+    final existing = WalletService.instance.currentUserWallets
+        .where((w) => w.shortName == shortName && w.type == type)
+        .toList();
+    if (existing.isNotEmpty) {
+      _selectedWalletId = existing.first.id;
+      return;
+    }
+    final userId = AuthService.instance.currentUser?.id;
+    if (userId == null) return;
+    final newId = 'w_${DateTime.now().millisecondsSinceEpoch}_$shortName';
+    // Insert wallet to DB first — await it so the FK is satisfied before
+    // any transaction referencing this wallet_id is inserted.
+    await WalletService.instance.insertWallets([
+      WalletModel(
+        id: newId,
+        userId: userId,
+        name: name,
+        shortName: shortName,
+        logoAssetPath: logoAssetPath,
+        brandColor: brandColor,
+        type: type,
+        initialBalance: 0,
+      ),
+    ]);
+    _selectedWalletId = newId;
   }
 
   // ── Category grid: popular + selected extended + custom + "More" ──

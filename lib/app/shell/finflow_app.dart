@@ -10,6 +10,7 @@ import '../../features/auth/presentation/verification_screen.dart';
 import '../../features/budget/presentation/budget_setup_screen.dart';
 import '../../features/chatbot/presentation/chat_screen.dart';
 import '../../features/community/presentation/community_screen.dart';
+import '../../features/finance/presentation/wallet_onboarding_screen.dart';
 import '../../features/profile/presentation/edit_profile_screen.dart';
 import '../../features/debug/presentation/database_viewer_screen.dart';
 import '../../features/launch/presentation/launch_screen.dart';
@@ -35,6 +36,7 @@ class AppRoutes {
   static const databaseViewer = '/database-viewer';
   static const editProfile = '/edit-profile';
   static const budgetSetup = '/budget-setup';
+  static const walletOnboarding = '/wallet-onboarding';
 }
 
 class FinFlowApp extends StatelessWidget {
@@ -74,6 +76,7 @@ class FinFlowApp extends StatelessWidget {
               AppRoutes.databaseViewer: (_) => const DatabaseViewerScreen(),
               AppRoutes.editProfile: (_) => const EditProfileScreen(),
               AppRoutes.budgetSetup: (_) => const BudgetSetupScreen(),
+              AppRoutes.walletOnboarding: (_) => const WalletOnboardingScreen(),
             },
           ),
         );

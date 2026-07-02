@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/responsive.dart';
@@ -240,18 +241,30 @@ class _GoalSetupSheetState extends ConsumerState<GoalSetupSheet> {
   Widget _buildProgressCircle(double progress) {
     return Center(
       child: SizedBox(
-        width: Responsive.w(context, 80),
-        height: Responsive.w(context, 80),
+        width: Responsive.w(context, 130),
+        height: Responsive.w(context, 130),
         child: Stack(
           alignment: Alignment.center,
           children: [
-            CircularProgressIndicator(
-              value: progress,
-              strokeWidth: 5,
-              color: const Color(0xFF007AFF),
-              backgroundColor: Colors.white30,
+            SizedBox(
+              width: Responsive.w(context, 130),
+              height: Responsive.w(context, 130),
+              child: CircularProgressIndicator(
+                value: progress,
+                strokeWidth: Responsive.w(context, 8),
+                color: const Color(0xFF007AFF),
+                backgroundColor: Colors.white30,
+              ),
             ),
-            Icon(Icons.flag, color: const Color(0xFF093030), size: Responsive.w(context, 28)),
+            SvgPicture.asset(
+              'assets/icons/home/flag.svg',
+              width: Responsive.w(context, 44),
+              height: Responsive.w(context, 44),
+              colorFilter: const ColorFilter.mode(
+                Color(0xFF093030),
+                BlendMode.srcIn,
+              ),
+            ),
           ],
         ),
       ),

@@ -27,3 +27,6 @@ flutter:
   assets:
     - assets/
     - assets/icons/
+    - assets/icons/home/
+    - assets/logos/banks/
+    - assets/logos/ewallets/

@@ -8,11 +8,12 @@ import '../../core/widgets/notification_bell.dart';
 import '../../features/auth/providers/auth_provider.dart';
 import '../../features/auth/services/auth_service.dart';
 import '../../features/finance/models/transaction_category.dart';
-import '../../features/finance/presentation/dashboard.dart';
+import '../../features/finance/presentation/dashboard_page.dart';
 import '../../features/finance/presentation/edit_transaction_screen.dart';
 import '../../features/finance/presentation/goal_setup_sheet.dart';
 import '../../features/finance/providers/goal_provider.dart';
 import '../../features/finance/providers/transaction_provider.dart';
+import '../../features/finance/providers/wallet_provider.dart';
 import '../../features/finance/services/goal_service.dart';
 import '../../features/finance/services/transaction_service.dart';
 
@@ -35,8 +36,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // so we subscribe manually to rebuild the UI after data loads.
     TransactionService.instance.addListener(_onTransactionsChanged);
     GoalService.instance.addListener(_onTransactionsChanged);
-    Future.microtask(() => ref.read(transactionServiceProvider).fetchTransactions());
-    Future.microtask(() => ref.read(goalServiceProvider).fetchGoals());
+    Future.microtask(() {
+      ref.read(transactionServiceProvider).fetchTransactions()
+        .catchError((e) => debugPrint('fetchTransactions error: $e'));
+    });
+    Future.microtask(() {
+      ref.read(goalServiceProvider).fetchGoals()
+        .catchError((e) => debugPrint('fetchGoals error: $e'));
+    });
+    Future.microtask(() {
+      ref.read(walletServiceProvider).fetchWallets()
+        .catchError((e) => debugPrint('fetchWallets error: $e'));
+    });
   }
 
   @override
@@ -389,7 +400,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         backgroundColor: Colors.white30,
                       ),
                     ),
-                    _FigmaCarIcon(color: const Color(0xFF093030), size: Responsive.w(context, 28)),
+                    SvgPicture.asset(
+                      'assets/icons/home/flag.svg',
+                      width: Responsive.w(context, 28),
+                      height: Responsive.w(context, 28),
+                      colorFilter: const ColorFilter.mode(
+                        Color(0xFF093030),
+                        BlendMode.srcIn,
+                      ),
+                    ),
                   ],
                 ),
                 SizedBox(height: Responsive.h(context, 8)),
@@ -870,27 +889,6 @@ class _FigmaWalletIcon extends StatelessWidget {
         canvas.save(); canvas.scale(sc);
         final p = Path()
           ..moveTo(21.6682, 14.3281)..lineTo(12.8841, 19.9656)..cubicTo(12.7171, 20.0728, 12.5042, 20.0774, 12.3328, 19.9775)..lineTo(1.31931, 13.5628)..cubicTo(0.978071, 13.3641, 0.967569, 12.8749, 1.29997, 12.6617)..lineTo(19.2617, 1.14022)..cubicTo(19.4286, 1.03318, 19.6414, 1.02858, 19.8127, 1.1283)..lineTo(30.826, 7.53796)..cubicTo(31.1674, 7.73662, 31.178, 8.22591, 30.8456, 8.4392)..lineTo(25.6599, 11.7665)..moveTo(21.6735, 18.8056)..lineTo(12.8839, 24.4432)..cubicTo(12.717, 24.5503, 12.5043, 24.5549, 12.333, 24.4551)..lineTo(1.31917, 18.0452)..cubicTo(0.977933, 17.8466, 0.967187, 17.3575, 1.29938, 17.1441)..lineTo(4.2337, 15.2591)..moveTo(27.912, 10.3243)..lineTo(30.8258, 12.0205)..cubicTo(31.1672, 12.2192, 31.1777, 12.7087, 30.8451, 12.9219)..lineTo(25.6119, 16.2763)..moveTo(28.1254, 14.6618)..lineTo(30.8608, 16.357)..cubicTo(31.1911, 16.5617, 31.1948, 17.0408, 30.8678, 17.2507)..lineTo(12.8841, 28.7913)..cubicTo(12.7171, 28.8985, 12.5042, 28.903, 12.3328, 28.8032)..lineTo(1.31931, 22.3885)..cubicTo(0.978067, 22.1898, 0.967564, 21.7005, 1.29996, 21.4873)..lineTo(4.12163, 19.6774)..moveTo(13.8573, 4.94937)..lineTo(25.3494, 11.6406)..cubicTo(25.5119, 11.7352, 25.6119, 11.9091, 25.6119, 12.0972)..lineTo(25.6119, 20.3306)..cubicTo(25.6119, 20.5104, 25.5204, 20.6779, 25.3691, 20.7751)..lineTo(22.4873, 22.6258)..cubicTo(22.1357, 22.8516, 21.6735, 22.5992, 21.6735, 22.1813)..lineTo(21.6735, 14.6318)..cubicTo(21.6735, 14.4438, 21.5736, 14.2699, 21.4112, 14.1753)..lineTo(10.3854, 7.7506)..cubicTo(10.0443, 7.55186, 10.0338, 7.06291, 10.3659, 6.84961)..lineTo(13.306, 4.96139)..cubicTo(13.473, 4.85419, 13.6859, 4.84954, 13.8573, 4.94937)..close();
-        canvas.drawPath(p, paint);
-        canvas.restore();
-      }),
-    );
-  }
-}
-
-class _FigmaCarIcon extends StatelessWidget {
-  const _FigmaCarIcon({this.color = const Color(0xFF093030), this.size = 28});
-  final Color color;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      size: Size(size, size),
-      painter: _HomeIconPainter(color: color, path: (Canvas canvas, Size size, Paint paint) {
-        final sc = size.shortestSide / 36;
-        canvas.save(); canvas.scale(sc);
-        final p = Path()
-          ..moveTo(32.7046, 8.20484)..lineTo(31.0252, 5.92445)..cubicTo(28.5032, 2.55495, 26.0856, 0.98877, 19.9801, 0.98877)..lineTo(19.5137, 0.98877)..cubicTo(13.4205, 0.98877, 11.0029, 2.55495, 8.46867, 5.92445)..lineTo(6.95099, 8.09424)..moveTo(6.98377, 19.6521)..lineTo(6.98377, 21.1371)..cubicTo(6.98377, 21.3477, 6.94287, 21.5563, 6.86362, 21.7508)..cubicTo(6.78437, 21.9454, 6.66819, 22.1222, 6.52176, 22.2711)..cubicTo(6.37532, 22.42, 6.20149, 22.5381, 6.01016, 22.6187)..cubicTo(5.81883, 22.6993, 5.61383, 22.7408, 5.40673, 22.7408)..lineTo(3.70701, 22.7408)..cubicTo(3.49991, 22.7408, 3.29491, 22.6993, 3.10358, 22.6187)..cubicTo(2.91225, 22.5381, 2.73827, 22.42, 2.59183, 22.2711)..cubicTo(2.44539, 22.1222, 2.32937, 21.9454, 2.25012, 21.7508)..cubicTo(2.17087, 21.5563, 2.12997, 21.3477, 2.12997, 21.1371)..lineTo(2.12997, 16.7256)..moveTo(32.3751, 19.6521)..lineTo(32.3751, 21.1371)..cubicTo(32.3751, 21.5614, 32.5404, 21.9683, 32.8349, 22.2689)..cubicTo(33.1293, 22.5694, 33.5288, 22.7391, 33.946, 22.7408)..lineTo(35.615, 22.7408)..cubicTo(36.0322, 22.7391, 36.4317, 22.5694, 36.7261, 22.2689)..cubicTo(37.0206, 21.9683, 37.1859, 21.5614, 37.1859, 21.1371)..lineTo(37.1859, 16.7256)..moveTo(7.7569, 10.96)..cubicTo(7.7569, 10.96, 6.60326, 14.1298, 10.1684, 14.6602)..moveTo(31.7246, 10.96)..cubicTo(31.7246, 10.96, 32.8844, 14.1298, 29.3132, 14.6602)..moveTo(15.9855, 14.6602)..lineTo(23.0175, 14.6602)..moveTo(16.6175, 17.4556)..lineTo(22.3855, 17.4556)..moveTo(7.309, 7.40329)..cubicTo(7.309, 8.85717, 0.988731, 8.85717, 0.988731, 7.40329)..cubicTo(0.988731, 5.94941, 2.39999, 4.75761, 4.14879, 4.75761)..cubicTo(5.8976, 4.75761, 7.309, 5.92445, 7.309, 7.40329)..close()..moveTo(32.2401, 7.40329)..cubicTo(32.2401, 8.85717, 38.5604, 8.85717, 38.5604, 7.40329)..cubicTo(38.5604, 5.94941, 37.149, 4.75761, 35.4002, 4.75761)..cubicTo(33.6514, 4.75761, 32.2401, 5.92445, 32.2401, 7.40329)..close()..moveTo(34.8848, 9.71203)..cubicTo(33.8185, 8.55066, 32.3468, 7.86067, 30.7858, 7.79015)..lineTo(8.56679, 7.79015)..cubicTo(7.00612, 7.86199, 5.53503, 8.55176, 4.46788, 9.71203)..cubicTo(2.73748, 11.5216, 2.20363, 14.0362, 2.15454, 16.4822)..cubicTo(2.11938, 17.0763, 2.23566, 17.6695, 2.49206, 18.2044)..cubicTo(2.85409, 18.8908, 11.6963, 20.7815, 19.6733, 20.7815)..cubicTo(27.6503, 20.7815, 36.5354, 18.8097, 36.8545, 18.2044)..cubicTo(37.1091, 17.669, 37.2232, 17.0757, 37.1859, 16.4822)..cubicTo(37.1491, 14.0362, 36.6152, 11.5403, 34.8848, 9.71203)..close();
         canvas.drawPath(p, paint);
         canvas.restore();
       }),
