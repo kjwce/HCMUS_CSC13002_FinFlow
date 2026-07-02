@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/shell/finflow_app.dart';
 import '../../../core/i18n/app_language.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/decorated_phone_scaffold.dart';
 import '../providers/auth_provider.dart';
 
@@ -175,7 +176,7 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
     return DecoratedPhoneScaffold(
       child: Center(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 28),
+          padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 28)),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -183,19 +184,19 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
               Text(
                 'FinFlow',
                 style: TextStyle(
-                  fontSize: 36,
+                  fontSize: Responsive.sp(context, 36),
                   fontWeight: FontWeight.w700,
                   color: const Color.fromARGB(255, 9, 82, 37),
                 ),
               ),
-              const SizedBox(height: 72),
+              SizedBox(height: Responsive.h(context, 72)),
 
               // White card
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 32,
+                padding: EdgeInsets.symmetric(
+                  horizontal: Responsive.w(context, 24),
+                  vertical: Responsive.h(context, 32),
                 ),
                 decoration: BoxDecoration(
                   color: Colors.white,
@@ -214,28 +215,28 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
                     Text(
                       'Verification Code',
                       style: TextStyle(
-                        fontSize: 22,
+                        fontSize: Responsive.sp(context, 22),
                         fontWeight: FontWeight.w700,
                         color: AppColors.ink,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: Responsive.h(context, 8)),
 
                     // Description
                     Text(
                       'A verification code has been sent to your mail.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: Responsive.sp(context, 13),
                         color: AppColors.muted,
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    SizedBox(height: Responsive.h(context, 24)),
 
                     // Single input field for the code
                     Container(
                       width: double.infinity,
-                      height: 50,
+                      height: Responsive.h(context, 50),
                       decoration: BoxDecoration(
                         color: AppColors.mint,
                         borderRadius: BorderRadius.circular(12),
@@ -245,25 +246,25 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
                         textAlign: TextAlign.center,
                         keyboardType: TextInputType.number,
                         maxLength: 8,
-                        style: const TextStyle(
-                          fontSize: 20,
+                        style: TextStyle(
+                          fontSize: Responsive.sp(context, 20),
                           fontWeight: FontWeight.w700,
-                          letterSpacing: 8,
+                          letterSpacing: Responsive.w(context, 8),
                         ),
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           hintText: '--------',
                           hintStyle: TextStyle(
-                            fontSize: 20,
-                            letterSpacing: 8,
+                            fontSize: Responsive.sp(context, 20),
+                            letterSpacing: Responsive.w(context, 8),
                             color: Color(0xFFBFC9C3),
                           ),
                           border: InputBorder.none,
                           counterText: '',
-                          contentPadding: EdgeInsets.symmetric(vertical: 14),
+                          contentPadding: EdgeInsets.symmetric(vertical: Responsive.h(context, 14)),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    SizedBox(height: Responsive.h(context, 12)),
 
                     // Change Email link
                     GestureDetector(
@@ -277,23 +278,23 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
                       child: Text(
                         'Change Email',
                         style: TextStyle(
-                          fontSize: 13,
+                          fontSize: Responsive.sp(context, 13),
                           color: const Color(0xFF0068FF),
                           fontWeight: FontWeight.w500,
                         ),
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: Responsive.h(context, 4)),
 
                     // Resend code button with countdown
                     SizedBox(
-                      height: 44,
+                      height: Responsive.h(context, 44),
                       child: _isResending
-                          ? const Center(
+                          ? Center(
                               child: SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
+                                height: Responsive.h(context, 20),
+                                width: Responsive.w(context, 20),
+                                child: const CircularProgressIndicator(
                                   strokeWidth: 2,
                                   color: AppColors.primaryGreen,
                                 ),
@@ -311,7 +312,7 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
                                             ? 'Resend in '
                                             : 'Resend code',
                                         style: TextStyle(
-                                          fontSize: 13,
+                                          fontSize: Responsive.sp(context, 13),
                                           color: _secondsRemaining > 0
                                               ? AppColors.muted
                                               : const Color(0xFF0068FF),
@@ -321,8 +322,8 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
                                       if (_secondsRemaining > 0)
                                         TextSpan(
                                           text: '$_secondsRemaining\'s',
-                                          style: const TextStyle(
-                                            fontSize: 13,
+                                          style: TextStyle(
+                                            fontSize: Responsive.sp(context, 13),
                                             color: AppColors.muted,
                                             fontWeight: FontWeight.w700,
                                           ),
@@ -333,26 +334,29 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
                               ),
                             ),
                     ),
-                    const SizedBox(height: 16),
+                    SizedBox(height: Responsive.h(context, 16)),
 
                     // Button: "Reset Password" or "Next" depending on flow
                     SizedBox(
-                      width: 200,
+                      width: Responsive.w(context, 200),
                       child: ElevatedButton(
                         onPressed: _isSubmitting ? null : _handleSubmit,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primaryGreen,
                           foregroundColor: const Color(0xFF093030),
-                          minimumSize: const Size(double.infinity, 44),
+                          minimumSize: Size(
+                            double.infinity,
+                            Responsive.h(context, 44),
+                          ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(30),
                           ),
                         ),
                         child: _isSubmitting
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
+                            ? SizedBox(
+                                height: Responsive.h(context, 20),
+                                width: Responsive.w(context, 20),
+                                child: const CircularProgressIndicator(
                                   strokeWidth: 2,
                                   color: Color(0xFF093030),
                                 ),
@@ -361,7 +365,7 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
                                 _isSignUpFlow ? 'Next' : 'Reset Password',
                                 style: TextStyle(
                                   fontWeight: FontWeight.w500,
-                                  fontSize: 15,
+                                  fontSize: Responsive.sp(context, 15),
                                 ),
                               ),
                       ),
@@ -370,7 +374,7 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
                 ),
               ),
 
-              const SizedBox(height: 24),
+              SizedBox(height: Responsive.h(context, 24)),
 
               // Already a member / Sign in
               Row(
@@ -380,10 +384,10 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
                     'Already a member?',
                     style: TextStyle(
                       color: AppColors.muted,
-                      fontSize: 14,
+                      fontSize: Responsive.sp(context, 14),
                     ),
                   ),
-                  const SizedBox(width: 4),
+                  SizedBox(width: Responsive.w(context, 4)),
                   GestureDetector(
                     onTap: () {
                       Navigator.of(context).pushNamedAndRemoveUntil(
@@ -395,7 +399,7 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
                       'Sign in',
                       style: TextStyle(
                         color: AppColors.blueAccent,
-                        fontSize: 14,
+                        fontSize: Responsive.sp(context, 14),
                         fontWeight: FontWeight.w600,
                       ),
                     ),

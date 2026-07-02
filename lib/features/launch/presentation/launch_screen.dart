@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../app/shell/finflow_app.dart';
+import '../../../core/services/app_init_notifier.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/finflow_logo.dart';
 
 class LaunchScreen extends StatefulWidget {
@@ -16,11 +17,25 @@ class _LaunchScreenState extends State<LaunchScreen> {
   @override
   void initState() {
     super.initState();
+
+    // authInitNotifier fires true as soon as runApp() completes.
+    authInitNotifier.addListener(_onReady);
+    if (authInitNotifier.value) _onReady();
+  }
+
+  @override
+  void dispose() {
+    authInitNotifier.removeListener(_onReady);
+    super.dispose();
+  }
+
+  void _onReady() {
+    if (!mounted) return;
+
+    // Small delay so the logo animation shows, then navigate.
     Future.delayed(const Duration(milliseconds: 900), () {
       if (!mounted) return;
-      final isLoggedIn = Supabase.instance.client.auth.currentSession != null;
-      final route = isLoggedIn ? AppRoutes.dashboard : AppRoutes.onboarding;
-      Navigator.of(context).pushReplacementNamed(route);
+      Navigator.of(context).pushReplacementNamed(AppRoutes.onboarding);
     });
   }
 
@@ -32,23 +47,23 @@ class _LaunchScreenState extends State<LaunchScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            FinFlowLogo(foregroundColor: Colors.white, showText: false, size: 109),
-            const SizedBox(height: 16),
+            FinFlowLogo(foregroundColor: Colors.white, showText: false, size: Responsive.w(context, 109)),
+            SizedBox(height: Responsive.h(context, 16)),
             Text(
               'FinFlow',
               style: Theme.of(context).textTheme.headlineLarge?.copyWith(
                 color: Colors.white,
                 fontWeight: FontWeight.w600,
-                fontSize: 52,
+                fontSize: Responsive.sp(context, 52),
               ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: Responsive.h(context, 16)),
             Text(
               'Take Control of Your Finances\nwith Budget Genius',
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: const Color(0xFF4B4544),
-                fontSize: 18,
+                fontSize: Responsive.sp(context, 18),
                 fontWeight: FontWeight.w400,
                 fontFamily: 'Roboto',
               ),

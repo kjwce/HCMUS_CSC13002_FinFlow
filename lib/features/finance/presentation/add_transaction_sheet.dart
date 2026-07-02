@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../../core/i18n/app_language.dart';
+import '../../../core/utils/responsive.dart';
 import '../models/transaction_category.dart';
 import '../models/transaction_model.dart';
 import '../providers/transaction_provider.dart';
@@ -65,7 +66,7 @@ class AddTransactionSheet extends ConsumerStatefulWidget {
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (_) => const AddTransactionSheet(),
@@ -129,10 +130,10 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.only(
-        left: 24,
-        right: 24,
-        top: 24,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+        left: Responsive.w(context, 24),
+        right: Responsive.w(context, 24),
+        top: Responsive.h(context, 24),
+        bottom: MediaQuery.of(context).viewInsets.bottom + Responsive.h(context, 24),
       ),
       child: SingleChildScrollView(
         child: Column(
@@ -147,7 +148,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                   'Add transaction',
                   style: TextStyle(
                     fontWeight: FontWeight.w500,
-                    fontSize: 18,
+                    fontSize: Responsive.sp(context, 18),
                     color: const Color(0xFF003829),
                   ),
                 ),
@@ -157,11 +158,11 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: Responsive.h(context, 12)),
 
             // ── Segmented tabs ──
             Container(
-              height: 36,
+              height: Responsive.h(context, 36),
               decoration: BoxDecoration(
                 color: AppColors.lightGreen.withValues(alpha: 0.5),
                 borderRadius: BorderRadius.circular(8),
@@ -181,11 +182,14 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                 ],
               ),
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: Responsive.h(context, 24)),
 
             // ── Amount input ──
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              padding: EdgeInsets.symmetric(
+                horizontal: Responsive.w(context, 20),
+                vertical: Responsive.h(context, 16),
+              ),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(2),
@@ -203,48 +207,64 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                     _isExpense ? '-' : '+',
                     style: TextStyle(
                       fontWeight: FontWeight.w100,
-                      fontSize: 74,
+                      fontSize: Responsive.sp(context, 74),
                       color: const Color(0xFF7D968B),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: Responsive.w(context, 12)),
                   Expanded(
                     child: TextField(
                       controller: _amountController,
                       keyboardType: TextInputType.number,
-                      style: TextStyle(fontSize: 40, color: const Color(0xFF444745)),
+                      style: TextStyle(
+                        fontSize: Responsive.sp(context, 40),
+                        color: const Color(0xFF444745),
+                      ),
                       decoration: InputDecoration(
                         isDense: true,
                         contentPadding: EdgeInsets.zero,
                         border: InputBorder.none,
                         hintText: '0',
                         hintStyle: TextStyle(
-                          fontSize: 40,
+                          fontSize: Responsive.sp(context, 40),
                           color: const Color(0xFF444745).withValues(alpha: 0.3),
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Text('VND', style: TextStyle(fontSize: 24, color: const Color(0xFF0076E3))),
+                  SizedBox(width: Responsive.w(context, 8)),
+                  Text(
+                    'VND',
+                    style: TextStyle(
+                      fontSize: Responsive.sp(context, 24),
+                      color: const Color(0xFF0076E3),
+                    ),
+                  ),
                 ],
               ),
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: Responsive.h(context, 20)),
 
             // ── From account ──
             Text('From account',
-                style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16, color: const Color(0xFF747875))),
-            const SizedBox(height: 8),
+                style: TextStyle(
+                  fontWeight: FontWeight.w500,
+                  fontSize: Responsive.sp(context, 16),
+                  color: const Color(0xFF747875),
+                )),
+            SizedBox(height: Responsive.h(context, 8)),
             Row(
               children: _accounts.map((account) {
                 final isSelected = _selectedAccount == account;
                 return Padding(
-                  padding: const EdgeInsets.only(right: 8),
+                  padding: EdgeInsets.only(right: Responsive.w(context, 8)),
                   child: GestureDetector(
                     onTap: () => setState(() => _selectedAccount = account),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: Responsive.w(context, 20),
+                        vertical: Responsive.h(context, 8),
+                      ),
                       decoration: BoxDecoration(
                         color: isSelected ? const Color(0xFF1CA380) : Colors.white,
                         borderRadius: BorderRadius.circular(34),
@@ -256,13 +276,13 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           if (isSelected)
-                            const Padding(
-                              padding: EdgeInsets.only(right: 6),
-                              child: Icon(Icons.check, size: 14, color: Colors.white),
+                            Padding(
+                              padding: EdgeInsets.only(right: Responsive.w(context, 6)),
+                              child: const Icon(Icons.check, size: 14, color: Colors.white),
                             ),
                           Text(account,
                               style: TextStyle(
-                                fontSize: 14,
+                                fontSize: Responsive.sp(context, 14),
                                 color: isSelected ? Colors.white : const Color(0xFF707974),
                               )),
                         ],
@@ -272,15 +292,19 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                 );
               }).toList(),
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: Responsive.h(context, 20)),
 
             // ── Category grid ──
             Text('From category',
-                style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16, color: const Color(0xFF707974))),
-            const SizedBox(height: 8),
+                style: TextStyle(
+                  fontWeight: FontWeight.w500,
+                  fontSize: Responsive.sp(context, 16),
+                  color: const Color(0xFF707974),
+                )),
+            SizedBox(height: Responsive.h(context, 8)),
             _buildCategoryGrid(),
 
-            const SizedBox(height: 24),
+            SizedBox(height: Responsive.h(context, 24)),
 
             // ── Confirm button ──
             ElevatedButton(
@@ -324,13 +348,13 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF1CA380),
                 foregroundColor: Colors.white,
-                minimumSize: const Size(double.infinity, 50),
+                minimumSize: Size(double.infinity, Responsive.h(context, 50)),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
-              child: const Text('Confirm',
-                  style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16)),
+              child: Text('Confirm',
+                  style: TextStyle(fontWeight: FontWeight.w500, fontSize: Responsive.sp(context, 16))),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: Responsive.h(context, 12)),
           ],
         ),
       ),
@@ -364,8 +388,8 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     }
 
     return Wrap(
-      spacing: 12,
-      runSpacing: 12,
+      spacing: Responsive.w(context, 12),
+      runSpacing: Responsive.h(context, 12),
       children: [
         ...items.map((cat) => _buildCategoryCircle(cat.key, cat.icon, cat.color, cat.label)),
         // "More" button
@@ -382,8 +406,8 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 50,
-            height: 50,
+            width: Responsive.w(context, 50),
+            height: Responsive.w(context, 50),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(
@@ -393,17 +417,17 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
               color: isSelected ? color.withValues(alpha: 0.1) : const Color(0xFFF5F5F5),
             ),
             child: Icon(icon,
-                color: isSelected ? color : color.withValues(alpha: 0.7), size: 22),
+                color: isSelected ? color : color.withValues(alpha: 0.7), size: Responsive.w(context, 22)),
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: Responsive.h(context, 4)),
           SizedBox(
-            width: 56,
+            width: Responsive.w(context, 56),
             child: Text(label,
                 textAlign: TextAlign.center,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                    fontSize: 10,
+                    fontSize: Responsive.sp(context, 10),
                     color: AppColors.darkText,
                     fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400)),
           ),
@@ -419,18 +443,21 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 50,
-            height: 50,
+            width: Responsive.w(context, 50),
+            height: Responsive.w(context, 50),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(color: const Color(0xFFBFC9C3), width: 2),
               color: Colors.white,
             ),
-            child: const Icon(Icons.add, color: Color(0xFF707974), size: 22),
+            child: Icon(Icons.add, color: const Color(0xFF707974), size: Responsive.w(context, 22)),
           ),
-          const SizedBox(height: 4),
-          const Text('More',
-              style: TextStyle(fontSize: 10, color: Color(0xFF707974))),
+          SizedBox(height: Responsive.h(context, 4)),
+          Text('More',
+              style: TextStyle(
+                fontSize: Responsive.sp(context, 10),
+                color: const Color(0xFF707974),
+              )),
         ],
       ),
     );
@@ -440,7 +467,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     final result = await showModalBottomSheet<String?>(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (_) => const _MoreCategorySheet(),
@@ -478,10 +505,10 @@ class _MoreCategorySheetState extends ConsumerState<_MoreCategorySheet> {
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.only(
-        left: 24,
-        right: 24,
-        top: 24,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+        left: Responsive.w(context, 24),
+        right: Responsive.w(context, 24),
+        top: Responsive.h(context, 24),
+        bottom: MediaQuery.of(context).viewInsets.bottom + Responsive.h(context, 24),
       ),
       child: SingleChildScrollView(
         child: Column(
@@ -489,16 +516,24 @@ class _MoreCategorySheetState extends ConsumerState<_MoreCategorySheet> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('More Categories',
-                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18, color: const Color(0xFF003829))),
-          const SizedBox(height: 16),
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: Responsive.sp(context, 18),
+                  color: const Color(0xFF003829),
+                )),
+          SizedBox(height: Responsive.h(context, 16)),
 
           // ── Built-in extended categories ──
           Text('Built-in',
-              style: TextStyle(fontWeight: FontWeight.w500, fontSize: 14, color: const Color(0xFF747875))),
-          const SizedBox(height: 8),
+              style: TextStyle(
+                fontWeight: FontWeight.w500,
+                fontSize: Responsive.sp(context, 14),
+                color: const Color(0xFF747875),
+              )),
+          SizedBox(height: Responsive.h(context, 8)),
           Wrap(
-            spacing: 12,
-            runSpacing: 12,
+            spacing: Responsive.w(context, 12),
+            runSpacing: Responsive.h(context, 12),
             children: TransactionCategory.extended.map((cat) {
               return GestureDetector(
                 onTap: () => Navigator.of(context).pop(cat.key),
@@ -506,48 +541,62 @@ class _MoreCategorySheetState extends ConsumerState<_MoreCategorySheet> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(
-                      width: 50,
-                      height: 50,
+                      width: Responsive.w(context, 50),
+                      height: Responsive.w(context, 50),
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         border: Border.all(color: cat.color.withValues(alpha: 0.5), width: 2),
                         color: cat.color.withValues(alpha: 0.1),
                       ),
-                      child: Icon(cat.icon, color: cat.color, size: 22),
+                      child: Icon(cat.icon, color: cat.color, size: Responsive.w(context, 22)),
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: Responsive.h(context, 4)),
                     Text(cat.label,
-                        style: const TextStyle(fontSize: 10, color: AppColors.darkText)),
+                        style: TextStyle(
+                          fontSize: Responsive.sp(context, 10),
+                          color: AppColors.darkText,
+                        )),
                   ],
                 ),
               );
             }).toList(),
           ),
 
-          const SizedBox(height: 24),
+          SizedBox(height: Responsive.h(context, 24)),
           const Divider(),
-          const SizedBox(height: 12),
+          SizedBox(height: Responsive.h(context, 12)),
 
           // ── Custom category ──
           Text('Custom Category',
-              style: TextStyle(fontWeight: FontWeight.w500, fontSize: 14, color: const Color(0xFF747875))),
-          const SizedBox(height: 8),
+              style: TextStyle(
+                fontWeight: FontWeight.w500,
+                fontSize: Responsive.sp(context, 14),
+                color: const Color(0xFF747875),
+              )),
+          SizedBox(height: Responsive.h(context, 8)),
           TextField(
             controller: _customNameController,
             decoration: InputDecoration(
               hintText: 'e.g. Tuition, Repair...',
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: Responsive.w(context, 16),
+                vertical: Responsive.h(context, 12),
+              ),
             ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: Responsive.h(context, 12)),
 
           // ── Icon picker ──
           Text('Pick icon',
-              style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13, color: const Color(0xFF747875))),
-          const SizedBox(height: 6),
+              style: TextStyle(
+                fontWeight: FontWeight.w500,
+                fontSize: Responsive.sp(context, 13),
+                color: const Color(0xFF747875),
+              )),
+          SizedBox(height: Responsive.h(context, 6)),
           SizedBox(
-            height: 36,
+            height: Responsive.h(context, 36),
             child: ListView(
               scrollDirection: Axis.horizontal,
               children: _customIcons.map((icn) {
@@ -555,9 +604,9 @@ class _MoreCategorySheetState extends ConsumerState<_MoreCategorySheet> {
                 return GestureDetector(
                   onTap: () => setState(() => _customIcon = icn),
                   child: Container(
-                    width: 36,
-                    height: 36,
-                    margin: const EdgeInsets.only(right: 6),
+                    width: Responsive.w(context, 36),
+                    height: Responsive.w(context, 36),
+                    margin: EdgeInsets.only(right: Responsive.w(context, 6)),
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: isSelected ? _customColor.withValues(alpha: 0.2) : const Color(0xFFF5F5F5),
@@ -566,28 +615,36 @@ class _MoreCategorySheetState extends ConsumerState<_MoreCategorySheet> {
                         width: 2,
                       ),
                     ),
-                    child: Icon(icn, size: 18, color: isSelected ? _customColor : const Color(0xFF707974)),
+                    child: Icon(
+                      icn,
+                      size: Responsive.w(context, 18),
+                      color: isSelected ? _customColor : const Color(0xFF707974),
+                    ),
                   ),
                 );
               }).toList(),
             ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: Responsive.h(context, 12)),
 
           // ── Color picker ──
           Text('Pick color',
-              style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13, color: const Color(0xFF747875))),
-          const SizedBox(height: 6),
+              style: TextStyle(
+                fontWeight: FontWeight.w500,
+                fontSize: Responsive.sp(context, 13),
+                color: const Color(0xFF747875),
+              )),
+          SizedBox(height: Responsive.h(context, 6)),
           Wrap(
-            spacing: 6,
-            runSpacing: 6,
+            spacing: Responsive.w(context, 6),
+            runSpacing: Responsive.h(context, 6),
             children: _customColors.map((clr) {
               final isSelected = clr == _customColor;
               return GestureDetector(
                 onTap: () => setState(() => _customColor = clr),
                 child: Container(
-                  width: 28,
-                  height: 28,
+                  width: Responsive.w(context, 28),
+                  height: Responsive.w(context, 28),
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: clr,
@@ -596,13 +653,13 @@ class _MoreCategorySheetState extends ConsumerState<_MoreCategorySheet> {
                         : null,
                   ),
                   child: isSelected
-                      ? const Icon(Icons.check, size: 16, color: Colors.white)
+                      ? Icon(Icons.check, size: Responsive.w(context, 16), color: Colors.white)
                       : null,
                 ),
               );
             }).toList(),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: Responsive.h(context, 16)),
 
           // ── Save custom category ──
           SizedBox(
@@ -627,11 +684,11 @@ class _MoreCategorySheetState extends ConsumerState<_MoreCategorySheet> {
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
-              child: const Text('Save Category',
-                  style: TextStyle(fontWeight: FontWeight.w500, fontSize: 15)),
+              child: Text('Save Category',
+                  style: TextStyle(fontWeight: FontWeight.w500, fontSize: Responsive.sp(context, 15))),
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: Responsive.h(context, 8)),
         ],
       ),
       ),
@@ -656,7 +713,7 @@ class _SegmentTab extends StatelessWidget {
         onTap: onTap,
         child: Container(
           alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          padding: EdgeInsets.symmetric(vertical: Responsive.h(context, 8)),
           decoration: BoxDecoration(
             color: isSelected ? const Color(0xFF006C52) : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
@@ -664,7 +721,7 @@ class _SegmentTab extends StatelessWidget {
           child: Text(label,
               style: TextStyle(
                 fontWeight: isSelected ? FontWeight.w500 : FontWeight.w400,
-                fontSize: 16,
+                fontSize: Responsive.sp(context, 16),
                 color: isSelected ? Colors.white : const Color(0xFF008768),
               )),
         ),

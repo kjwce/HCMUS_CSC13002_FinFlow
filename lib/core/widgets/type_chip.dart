@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../utils/responsive.dart';
+
 class TypeChip extends StatelessWidget {
   const TypeChip({
     super.key,
@@ -21,7 +23,7 @@ class TypeChip extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        padding: EdgeInsets.symmetric(vertical: Responsive.h(context, 12)),
         decoration: BoxDecoration(
           color: isSelected
               ? color.withValues(alpha: 0.1)
@@ -35,8 +37,8 @@ class TypeChip extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: isSelected ? color : Colors.grey, size: 20),
-            const SizedBox(width: 8),
+            Icon(icon, color: isSelected ? color : Colors.grey, size: Responsive.w(context, 20)),
+            SizedBox(width: Responsive.w(context, 8)),
             Text(
               label,
               style: TextStyle(

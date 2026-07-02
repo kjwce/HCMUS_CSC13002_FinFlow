@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/i18n/app_language.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/responsive.dart';
 import '../../core/widgets/notification_bell.dart';
 
 // =============================================================================
@@ -16,7 +17,7 @@ class AiScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return SafeArea(
       child: ListView(
-        padding: const EdgeInsets.all(20),
+        padding: EdgeInsets.all(Responsive.w(context, 20)),
         children: [
           // Header row: title + bell
           Row(
@@ -27,14 +28,14 @@ class AiScreen extends ConsumerWidget {
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       fontFamily: 'Poppins',
                       fontWeight: FontWeight.w600,
-                      fontSize: 20,
+                      fontSize: Responsive.sp(context, 20),
                       color: const Color(0xFF093030),
                     ),
               ),
               const NotificationBell(),
             ],
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: Responsive.h(context, 20)),
           _RoadmapItem(
             icon: Icons.auto_awesome,
             title: AppStrings.naturalInput,
@@ -55,10 +56,10 @@ class AiScreen extends ConsumerWidget {
             title: AppStrings.chatAssistant,
             subtitle: AppStrings.chatAssistantDesc,
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: Responsive.h(context, 20)),
           // Coming-soon note
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.all(Responsive.w(context, 16)),
             decoration: BoxDecoration(
               color: const Color(0xFFD4F4E4),
               borderRadius: BorderRadius.circular(12),
@@ -70,14 +71,14 @@ class AiScreen extends ConsumerWidget {
                   color: Color(0xFF44BF99),
                   size: 24,
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: Responsive.w(context, 12)),
                 Expanded(
                   child: Text(
                     'More features coming soon!',
                     style: TextStyle(
                       fontFamily: 'Roboto',
                       fontWeight: FontWeight.w500,
-                      fontSize: 14,
+                      fontSize: Responsive.sp(context, 14),
                       color: const Color(0xFF002117),
                     ),
                   ),
@@ -109,7 +110,7 @@ class _RoadmapItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: EdgeInsets.only(bottom: Responsive.h(context, 12)),
       child: ListTile(
         leading: Icon(icon, color: AppColors.emerald),
         title: Text(title),

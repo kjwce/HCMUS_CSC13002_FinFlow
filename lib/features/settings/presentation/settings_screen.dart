@@ -6,6 +6,7 @@ import '../../../app/shell/finflow_app.dart';
 import '../../../core/i18n/app_language.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme_manager.dart';
+import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/notification_bell.dart';
 import '../../auth/services/auth_service.dart';
 
@@ -26,7 +27,7 @@ class SettingsScreen extends ConsumerWidget {
             children: [
               // ── Cover image ──
               SizedBox(
-                height: 206,
+                height: Responsive.h(context, 206),
                 width: double.infinity,
                 child: Image.asset(
                   'assets/settings_cover.png',
@@ -36,8 +37,8 @@ class SettingsScreen extends ConsumerWidget {
 
               // ── Back arrow (trên cùng) ──
               Positioned(
-                top: 12,
-                left: 20,
+                top: Responsive.h(context, 12),
+                left: Responsive.w(context, 20),
                 child: GestureDetector(
                   onTap: () => Navigator.of(context).pop(),
                   child: const Icon(Icons.arrow_back,
@@ -51,8 +52,8 @@ class SettingsScreen extends ConsumerWidget {
                 child: NotificationBell(),
               ),
               // ── Title "Settings" ở giữa cover ──
-              const Positioned(
-                top: 80,
+              Positioned(
+                top: Responsive.h(context, 80),
                 left: 0,
                 right: 0,
                 child: Text(
@@ -61,7 +62,7 @@ class SettingsScreen extends ConsumerWidget {
                   style: TextStyle(
                     fontFamily: 'Poppins',
                     fontWeight: FontWeight.w600,
-                    fontSize: 20,
+                    fontSize: Responsive.sp(context, 20),
                     color: _settingsText,
                   ),
                 ),
@@ -69,7 +70,7 @@ class SettingsScreen extends ConsumerWidget {
 
               // ── White card ──
               Container(
-                margin: const EdgeInsets.only(top: 180),
+                margin: EdgeInsets.only(top: Responsive.h(context, 180)),
                 decoration: const BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.only(
@@ -79,10 +80,10 @@ class SettingsScreen extends ConsumerWidget {
                 ),
                 child: Column(
                   children: [
-                    const SizedBox(height: 60),
+                    SizedBox(height: Responsive.h(context, 60)),
                     // Menu items
-                    _buildMenuList(),
-                    const SizedBox(height: 40),
+                    _buildMenuList(context),
+                    SizedBox(height: Responsive.h(context, 40)),
                   ],
                 ),
               ),
@@ -93,9 +94,9 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildMenuList() {
+  Widget _buildMenuList(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 38),
+      padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 38)),
       child: Column(
         children: [
           const _SettingsMenuRow(
@@ -103,21 +104,21 @@ class SettingsScreen extends ConsumerWidget {
             label: 'Notification Settings',
             action: ActionType.comingSoon,
           ),
-          const SizedBox(height: 48),
+          SizedBox(height: Responsive.h(context, 48)),
           const _SettingsMenuRow(
             icon: Icons.lock_outline,
             label: 'Password Settings',
             action: ActionType.navigatePassword,
           ),
-          const SizedBox(height: 48),
+          SizedBox(height: Responsive.h(context, 48)),
           const _SettingsMenuRow(
             icon: Icons.account_balance_wallet_outlined,
             label: 'Budget Limit',
             action: ActionType.editBudget,
           ),
-          const SizedBox(height: 48),
+          SizedBox(height: Responsive.h(context, 48)),
           const _DarkModeToggle(),
-          const SizedBox(height: 48),
+          SizedBox(height: Responsive.h(context, 48)),
           const _SettingsMenuRow(
             icon: Icons.delete_outline,
             label: 'Delete Account',
@@ -147,30 +148,30 @@ class _DarkModeToggle extends StatelessWidget {
       child: Row(
         children: [
           SizedBox(
-            width: 31,
-            height: 31,
+            width: Responsive.w(context, 31),
+            height: Responsive.w(context, 31),
             child: Icon(
               isDark ? Icons.dark_mode : Icons.light_mode,
               color: const Color(0xFF093030),
-              size: 22,
+              size: Responsive.w(context, 22),
             ),
           ),
-          const SizedBox(width: 16),
+          SizedBox(width: Responsive.w(context, 16)),
           Expanded(
             child: Text(
               isDark ? 'Dark Mode (ON)' : 'Dark Mode (OFF)',
-              style: const TextStyle(
+              style: TextStyle(
                 fontFamily: 'Poppins',
                 fontWeight: FontWeight.w500,
-                fontSize: 15,
-                color: Color(0xFF363130),
+                fontSize: Responsive.sp(context, 15),
+                color: const Color(0xFF363130),
               ),
             ),
           ),
           Icon(
             isDark ? Icons.toggle_on : Icons.toggle_off_outlined,
             color: const Color(0xFF093030),
-            size: 28,
+            size: Responsive.w(context, 28),
           ),
         ],
       ),
@@ -213,23 +214,23 @@ class _SettingsMenuRow extends StatelessWidget {
       child: Row(
         children: [
           SizedBox(
-            width: 31,
-            height: 31,
-            child: Icon(icon, color: effectiveColor, size: 22),
+            width: Responsive.w(context, 31),
+            height: Responsive.w(context, 31),
+            child: Icon(icon, color: effectiveColor, size: Responsive.w(context, 22)),
           ),
-          const SizedBox(width: 16),
+          SizedBox(width: Responsive.w(context, 16)),
           Expanded(
             child: Text(
               label,
               style: TextStyle(
                 fontFamily: 'Poppins',
                 fontWeight: FontWeight.w500,
-                fontSize: 15,
+                fontSize: Responsive.sp(context, 15),
                 color: labelColor ?? const Color(0xFF363130),
               ),
             ),
           ),
-          const Icon(Icons.chevron_right, color: Color(0xFF093030), size: 24),
+          Icon(Icons.chevron_right, color: const Color(0xFF093030), size: Responsive.w(context, 24)),
         ],
       ),
     );
@@ -301,7 +302,7 @@ class _SettingsMenuRow extends StatelessWidget {
               'Set your monthly spending limit:',
               style: TextStyle(fontSize: 14),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: Responsive.h(context, 12)),
             TextField(
               controller: controller,
               keyboardType: TextInputType.number,

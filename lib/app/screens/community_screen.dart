@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/utils/responsive.dart';
 import '../../core/widgets/notification_bell.dart';
 
 // =============================================================================
@@ -33,9 +34,9 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
         child: Column(
           children: [
             _buildHeader(),
-            const SizedBox(height: 16),
+            SizedBox(height: Responsive.h(context, 16)),
             _buildSegmentedTabs(),
-            const SizedBox(height: 16),
+            SizedBox(height: Responsive.h(context, 16)),
             Expanded(child: _buildArticleGrid()),
           ],
         ),
@@ -46,17 +47,20 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
   Widget _buildHeader() {
     return Container(
       color: _headerBg,
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+      padding: EdgeInsets.symmetric(
+        vertical: Responsive.h(context, 16),
+        horizontal: Responsive.w(context, 20),
+      ),
       width: double.infinity,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Text(
+          Text(
             'Financial advices',
             style: TextStyle(
               fontFamily: 'Roboto',
               fontWeight: FontWeight.w500,
-              fontSize: 20,
+              fontSize: Responsive.sp(context, 20),
               color: _textDark,
             ),
           ),
@@ -69,7 +73,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
   Widget _buildSegmentedTabs() {
     final tabs = ['post', 'like', 'save'];
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 20)),
       child: Container(
         decoration: BoxDecoration(
           color: _white,
@@ -90,11 +94,11 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
               child: GestureDetector(
                 onTap: () => setState(() => _selectedTab = i),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  padding: EdgeInsets.symmetric(vertical: Responsive.h(context, 10)),
                   decoration: BoxDecoration(
                     color: isActive ? _primaryGreen : _white,
                     border: i < tabs.length - 1
-                        ? const Border(
+                        ? Border(
                             right: BorderSide(color: _primaryGreen, width: 1),
                           )
                         : null,
@@ -105,7 +109,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
                     style: TextStyle(
                       fontFamily: 'Roboto',
                       fontWeight: FontWeight.w500,
-                      fontSize: 14,
+                      fontSize: Responsive.sp(context, 14),
                       color: isActive ? _white : _primaryGreen,
                     ),
                   ),
@@ -120,12 +124,12 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
 
   Widget _buildArticleGrid() {
     return GridView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+      padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 16)),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
         childAspectRatio: 167 / 186,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
+        crossAxisSpacing: Responsive.w(context, 12),
+        mainAxisSpacing: Responsive.h(context, 12),
       ),
       itemCount: _articles.length,
       itemBuilder: (_, index) => _ArticleCard(article: _articles[index]),
@@ -205,7 +209,7 @@ class _ArticleCard extends StatelessWidget {
         children: [
           // Image section (106px)
           Container(
-            height: 106,
+            height: Responsive.h(context, 106),
             decoration: BoxDecoration(
               color: article.bgColor,
               borderRadius: const BorderRadius.vertical(
@@ -213,13 +217,13 @@ class _ArticleCard extends StatelessWidget {
               ),
             ),
             child: Center(
-              child: Icon(article.icon, color: Colors.white, size: 40),
+              child: Icon(article.icon, color: Colors.white, size: Responsive.w(context, 40)),
             ),
           ),
           // Text section (80px)
           Container(
-            height: 80,
-            padding: const EdgeInsets.all(10),
+            height: Responsive.h(context, 80),
+            padding: EdgeInsets.all(Responsive.w(context, 10)),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -227,20 +231,20 @@ class _ArticleCard extends StatelessWidget {
                   article.title,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: 'Roboto',
                     fontWeight: FontWeight.w500,
-                    fontSize: 12,
+                    fontSize: Responsive.sp(context, 12),
                     color: _CommunityScreenState._textBody,
                   ),
                 ),
                 const Spacer(),
                 Text(
                   article.date,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: 'Roboto',
                     fontWeight: FontWeight.w500,
-                    fontSize: 11,
+                    fontSize: Responsive.sp(context, 11),
                     color: _CommunityScreenState._textMuted,
                   ),
                 ),

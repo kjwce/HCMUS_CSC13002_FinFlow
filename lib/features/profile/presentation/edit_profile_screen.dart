@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../app/shell/bottom_nav_bar.dart';
 import '../../../core/i18n/app_language.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/notification_bell.dart';
 import '../../auth/models/user_model.dart';
 import '../../auth/services/auth_service.dart';
@@ -76,7 +77,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 children: [
                   // ── 1. Cover image (phía sau) ──────────────────────────────
                   SizedBox(
-                    height: 206,
+                    height: Responsive.h(context, 206),
                     width: double.infinity,
                     child: Image.asset(
                       'assets/edit_cover.png',
@@ -86,23 +87,24 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
                   // ── Back arrow + title (trên cover) ────────────────────────
                   Positioned(
-                    top: 12,
-                    left: 20,
-                    right: 20,
+                    top: Responsive.h(context, 12),
+                    left: Responsive.w(context, 20),
+                    right: Responsive.w(context, 20),
                     child: Row(
                       children: [
                         GestureDetector(
                           onTap: () => Navigator.of(context).pop(),
-                          child: const Icon(Icons.arrow_back,
-                              color: _profileText, size: 24),
+                          child: Icon(Icons.arrow_back,
+                              color: _profileText,
+                              size: Responsive.w(context, 24)),
                         ),
                         const Spacer(),
-                        const Text(
+                        Text(
                           'Edit my Profile',
                           style: TextStyle(
                             fontFamily: 'Poppins',
                             fontWeight: FontWeight.w600,
-                            fontSize: 20,
+                            fontSize: Responsive.sp(context, 20),
                             color: _profileText,
                           ),
                         ),
@@ -114,7 +116,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
                   // ── 2. White content card ──────────────────────────────────
                   Container(
-                    margin: const EdgeInsets.only(top: 180),
+                    margin: EdgeInsets.only(top: Responsive.h(context, 180)),
                     decoration: const BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.only(
@@ -125,31 +127,33 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     child: Column(
                       children: [
                         // Khoảng trống để avatar + tên không bị che
-                        const SizedBox(height: 168),
+                        SizedBox(height: Responsive.h(context, 168)),
                         // Account settings header
                         Align(
                           alignment: Alignment.centerLeft,
                           child: Padding(
-                            padding: const EdgeInsets.only(left: 38),
+                            padding: EdgeInsets.only(
+                              left: Responsive.w(context, 38),
+                            ),
                             child: Text(
                               AppStrings.accountSettings,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontFamily: 'Poppins',
                                 fontWeight: FontWeight.w600,
-                                fontSize: 20,
+                                fontSize: Responsive.sp(context, 20),
                                 color: _profileText,
                               ),
                             ),
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        SizedBox(height: Responsive.h(context, 16)),
                         // Username field
                         _buildFormField(
                           label: AppStrings.username,
                           controller: _usernameController,
                           hint: 'John Smith',
                         ),
-                        const SizedBox(height: 20),
+                        SizedBox(height: Responsive.h(context, 20)),
                         // Phone field
                         _buildFormField(
                           label: AppStrings.phone,
@@ -157,14 +161,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           hint: '+44 555 5555 55',
                           textColor: const Color(0xFF0E3E3E),
                         ),
-                        const SizedBox(height: 20),
+                        SizedBox(height: Responsive.h(context, 20)),
                         // Email field
                         _buildFormField(
                           label: AppStrings.emailAddress,
                           controller: _emailController,
                           hint: 'example@example.com',
                         ),
-                        const SizedBox(height: 24),
+                        SizedBox(height: Responsive.h(context, 24)),
                         // push notifications toggle
                         _buildToggleRow(
                           label: AppStrings.pushNotifications,
@@ -172,7 +176,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           onChanged: (v) =>
                               setState(() => _pushNotifications = v),
                         ),
-                        const SizedBox(height: 37),
+                        SizedBox(height: Responsive.h(context, 37)),
                         // Turn dark Theme toggle
                         _buildToggleRow(
                           label: AppStrings.turnDarkTheme,
@@ -180,17 +184,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           onChanged: (v) =>
                               setState(() => _darkTheme = v),
                         ),
-                        const SizedBox(height: 48),
+                        SizedBox(height: Responsive.h(context, 48)),
                         // Update Profile button
                         _buildUpdateButton(),
-                        const SizedBox(height: 40),
+                        SizedBox(height: Responsive.h(context, 40)),
                       ],
                     ),
                   ),
 
                   // ── 3. Avatar + name/ID (đè lên – không bị che) ──────────
                   Positioned(
-                    top: 130,
+                    top: Responsive.h(context, 130),
                     left: 0,
                     right: 0,
                     child: Column(
@@ -201,7 +205,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           child: Stack(
                             children: [
                               CircleAvatar(
-                                radius: 64,
+                                radius: Responsive.w(context, 64),
                                 backgroundColor: AppColors.lightGreen,
                                 backgroundImage: _avatarFile != null
                                     ? FileImage(_avatarFile!)
@@ -212,9 +216,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                         user?.avatarUrl == null
                                     ? Text(
                                         _firstLetter(displayName),
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           color: AppColors.primaryGreen,
-                                          fontSize: 40,
+                                          fontSize: Responsive.sp(context, 40),
                                           fontWeight: FontWeight.w900,
                                         ),
                                       )
@@ -225,41 +229,41 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                 bottom: 0,
                                 right: 0,
                                 child: Container(
-                                  width: 32,
-                                  height: 32,
+                                  width: Responsive.w(context, 32),
+                                  height: Responsive.w(context, 32),
                                   decoration: const BoxDecoration(
                                     color: AppColors.primaryGreen,
                                     shape: BoxShape.circle,
                                   ),
-                                  child: const Icon(
+                                  child: Icon(
                                     Icons.camera_alt,
                                     color: Colors.white,
-                                    size: 18,
+                                    size: Responsive.w(context, 18),
                                   ),
                                 ),
                               ),
                             ],
                           ),
                         ),
-                        const SizedBox(height: 12),
+                        SizedBox(height: Responsive.h(context, 12)),
                         // Username
                         Text(
                           displayName,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontFamily: 'Poppins',
                             fontWeight: FontWeight.bold,
-                            fontSize: 20,
+                            fontSize: Responsive.sp(context, 20),
                             color: _profileText,
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        SizedBox(height: Responsive.h(context, 4)),
                         // ID
                         Text(
                           'ID: $userId',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontFamily: 'Poppins',
                             fontWeight: FontWeight.w600,
-                            fontSize: 13,
+                            fontSize: Responsive.sp(context, 13),
                             color: _profileText,
                           ),
                         ),
@@ -282,23 +286,23 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     Color? textColor,
   }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 38),
+      padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 38)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: 'Poppins',
               fontWeight: FontWeight.w500,
-              fontSize: 15,
+              fontSize: Responsive.sp(context, 15),
               color: _profileText,
             ),
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: Responsive.h(context, 6)),
           Container(
             width: double.infinity,
-            height: 32,
+            height: Responsive.h(context, 32),
             decoration: BoxDecoration(
               color: AppColors.lightGreen,
               borderRadius: BorderRadius.circular(10),
@@ -308,21 +312,23 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               style: TextStyle(
                 fontFamily: 'Poppins',
                 fontWeight: FontWeight.w300,
-                fontSize: 13,
+                fontSize: Responsive.sp(context, 13),
                 color: textColor ?? _profileText,
               ),
               decoration: InputDecoration(
                 hintText: hint,
-                hintStyle: const TextStyle(
+                hintStyle: TextStyle(
                   fontFamily: 'Poppins',
                   fontWeight: FontWeight.w300,
-                  fontSize: 13,
+                  fontSize: Responsive.sp(context, 13),
                   color: Colors.grey,
                 ),
                 border: InputBorder.none,
                 filled: false,
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: Responsive.w(context, 20),
+                  vertical: Responsive.h(context, 6),
+                ),
                 isDense: true,
               ),
             ),
@@ -338,15 +344,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     required ValueChanged<bool> onChanged,
   }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 38),
+      padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 38)),
       child: Row(
         children: [
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: 'Poppins',
               fontWeight: FontWeight.w500,
-              fontSize: 15,
+              fontSize: Responsive.sp(context, 15),
               color: _profileText,
             ),
           ),
@@ -359,8 +365,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   Widget _buildUpdateButton() {
     return SizedBox(
-      width: 169,
-      height: 36,
+      width: Responsive.w(context, 169),
+      height: Responsive.h(context, 36),
       child: ElevatedButton(
         onPressed: _isSaving ? null : _saveProfile,
         style: ElevatedButton.styleFrom(
@@ -371,20 +377,20 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           elevation: 0,
         ),
         child: _isSaving
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(
+            ? SizedBox(
+                width: Responsive.w(context, 18),
+                height: Responsive.h(context, 18),
+                child: const CircularProgressIndicator(
                   strokeWidth: 2,
                   color: _profileText,
                 ),
               )
-            : const Text(
+            : Text(
                 'Update Profile',
                 style: TextStyle(
                   fontFamily: 'Poppins',
                   fontWeight: FontWeight.w500,
-                  fontSize: 15,
+                  fontSize: Responsive.sp(context, 15),
                   color: _profileText,
                 ),
               ),
@@ -474,8 +480,8 @@ class _CustomToggle extends StatelessWidget {
       onTap: () => onChanged(!value),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        width: 31,
-        height: 15,
+        width: Responsive.w(context, 31),
+        height: Responsive.w(context, 15), // using w() since this is a small value that should keep its aspect ratio
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(7.5),
           color: value
@@ -486,9 +492,9 @@ class _CustomToggle extends StatelessWidget {
           duration: const Duration(milliseconds: 200),
           alignment: value ? Alignment.centerRight : Alignment.centerLeft,
           child: Container(
-            width: 12,
-            height: 12,
-            margin: const EdgeInsets.symmetric(horizontal: 2),
+            width: Responsive.w(context, 12),
+            height: Responsive.w(context, 12),
+            margin: EdgeInsets.symmetric(horizontal: Responsive.w(context, 2)),
             decoration: const BoxDecoration(
               color: Colors.white,
               shape: BoxShape.circle,

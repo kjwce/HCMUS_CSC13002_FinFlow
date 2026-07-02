@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../core/i18n/app_language.dart';
+import '../../../core/utils/responsive.dart';
 
 // =============================================================================
 // CHAT SCREEN — matches Figma node 1:1353
@@ -61,12 +62,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         children: [
           Expanded(
             child: ListView.builder(
-              padding: const EdgeInsets.only(
-                left: 16,
-                right: 16,
-                top: 16,
-                bottom: 16,
-              ),
+              padding: EdgeInsets.all(Responsive.w(context, 16)),
               itemCount: _sampleMessages.length,
               itemBuilder: (_, index) {
                 final msg = _sampleMessages[index];
@@ -86,13 +82,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         icon: const Icon(Icons.arrow_back),
         onPressed: () => Navigator.pop(context),
       ),
-      title: const Text(
+      title: Text(
         'AI Chatbot',
         style: TextStyle(
           fontFamily: 'Poppins',
           fontWeight: FontWeight.w600,
-          fontSize: 20,
-          color: Color(0xFF093030),
+          fontSize: Responsive.sp(context, 20),
+          color: const Color(0xFF093030),
         ),
       ),
       centerTitle: true,
@@ -100,8 +96,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         IconButton(
           icon: SvgPicture.asset(
             'assets/icons/icon_notification.svg',
-            width: 24,
-            height: 24,
+            width: Responsive.w(context, 24),
+            height: Responsive.h(context, 24),
             colorFilter: const ColorFilter.mode(Color(0xFF093030), BlendMode.srcIn),
           ),
           onPressed: () {},
@@ -114,7 +110,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   Widget _buildInputArea() {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(Responsive.w(context, 16)),
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
@@ -139,14 +135,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   ),
                   filled: true,
                   fillColor: const Color(0xFFF5F5F5),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: Responsive.w(context, 16),
+                    vertical: Responsive.h(context, 12),
                   ),
                 ),
               ),
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: Responsive.w(context, 8)),
             CircleAvatar(
               backgroundColor: const Color(0xFF44BF99),
               child:
@@ -162,9 +158,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     return Align(
       alignment: Alignment.centerRight,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        constraints: const BoxConstraints(maxWidth: 320),
-        padding: const EdgeInsets.all(14),
+        margin: EdgeInsets.only(bottom: Responsive.h(context, 12)),
+        constraints: BoxConstraints(maxWidth: Responsive.w(context, 320)),
+        padding: EdgeInsets.all(Responsive.w(context, 14)),
         decoration: BoxDecoration(
           color: const Color(0xFFDFF7E2),
           borderRadius: BorderRadius.circular(18),
@@ -181,9 +177,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     return Align(
       alignment: Alignment.centerLeft,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        constraints: const BoxConstraints(maxWidth: 320),
-        padding: const EdgeInsets.all(14),
+        margin: EdgeInsets.only(bottom: Responsive.h(context, 12)),
+        constraints: BoxConstraints(maxWidth: Responsive.w(context, 320)),
+        padding: EdgeInsets.all(Responsive.w(context, 14)),
         decoration: BoxDecoration(
           color: const Color(0xFFDFF7E2),
           borderRadius: BorderRadius.circular(18),

@@ -5,6 +5,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../shell/finflow_app.dart';
 import '../../core/i18n/app_language.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/responsive.dart';
 import '../../core/widgets/notification_bell.dart';
 import '../../features/auth/providers/auth_provider.dart';
 
@@ -18,7 +19,11 @@ import '../../features/auth/providers/auth_provider.dart';
 ///   - Menu items: Edit Profile, Security, Setting, Help, Logout
 ///     each with a rounded icon container (57x53, r22) and label
 class ProfileScreen extends ConsumerWidget {
-  const ProfileScreen({super.key});
+  const ProfileScreen({super.key, this.onTabChanged});
+
+  /// Called when a pushed screen (Settings / EditProfile) pops with a tab
+  /// index — forwards it to MainShell so the bottom-nav tab switches.
+  final ValueChanged<int>? onTabChanged;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -39,7 +44,7 @@ class ProfileScreen extends ConsumerWidget {
 
               // ── White card ────────────────────────────
               Container(
-                margin: const EdgeInsets.only(top: 160),
+                margin: EdgeInsets.only(top: Responsive.h(context, 160)),
                 decoration: const BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.only(
@@ -49,41 +54,41 @@ class ProfileScreen extends ConsumerWidget {
                 ),
                 child: Column(
                   children: [
-                    const SizedBox(height: 76), // chỗ cho avatar
+                    SizedBox(height: Responsive.h(context, 76)), // chỗ cho avatar
                     Text(
                       displayName,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: 'Poppins',
                         fontWeight: FontWeight.bold,
-                        fontSize: 20,
+                        fontSize: Responsive.sp(context, 20),
                         color: _profileText,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: Responsive.h(context, 4)),
                     Text(
                       'ID: $userId',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: 'Poppins',
                         fontWeight: FontWeight.w600,
-                        fontSize: 13,
+                        fontSize: Responsive.sp(context, 13),
                         color: _profileText,
                       ),
                     ),
-                    const SizedBox(height: 32),
-                    const _MenuItems(),
-                    const SizedBox(height: 40),
+                    SizedBox(height: Responsive.h(context, 32)),
+                    _MenuItems(onTabChanged: onTabChanged),
+                    SizedBox(height: Responsive.h(context, 40)),
                   ],
                 ),
               ),
 
               // ── Avatar nằm TRÊN CÙNG trong Stack chính ──
               Positioned(
-                top: 160 - 64,
+                top: Responsive.h(context, 160 - 64),
                 left: 0,
                 right: 0,
                 child: Center(
                   child: CircleAvatar(
-                    radius: 64,
+                    radius: Responsive.w(context, 64),
                     backgroundColor: AppColors.lightGreen,
                     backgroundImage: user?.avatarUrl != null
                         ? NetworkImage(user!.avatarUrl!)
@@ -93,9 +98,9 @@ class ProfileScreen extends ConsumerWidget {
                             displayName.trim().isEmpty
                                 ? '?'
                                 : displayName.trim().substring(0, 1).toUpperCase(),
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: AppColors.primaryGreen,
-                              fontSize: 40,
+                              fontSize: Responsive.sp(context, 40),
                               fontWeight: FontWeight.w900,
                             ),
                           )
@@ -134,23 +139,23 @@ class _ProfileCover extends StatelessWidget {
         Image.asset(
           'assets/profile_cover.png',
           width: double.infinity,
-          height: 200,
+          height: Responsive.h(context, 200),
           fit: BoxFit.cover,
         ),
         // Top bar
         Positioned(
-          top: 12,
-          left: 20,
-          right: 20,
+          top: Responsive.h(context, 12),
+          left: Responsive.w(context, 20),
+          right: Responsive.w(context, 20),
           child: Row(
             children: [
               const Spacer(),
               Text(
                 AppStrings.profileTitle,
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: 'Poppins',
                   fontWeight: FontWeight.w600,
-                  fontSize: 20,
+                  fontSize: Responsive.sp(context, 20),
                   color: _profileText,
                 ),
               ),
@@ -183,7 +188,11 @@ class _MenuItemData {
 }
 
 class _MenuItems extends ConsumerWidget {
-  const _MenuItems();
+  const _MenuItems({this.onTabChanged});
+
+  /// Forwards tab‑change results popped from pushed screens
+  /// (Settings / EditProfile) so the bottom‑nav tab switches.
+  final ValueChanged<int>? onTabChanged;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -191,22 +200,27 @@ class _MenuItems extends ConsumerWidget {
       _MenuItemData(
         icon: SvgPicture.asset(
           'assets/icons/icon_profile.svg',
-          width: 24,
-          height: 24,
+          width: Responsive.w(context, 24),
+          height: Responsive.h(context, 24),
           colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
         ),
         bgColor: const Color(0xFF6DB6FE),
         label: AppStrings.editProfileMenuItem,
-        onTap: () => Navigator.of(
-          context,
-          rootNavigator: true,
-        ).pushNamed(AppRoutes.editProfile),
+        onTap: () async {
+          final result = await Navigator.of(
+            context,
+            rootNavigator: true,
+          ).pushNamed(AppRoutes.editProfile);
+          if (result is int && context.mounted) {
+            onTabChanged?.call(result);
+          }
+        },
       ),
       _MenuItemData(
         icon: SvgPicture.asset(
           'assets/icons/icon_security.svg',
-          width: 24,
-          height: 24,
+          width: Responsive.w(context, 24),
+          height: Responsive.h(context, 24),
           colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
         ),
         bgColor: const Color(0xFF3299FF),
@@ -218,22 +232,27 @@ class _MenuItems extends ConsumerWidget {
       _MenuItemData(
         icon: SvgPicture.asset(
           'assets/icons/icon_setting.svg',
-          width: 24,
-          height: 24,
+          width: Responsive.w(context, 24),
+          height: Responsive.h(context, 24),
           colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
         ),
         bgColor: AppColors.blueAccent,
         label: AppStrings.settingMenu,
-        onTap: () => Navigator.of(
-          context,
-          rootNavigator: true,
-        ).pushNamed(AppRoutes.settings),
+        onTap: () async {
+          final result = await Navigator.of(
+            context,
+            rootNavigator: true,
+          ).pushNamed(AppRoutes.settings);
+          if (result is int && context.mounted) {
+            onTabChanged?.call(result);
+          }
+        },
       ),
       _MenuItemData(
         icon: SvgPicture.asset(
           'assets/icons/icon_help.svg',
-          width: 24,
-          height: 24,
+          width: Responsive.w(context, 24),
+          height: Responsive.h(context, 24),
           colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
         ),
         bgColor: const Color(0xFF6DB6FE),
@@ -245,8 +264,8 @@ class _MenuItems extends ConsumerWidget {
       _MenuItemData(
         icon: SvgPicture.asset(
           'assets/icons/icon_logout.svg',
-          width: 24,
-          height: 24,
+          width: Responsive.w(context, 24),
+          height: Responsive.h(context, 24),
           colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
         ),
         bgColor: const Color(0xFF3299FF),
@@ -267,7 +286,7 @@ class _MenuItems extends ConsumerWidget {
         return Column(
           children: [
             _MenuRow(data: item),
-            if (i < items.length - 1) const SizedBox(height: 34),
+            if (i < items.length - 1) SizedBox(height: Responsive.h(context, 34)),
           ],
         );
       }),
@@ -283,31 +302,35 @@ class _MenuRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 24)),
       child: GestureDetector(
         onTap: data.onTap,
         child: Row(
           children: [
             // Rounded icon container
             Container(
-              width: 57,
-              height: 53,
+              width: Responsive.w(context, 57),
+              height: Responsive.h(context, 53),
               decoration: BoxDecoration(
                 color: data.bgColor,
                 borderRadius: BorderRadius.circular(22),
               ),
               child: Center(
-                child: SizedBox(width: 24, height: 24, child: data.icon),
+                child: SizedBox(
+                  width: Responsive.w(context, 24),
+                  height: Responsive.h(context, 24),
+                  child: data.icon,
+                ),
               ),
             ),
-            const SizedBox(width: 16),
+            SizedBox(width: Responsive.w(context, 16)),
             // Label
             Text(
               data.label,
-              style: const TextStyle(
+              style: TextStyle(
                 fontFamily: 'Poppins',
                 fontWeight: FontWeight.w500,
-                fontSize: 15,
+                fontSize: Responsive.sp(context, 15),
                 color: _profileText,
               ),
             ),

@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../i18n/app_language.dart';
 import '../theme/app_colors.dart';
+import '../utils/responsive.dart';
 
-/// A toggle‑switch style language switcher (VI / EN).
+/// A toggle-switch style language switcher (VI / EN).
 class LanguageSwitcherFab extends StatelessWidget {
   const LanguageSwitcherFab({super.key});
 
@@ -16,8 +17,8 @@ class LanguageSwitcherFab extends StatelessWidget {
         return GestureDetector(
           onTap: () => context.toggleLanguage(),
           child: Container(
-            width: 72,
-            height: 34,
+            width: Responsive.w(context, 72),
+            height: Responsive.h(context, 34),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(30),
@@ -34,7 +35,7 @@ class LanguageSwitcherFab extends StatelessWidget {
                 // VI side
                 Expanded(
                   child: Container(
-                    height: 34,
+                    height: Responsive.h(context, 34),
                     decoration: BoxDecoration(
                       color: !isEn ? AppColors.primaryGreen : Colors.transparent,
                       borderRadius: const BorderRadius.only(
@@ -48,7 +49,7 @@ class LanguageSwitcherFab extends StatelessWidget {
                       style: TextStyle(
                         fontFamily: 'Poppins',
                         fontWeight: FontWeight.w600,
-                        fontSize: 13,
+                        fontSize: Responsive.sp(context, 13),
                         color: !isEn ? Colors.white : const Color(0xFF797C7A),
                       ),
                     ),
@@ -57,7 +58,7 @@ class LanguageSwitcherFab extends StatelessWidget {
                 // EN side
                 Expanded(
                   child: Container(
-                    height: 34,
+                    height: Responsive.h(context, 34),
                     decoration: BoxDecoration(
                       color: isEn ? AppColors.primaryGreen : Colors.transparent,
                       borderRadius: const BorderRadius.only(
@@ -71,7 +72,7 @@ class LanguageSwitcherFab extends StatelessWidget {
                       style: TextStyle(
                         fontFamily: 'Poppins',
                         fontWeight: FontWeight.w600,
-                        fontSize: 13,
+                        fontSize: Responsive.sp(context, 13),
                         color: isEn ? Colors.white : const Color(0xFF797C7A),
                       ),
                     ),
@@ -100,10 +101,10 @@ class LanguageSwitcherIcon extends StatelessWidget {
           onPressed: () => context.toggleLanguage(),
           icon: Text(
             isEn ? 'VN' : 'EN',
-            style: const TextStyle(
+            style: TextStyle(
               fontWeight: FontWeight.w900,
               color: AppColors.deepEmerald,
-              fontSize: 14,
+              fontSize: Responsive.sp(context, 14),
             ),
           ),
           tooltip: isEn ? 'Tiếng Việt' : 'English',

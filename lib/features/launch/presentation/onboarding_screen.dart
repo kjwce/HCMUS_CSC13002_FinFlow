@@ -3,6 +3,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../app/shell/finflow_app.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/responsive.dart';
 
 class OnboardingScreen extends StatelessWidget {
   const OnboardingScreen({super.key});
@@ -17,16 +18,16 @@ class OnboardingScreen extends StatelessWidget {
             // Decorative teal ellipses (like Figma "shape" instances)
             IgnorePointer(
               child: Stack(
-                children: const [
+                children: [
                   Positioned(
-                    right: -44,
-                    top: -36,
-                    child: _DecorativeCircle(size: 200),
+                    right: Responsive.w(context, -44),
+                    top: Responsive.h(context, -36),
+                    child: _DecorativeCircle(size: Responsive.w(context, 200)),
                   ),
                   Positioned(
-                    left: -38,
-                    bottom: -32,
-                    child: _DecorativeCircle(size: 200),
+                    left: Responsive.w(context, -38),
+                    bottom: Responsive.h(context, -32),
+                    child: _DecorativeCircle(size: Responsive.w(context, 200)),
                   ),
                 ],
               ),
@@ -38,27 +39,27 @@ class OnboardingScreen extends StatelessWidget {
                 children: [
                   SvgPicture.asset(
                     'assets/icons/finflow_logo.svg',
-                    height: 109,
-                    width: 109,
+                    height: Responsive.w(context, 109),
+                    width: Responsive.w(context, 109),
                     colorFilter: ColorFilter.mode(
                       AppColors.primaryGreen,
                       BlendMode.srcIn,
                     ),
                   ),
-                  const SizedBox(height: 14),
+                  SizedBox(height: Responsive.h(context, 14)),
                   Text(
                     'FinFlow',
                     style: Theme.of(context).textTheme.displaySmall?.copyWith(
                       color: AppColors.primaryGreen,
                       fontWeight: FontWeight.w600,
-                      fontSize: 52,
+                      fontSize: Responsive.sp(context, 52),
                     ),
                   ),
-                  const SizedBox(height: 32),
+                  SizedBox(height: Responsive.h(context, 32)),
                   // Log In button — xanh lá đậm (#00D09E)
                   SizedBox(
-                    width: 207,
-                    height: 45,
+                    width: Responsive.w(context, 207),
+                    height: Responsive.h(context, 45),
                     child: ElevatedButton(
                       onPressed: () =>
                           Navigator.of(context).pushNamed(AppRoutes.signIn),
@@ -72,21 +73,21 @@ class OnboardingScreen extends StatelessWidget {
                         shadowColor: Colors.transparent,
                         padding: EdgeInsets.zero,
                       ),
-                      child: const Text(
+                      child: Text(
                         'Log In',
                         style: TextStyle(
                           fontFamily: 'Poppins',
-                          fontSize: 20,
+                          fontSize: Responsive.sp(context, 20),
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  SizedBox(height: Responsive.h(context, 12)),
                   // Sign Up button — xanh lá nhạt (#DFF7E2)
                   SizedBox(
-                    width: 207,
-                    height: 45,
+                    width: Responsive.w(context, 207),
+                    height: Responsive.h(context, 45),
                     child: ElevatedButton(
                       onPressed: () =>
                           Navigator.of(context).pushNamed(AppRoutes.signUp),
@@ -100,26 +101,26 @@ class OnboardingScreen extends StatelessWidget {
                         shadowColor: Colors.transparent,
                         padding: EdgeInsets.zero,
                       ),
-                      child: const Text(
+                      child: Text(
                         'Sign Up',
                         style: TextStyle(
                           fontFamily: 'Poppins',
-                          fontSize: 20,
+                          fontSize: Responsive.sp(context, 20),
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  SizedBox(height: Responsive.h(context, 20)),
                   // Forgot Password link
                   GestureDetector(
                     onTap: () =>
                         Navigator.of(context).pushNamed(AppRoutes.forgotPassword),
-                    child: const Text(
+                    child: Text(
                       'Forgot Password?',
                       style: TextStyle(
                         fontFamily: 'Poppins',
-                        fontSize: 14,
+                        fontSize: Responsive.sp(context, 14),
                         fontWeight: FontWeight.w600,
                         color: Color(0xFF093030),
                       ),

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/shell/finflow_app.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/responsive.dart';
 import '../../auth/services/auth_service.dart';
 
 /// Full-screen budget setup shown once after sign up / first sign in
@@ -67,7 +68,7 @@ class _BudgetSetupScreenState extends ConsumerState<BudgetSetupScreen> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 28),
+            padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 28)),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -75,19 +76,19 @@ class _BudgetSetupScreenState extends ConsumerState<BudgetSetupScreen> {
                 Text(
                   'FinFlow',
                   style: TextStyle(
-                    fontSize: 36,
+                    fontSize: Responsive.sp(context, 36),
                     fontWeight: FontWeight.w700,
                     color: AppColors.primaryGreen,
                   ),
                 ),
-                const SizedBox(height: 48),
+                SizedBox(height: Responsive.h(context, 48)),
 
                 // Card
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 32,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: Responsive.w(context, 24),
+                    vertical: Responsive.h(context, 32),
                   ),
                   decoration: BoxDecoration(
                     color: Colors.white,
@@ -104,43 +105,43 @@ class _BudgetSetupScreenState extends ConsumerState<BudgetSetupScreen> {
                     children: [
                       // Icon
                       Container(
-                        width: 64,
-                        height: 64,
+                        width: Responsive.w(context, 64),
+                        height: Responsive.w(context, 64),
                         decoration: BoxDecoration(
                           color: AppColors.lightGreen,
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(
+                        child: Icon(
                           Icons.account_balance_wallet_outlined,
-                          size: 32,
+                          size: Responsive.w(context, 32),
                           color: AppColors.primaryGreen,
                         ),
                       ),
-                      const SizedBox(height: 20),
+                      SizedBox(height: Responsive.h(context, 20)),
 
                       Text(
                         'Set Your Budget',
                         style: TextStyle(
-                          fontSize: 22,
+                          fontSize: Responsive.sp(context, 22),
                           fontWeight: FontWeight.w700,
                           color: AppColors.darkText,
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      SizedBox(height: Responsive.h(context, 8)),
                       Text(
                         'Set a monthly spending limit so we can\nhelp you stay on track.',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          fontSize: 14,
+                          fontSize: Responsive.sp(context, 14),
                           color: AppColors.mutedGray,
                         ),
                       ),
-                      const SizedBox(height: 28),
+                      SizedBox(height: Responsive.h(context, 28)),
 
                       // Amount input
                       Container(
                         width: double.infinity,
-                        height: 56,
+                        height: Responsive.h(context, 56),
                         decoration: BoxDecoration(
                           color: AppColors.lightGreen,
                           borderRadius: BorderRadius.circular(12),
@@ -150,37 +151,37 @@ class _BudgetSetupScreenState extends ConsumerState<BudgetSetupScreen> {
                           keyboardType: TextInputType.number,
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            fontSize: 24,
+                            fontSize: Responsive.sp(context, 24),
                             fontWeight: FontWeight.w700,
                             color: AppColors.darkText,
                           ),
                           decoration: InputDecoration(
                             hintText: '5,000,000',
                             hintStyle: TextStyle(
-                              fontSize: 24,
+                              fontSize: Responsive.sp(context, 24),
                               fontWeight: FontWeight.w700,
                               color: AppColors.mutedGray.withValues(alpha: 0.4),
                             ),
                             border: InputBorder.none,
                             contentPadding:
-                                const EdgeInsets.symmetric(vertical: 14),
+                                EdgeInsets.symmetric(vertical: Responsive.h(context, 14)),
                           ),
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      SizedBox(height: Responsive.h(context, 8)),
                       Text(
                         'VND / month',
                         style: TextStyle(
-                          fontSize: 13,
+                          fontSize: Responsive.sp(context, 13),
                           color: AppColors.mutedGray,
                         ),
                       ),
-                      const SizedBox(height: 28),
+                      SizedBox(height: Responsive.h(context, 28)),
 
                       // Save button
                       SizedBox(
                         width: double.infinity,
-                        height: 48,
+                        height: Responsive.h(context, 48),
                         child: ElevatedButton(
                           onPressed: _isSaving ? null : _saveBudget,
                           style: ElevatedButton.styleFrom(
@@ -191,24 +192,24 @@ class _BudgetSetupScreenState extends ConsumerState<BudgetSetupScreen> {
                             ),
                           ),
                           child: _isSaving
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
+                              ? SizedBox(
+                                  width: Responsive.w(context, 20),
+                                  height: Responsive.h(context, 20),
+                                  child: const CircularProgressIndicator(
                                     strokeWidth: 2,
                                     color: Color(0xFF093030),
                                   ),
                                 )
-                              : const Text(
+                              : Text(
                                   'Get Started',
                                   style: TextStyle(
                                     fontWeight: FontWeight.w600,
-                                    fontSize: 16,
+                                    fontSize: Responsive.sp(context, 16),
                                   ),
                                 ),
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: Responsive.h(context, 12)),
 
                       // Skip link
                       TextButton(
@@ -218,7 +219,7 @@ class _BudgetSetupScreenState extends ConsumerState<BudgetSetupScreen> {
                         child: Text(
                           'Skip for now',
                           style: TextStyle(
-                            fontSize: 14,
+                            fontSize: Responsive.sp(context, 14),
                             color: AppColors.mutedGray,
                           ),
                         ),

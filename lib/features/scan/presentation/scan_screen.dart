@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/i18n/app_language.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/notification_bell.dart';
 
 /// Scan-specific color constants from the Figma design spec.
@@ -73,13 +74,13 @@ class ScanScreen extends ConsumerWidget {
           child: Column(
             children: [
               _buildHeader(context),
-              const SizedBox(height: 16),
-              _buildReceiptPreview(),
-              const SizedBox(height: 24),
-              _buildItemsList(),
-              const SizedBox(height: 24),
+              SizedBox(height: Responsive.h(context, 16)),
+              _buildReceiptPreview(context),
+              SizedBox(height: Responsive.h(context, 24)),
+              _buildItemsList(context),
+              SizedBox(height: Responsive.h(context, 24)),
               _buildAddButton(context),
-              const SizedBox(height: 40),
+              SizedBox(height: Responsive.h(context, 40)),
             ],
           ),
         ),
@@ -95,7 +96,7 @@ class ScanScreen extends ConsumerWidget {
       children: [
         // Decorative gradient cover
         Container(
-          height: 200,
+          height: Responsive.h(context, 200),
           width: double.infinity,
           decoration: const BoxDecoration(
             gradient: LinearGradient(
@@ -114,27 +115,27 @@ class ScanScreen extends ConsumerWidget {
         ),
         // App bar row: back, title, bell
         Positioned(
-          top: 16,
+          top: Responsive.h(context, 16),
           left: 0,
           right: 0,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 16)),
             child: Row(
               children: [
                 // Back arrow at left:38,69 in Figma spec
                 GestureDetector(
                   onTap: () => Navigator.of(context).pop(),
                   child: Container(
-                    width: 40,
-                    height: 40,
+                    width: Responsive.w(context, 40),
+                    height: Responsive.h(context, 40),
                     decoration: const BoxDecoration(
                       color: Colors.white,
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.arrow_back,
                       color: _ScanColors.lettersIcons,
-                      size: 20,
+                      size: Responsive.w(context, 20),
                     ),
                   ),
                 ),
@@ -142,10 +143,10 @@ class ScanScreen extends ConsumerWidget {
                 // Centered title
                 Text(
                   AppStrings.scanReceipt,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: 'Poppins',
                     fontWeight: FontWeight.w600,
-                    fontSize: 20,
+                    fontSize: Responsive.sp(context, 20),
                     color: _ScanColors.lettersIcons,
                   ),
                 ),
@@ -163,61 +164,63 @@ class ScanScreen extends ConsumerWidget {
   // ---------------------------------------------------------------------------
   // Receipt photo preview — centered, 232x283, rounded corners
   // ---------------------------------------------------------------------------
-  Widget _buildReceiptPreview() {
-    return Container(
-      width: 232,
-      height: 283,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // Receipt icon
-            Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                color: AppColors.lightGreen,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: const Icon(
-                Icons.receipt_long,
-                color: AppColors.primaryGreen,
-                size: 32,
-              ),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Tap to scan',
-              style: TextStyle(
-                fontFamily: 'Poppins',
-                fontWeight: FontWeight.w500,
-                fontSize: 14,
-                color: AppColors.muted,
-              ),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'or upload a photo',
-              style: TextStyle(
-                fontFamily: 'Poppins',
-                fontWeight: FontWeight.w400,
-                fontSize: 12,
-                color: AppColors.muted,
-              ),
+  Widget _buildReceiptPreview(BuildContext context) {
+    return Center(
+      child: Container(
+        width: Responsive.w(context, 232),
+        height: Responsive.h(context, 283),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.08),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
             ),
           ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Receipt icon
+              Container(
+                width: Responsive.w(context, 64),
+                height: Responsive.h(context, 64),
+                decoration: BoxDecoration(
+                  color: AppColors.lightGreen,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(
+                  Icons.receipt_long,
+                  color: AppColors.primaryGreen,
+                  size: Responsive.w(context, 32),
+                ),
+              ),
+              SizedBox(height: Responsive.h(context, 12)),
+              Text(
+                'Tap to scan',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontWeight: FontWeight.w500,
+                  fontSize: Responsive.sp(context, 14),
+                  color: AppColors.muted,
+                ),
+              ),
+              SizedBox(height: Responsive.h(context, 4)),
+              Text(
+                'or upload a photo',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontWeight: FontWeight.w400,
+                  fontSize: Responsive.sp(context, 12),
+                  color: AppColors.muted,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -226,17 +229,17 @@ class ScanScreen extends ConsumerWidget {
   // ---------------------------------------------------------------------------
   // Scanned items list
   // ---------------------------------------------------------------------------
-  Widget _buildItemsList() {
+  Widget _buildItemsList(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 24)),
       child: Column(
         children: List.generate(_items.length, (index) {
           final item = _items[index];
           final isLast = index == _items.length - 1;
           return Column(
             children: [
-              _buildItemRow(item, index),
-              if (!isLast) _buildDotsSeparator(),
+              _buildItemRow(context, item, index),
+              if (!isLast) _buildDotsSeparator(context),
             ],
           );
         }),
@@ -247,7 +250,7 @@ class ScanScreen extends ConsumerWidget {
   // ---------------------------------------------------------------------------
   // Single scanned item row
   // ---------------------------------------------------------------------------
-  Widget _buildItemRow(_ScannedItem item, int index) {
+  Widget _buildItemRow(BuildContext context, _ScannedItem item, int index) {
     // Alternate background colors for the icon
     final iconBg = index.isEven
         ? _ScanColors.lightBlueButton
@@ -257,8 +260,8 @@ class ScanScreen extends ConsumerWidget {
       children: [
         // Category icon — rounded square 57x53, radius 22
         Container(
-          width: 57,
-          height: 53,
+          width: Responsive.w(context, 57),
+          height: Responsive.h(context, 53),
           decoration: BoxDecoration(
             color: iconBg,
             borderRadius: BorderRadius.circular(22),
@@ -266,10 +269,10 @@ class ScanScreen extends ConsumerWidget {
           child: Icon(
             item.icon,
             color: Colors.white,
-            size: 24,
+            size: Responsive.w(context, 24),
           ),
         ),
-        const SizedBox(width: 16),
+        SizedBox(width: Responsive.w(context, 16)),
         // Item details
         Expanded(
           child: Column(
@@ -278,22 +281,22 @@ class ScanScreen extends ConsumerWidget {
               // Item name — Poppins Medium 15px, #052224
               Text(
                 item.name,
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: 'Poppins',
                   fontWeight: FontWeight.w500,
-                  fontSize: 15,
+                  fontSize: Responsive.sp(context, 15),
                   color: AppColors.darkText,
                 ),
               ),
               if (item.time.isNotEmpty && item.date.isNotEmpty) ...[
-                const SizedBox(height: 2),
+                SizedBox(height: Responsive.h(context, 2)),
                 // Date/time — Poppins SemiBold 12px, #0068FF
                 Text(
                   '${item.time} - ${item.date}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: 'Poppins',
                     fontWeight: FontWeight.w600,
-                    fontSize: 12,
+                    fontSize: Responsive.sp(context, 12),
                     color: AppColors.blueAccent,
                   ),
                 ),
@@ -304,10 +307,10 @@ class ScanScreen extends ConsumerWidget {
         // Amount — Poppins Medium 15px, #0068FF
         Text(
           item.amount,
-          style: const TextStyle(
+          style: TextStyle(
             fontFamily: 'Poppins',
             fontWeight: FontWeight.w500,
-            fontSize: 15,
+            fontSize: Responsive.sp(context, 15),
             color: AppColors.blueAccent,
           ),
         ),
@@ -318,12 +321,12 @@ class ScanScreen extends ConsumerWidget {
   // ---------------------------------------------------------------------------
   // Dots separator between items — Poppins Medium 15px
   // ---------------------------------------------------------------------------
-  Widget _buildDotsSeparator() {
+  Widget _buildDotsSeparator(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: EdgeInsets.symmetric(vertical: Responsive.h(context, 8)),
       child: Row(
         children: [
-          const SizedBox(width: 57 + 16), // align with text area
+          SizedBox(width: Responsive.w(context, 57 + 16)), // align with text area
           const Expanded(
             child: Text(
               '....................................',
@@ -363,21 +366,23 @@ class ScanScreen extends ConsumerWidget {
           ),
         );
       },
-      child: Container(
-        width: 169,
-        height: 36,
-        decoration: BoxDecoration(
-          color: AppColors.primaryGreen,
-          borderRadius: BorderRadius.circular(30),
-        ),
-        alignment: Alignment.center,
-        child: Text(
-          AppStrings.addExpense,
-          style: const TextStyle(
-            fontFamily: 'Poppins',
-            fontWeight: FontWeight.w500,
-            fontSize: 15,
-            color: _ScanColors.lettersIcons,
+      child: Center(
+        child: Container(
+          width: Responsive.w(context, 169),
+          height: Responsive.h(context, 36),
+          decoration: BoxDecoration(
+            color: AppColors.primaryGreen,
+            borderRadius: BorderRadius.circular(30),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            AppStrings.addExpense,
+            style: TextStyle(
+              fontFamily: 'Poppins',
+              fontWeight: FontWeight.w500,
+              fontSize: Responsive.sp(context, 15),
+              color: _ScanColors.lettersIcons,
+            ),
           ),
         ),
       ),

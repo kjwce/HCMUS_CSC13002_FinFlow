@@ -45,31 +45,37 @@ class FinFlowApp extends StatelessWidget {
     return ListenableBuilder(
       listenable: AppThemeManager.instance,
       builder: (context, _) {
-        return MaterialApp(
-          title: 'FinFlow',
-          debugShowCheckedModeBanner: false,
-          navigatorKey: navigatorKey,
-          theme: AppTheme.light,
-          darkTheme: AppTheme.dark,
-          themeMode: AppThemeManager.instance.mode,
-          initialRoute: AppRoutes.launch,
-          routes: {
-            AppRoutes.launch: (_) => const LaunchScreen(),
-            AppRoutes.onboarding: (_) => const OnboardingScreen(),
-            AppRoutes.signIn: (_) => const SignInScreen(),
-            AppRoutes.signUp: (_) => const SignUpScreen(),
-            AppRoutes.forgotPassword: (_) => const ForgotPasswordScreen(),
-            AppRoutes.verification: (_) => const VerificationScreen(),
-            AppRoutes.newPassword: (_) => const NewPasswordScreen(),
-            AppRoutes.dashboard: (_) => const MainShell(),
-            AppRoutes.settings: (_) => const SettingsScreen(),
-            AppRoutes.chat: (_) => const ChatScreen(),
-            AppRoutes.scan: (_) => const ScanScreen(),
-            AppRoutes.community: (_) => const CommunityScreen(),
-            AppRoutes.databaseViewer: (_) => const DatabaseViewerScreen(),
-            AppRoutes.editProfile: (_) => const EditProfileScreen(),
-            AppRoutes.budgetSetup: (_) => const BudgetSetupScreen(),
-          },
+        return MediaQuery(
+          // Prevent the device's system font-size setting from breaking the layout.
+          data: MediaQuery.of(context).copyWith(
+            textScaler: TextScaler.noScaling,
+          ),
+          child: MaterialApp(
+            title: 'FinFlow',
+            debugShowCheckedModeBanner: false,
+            navigatorKey: navigatorKey,
+            theme: AppTheme.light,
+            darkTheme: AppTheme.dark,
+            themeMode: AppThemeManager.instance.mode,
+            initialRoute: AppRoutes.launch,
+            routes: {
+              AppRoutes.launch: (_) => const LaunchScreen(),
+              AppRoutes.onboarding: (_) => const OnboardingScreen(),
+              AppRoutes.signIn: (_) => const SignInScreen(),
+              AppRoutes.signUp: (_) => const SignUpScreen(),
+              AppRoutes.forgotPassword: (_) => const ForgotPasswordScreen(),
+              AppRoutes.verification: (_) => const VerificationScreen(),
+              AppRoutes.newPassword: (_) => const NewPasswordScreen(),
+              AppRoutes.dashboard: (_) => const MainShell(),
+              AppRoutes.settings: (_) => const SettingsScreen(),
+              AppRoutes.chat: (_) => const ChatScreen(),
+              AppRoutes.scan: (_) => const ScanScreen(),
+              AppRoutes.community: (_) => const CommunityScreen(),
+              AppRoutes.databaseViewer: (_) => const DatabaseViewerScreen(),
+              AppRoutes.editProfile: (_) => const EditProfileScreen(),
+              AppRoutes.budgetSetup: (_) => const BudgetSetupScreen(),
+            },
+          ),
         );
       },
     );

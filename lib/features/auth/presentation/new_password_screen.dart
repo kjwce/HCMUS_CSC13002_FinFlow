@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/shell/finflow_app.dart';
 import '../../../core/i18n/app_language.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/decorated_phone_scaffold.dart';
 import '../providers/auth_provider.dart';
 
@@ -75,13 +76,13 @@ class _NewPasswordScreenState extends ConsumerState<NewPasswordScreen> {
     return DecoratedPhoneScaffold(
       child: Center(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
+          padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 32)),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.lock_outline,
-                  size: 72, color: AppColors.emerald),
-              const SizedBox(height: 24),
+              Icon(Icons.lock_outline,
+                  size: Responsive.w(context, 72), color: AppColors.emerald),
+              SizedBox(height: Responsive.h(context, 24)),
               Text(
                 AppStrings.newPassword,
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -89,13 +90,13 @@ class _NewPasswordScreenState extends ConsumerState<NewPasswordScreen> {
                       fontWeight: FontWeight.w800,
                     ),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: Responsive.h(context, 8)),
               Text(
                 AppStrings.newPasswordDesc,
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: AppColors.muted),
               ),
-              const SizedBox(height: 24),
+              SizedBox(height: Responsive.h(context, 24)),
               TextField(
                 controller: _passwordController,
                 obscureText: true,
@@ -104,7 +105,7 @@ class _NewPasswordScreenState extends ConsumerState<NewPasswordScreen> {
                   prefixIcon: const Icon(Icons.lock_outline),
                 ),
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: Responsive.h(context, 12)),
               TextField(
                 controller: _confirmController,
                 obscureText: true,
@@ -113,7 +114,7 @@ class _NewPasswordScreenState extends ConsumerState<NewPasswordScreen> {
                   prefixIcon: const Icon(Icons.lock_outline),
                 ),
               ),
-              const SizedBox(height: 24),
+              SizedBox(height: Responsive.h(context, 24)),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -122,10 +123,10 @@ class _NewPasswordScreenState extends ConsumerState<NewPasswordScreen> {
                     backgroundColor: AppColors.coral,
                   ),
                   child: _isSubmitting
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                      ? SizedBox(
+                          height: Responsive.h(context, 20),
+                          width: Responsive.w(context, 20),
+                          child: const CircularProgressIndicator(strokeWidth: 2),
                         )
                       : Text(AppStrings.reset),
                 ),

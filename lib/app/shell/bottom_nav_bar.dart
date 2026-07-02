@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/responsive.dart';
 
 /// Reusable bottom navigation bar for all screens.
 class AppBottomNavBar extends StatelessWidget {
@@ -16,7 +17,7 @@ class AppBottomNavBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 70,
+      height: Responsive.h(context, 70),
       decoration: const BoxDecoration(
         color: AppColors.lightGreen,
         borderRadius: BorderRadius.vertical(top: Radius.circular(35)),
@@ -40,13 +41,17 @@ class AppBottomNavBar extends StatelessWidget {
       child: Center(
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          width: 44,
-          height: 44,
+          width: Responsive.w(context, 44),
+          height: Responsive.w(context, 44),
           decoration: BoxDecoration(
             color: isSelected ? AppColors.primaryGreen : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
           ),
-          child: SizedBox(width: 22, height: 22, child: icon),
+          child: SizedBox(
+            width: Responsive.w(context, 22),
+            height: Responsive.w(context, 22),
+            child: icon,
+          ),
         ),
       ),
     );
@@ -59,8 +64,8 @@ class AppBottomNavBar extends StatelessWidget {
       child: Center(
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          width: 44,
-          height: 44,
+          width: Responsive.w(context, 44),
+          height: Responsive.w(context, 44),
           decoration: BoxDecoration(
             color: isSelected ? AppColors.blueAccent : AppColors.primaryGreen,
             shape: BoxShape.circle,
@@ -72,8 +77,8 @@ class AppBottomNavBar extends StatelessWidget {
               ),
             ],
           ),
-          child: const Icon(Icons.document_scanner_outlined,
-              color: Colors.white, size: 18),
+          child: Icon(Icons.document_scanner_outlined,
+              color: Colors.white, size: Responsive.w(context, 18)),
         ),
       ),
     );
@@ -83,11 +88,11 @@ class AppBottomNavBar extends StatelessWidget {
     if (onTabChanged != null) {
       onTabChanged!(index);
     } else {
-      Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil(
-        '/dashboard',
-        (route) => false,
-        arguments: index,
-      );
+      // Pop back to the parent screen (MainShell) with the tab index
+      // so it can switch to the correct tab.  This avoids destroying
+      // and recreating the navigation stack (the old pushNamedAndRemoveUntil
+      // approach) which caused pressing Back to land on unexpected screens.
+      Navigator.of(context).pop(index);
     }
   }
 }

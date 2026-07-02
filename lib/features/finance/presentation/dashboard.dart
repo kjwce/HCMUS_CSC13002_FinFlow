@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/responsive.dart';
 import '../providers/transaction_provider.dart';
 import '../services/transaction_service.dart';
 
@@ -38,17 +39,17 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: 16),
+                SizedBox(height: Responsive.h(context, 16)),
                 _buildAccountBalanceCard(ts),
-                const SizedBox(height: 14),
+                SizedBox(height: Responsive.h(context, 14)),
                 _buildEarningsSpentRow(ts),
-                const SizedBox(height: 14),
+                SizedBox(height: Responsive.h(context, 14)),
                 _buildBarChart(),
-                const SizedBox(height: 14),
+                SizedBox(height: Responsive.h(context, 14)),
                 _buildLineChart(),
-                const SizedBox(height: 14),
+                SizedBox(height: Responsive.h(context, 14)),
                 _buildComparingPeriods(),
-                const SizedBox(height: 40),
+                SizedBox(height: Responsive.h(context, 40)),
               ],
             ),
           ),
@@ -63,7 +64,10 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   Widget _buildHeader() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
+      padding: EdgeInsets.symmetric(
+        horizontal: Responsive.w(context, 4),
+        vertical: Responsive.h(context, 12),
+      ),
       decoration: const BoxDecoration(
         color: AppColors.dashboardHeaderBg,
       ),
@@ -79,14 +83,14 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             onPressed: () => Navigator.of(context).pop(),
             tooltip: 'Back',
             constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+            padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 12)),
           ),
-          const Text(
+          Text(
             'Dashboard',
             style: TextStyle(
               fontFamily: 'Roboto',
               fontWeight: FontWeight.w500,
-              fontSize: 18,
+              fontSize: Responsive.sp(context, 18),
               color: AppColors.darkGreenText,
             ),
           ),
@@ -104,8 +108,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     const totalBalance = 60.28;
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20),
-      padding: const EdgeInsets.all(20),
+      margin: EdgeInsets.symmetric(horizontal: Responsive.w(context, 20)),
+      padding: EdgeInsets.all(Responsive.w(context, 20)),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(2),
@@ -128,30 +132,30 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 Text(
                   'Total balance',
                   style: TextStyle(
-                    fontSize: 13,
+                    fontSize: Responsive.sp(context, 13),
                     fontWeight: FontWeight.w500,
                     color: AppColors.mutedGray,
                   ),
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: Responsive.h(context, 4)),
                 Text(
                   totalBalance.toString(),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: 'Roboto',
                     fontWeight: FontWeight.w500,
-                    fontSize: 32,
+                    fontSize: Responsive.sp(context, 32),
                     color: AppColors.darkGray,
                   ),
                 ),
-                const SizedBox(height: 14),
+                SizedBox(height: Responsive.h(context, 14)),
                 _accountRow('ING', '423,55', AppColors.ingTextBlue),
-                const SizedBox(height: 8),
+                SizedBox(height: Responsive.h(context, 8)),
                 _accountRow('BRD', '577,45', AppColors.brdTextGreen),
-                const SizedBox(height: 8),
+                SizedBox(height: Responsive.h(context, 8)),
                 Text(
                   'Cash: 0',
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: Responsive.sp(context, 14),
                     fontWeight: FontWeight.w500,
                     color: AppColors.mutedGray,
                   ),
@@ -159,16 +163,16 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               ],
             ),
           ),
-          const SizedBox(width: 16),
+          SizedBox(width: Responsive.w(context, 16)),
           // Right side: donut chart
           SizedBox(
-            width: 110,
-            height: 110,
+            width: Responsive.w(context, 110),
+            height: Responsive.w(context, 110),
             child: Stack(
               alignment: Alignment.center,
               children: [
                 CustomPaint(
-                  size: const Size(110, 110),
+                  size: Size(Responsive.w(context, 110), Responsive.w(context, 110)),
                   painter: _DonutPainter(
                     segments: [ingValue, brdValue],
                     segmentColors: [
@@ -180,8 +184,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 ),
                 Text(
                   (ingValue + brdValue).toStringAsFixed(0),
-                  style: const TextStyle(
-                    fontSize: 13,
+                  style: TextStyle(
+                    fontSize: Responsive.sp(context, 13),
                     fontWeight: FontWeight.w600,
                     color: AppColors.darkGray,
                   ),
@@ -198,18 +202,18 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     return Row(
       children: [
         Container(
-          width: 8,
-          height: 8,
+          width: Responsive.w(context, 8),
+          height: Responsive.w(context, 8),
           decoration: BoxDecoration(
             color: color,
             shape: BoxShape.circle,
           ),
         ),
-        const SizedBox(width: 6),
+        SizedBox(width: Responsive.w(context, 6)),
         Text(
           '$name account: $value',
           style: TextStyle(
-            fontSize: 14,
+            fontSize: Responsive.sp(context, 14),
             fontWeight: FontWeight.w500,
             color: color,
           ),
@@ -223,7 +227,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   // --------------------------------------------------------------------------
   Widget _buildEarningsSpentRow(TransactionService ts) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 20)),
       child: Row(
         children: [
           Expanded(child: _buildMiniCard(
@@ -234,7 +238,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             labels: const ['ING', 'BRD'],
             labelColors: [AppColors.ingBlue, AppColors.brdTeal],
           )),
-          const SizedBox(width: 14),
+          SizedBox(width: Responsive.w(context, 14)),
           Expanded(child: _buildMiniCard(
             title: 'Spent this month',
             amount: '-${_formatCompact(ts.monthlyExpense)}',
@@ -265,7 +269,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     required List<Color> labelColors,
   }) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(Responsive.w(context, 16)),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(2),
@@ -283,26 +287,26 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           Text(
             title,
             style: TextStyle(
-              fontSize: 13,
+              fontSize: Responsive.sp(context, 13),
               fontWeight: FontWeight.w500,
               color: AppColors.mutedGray,
             ),
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: Responsive.h(context, 4)),
           Text(
             amount,
-            style: const TextStyle(
+            style: TextStyle(
               fontWeight: FontWeight.w700,
-              fontSize: 18,
+              fontSize: Responsive.sp(context, 18),
               color: AppColors.darkGray,
             ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: Responsive.h(context, 12)),
           SizedBox(
-            width: 72,
-            height: 72,
+            width: Responsive.w(context, 72),
+            height: Responsive.w(context, 72),
             child: CustomPaint(
-              size: const Size(72, 72),
+              size: Size(Responsive.w(context, 72), Responsive.w(context, 72)),
               painter: _DonutPainter(
                 segments: segments,
                 segmentColors: segmentColors,
@@ -310,25 +314,25 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               ),
             ),
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: Responsive.h(context, 10)),
           ...List.generate(labels.length, (i) {
             return Padding(
-              padding: const EdgeInsets.only(bottom: 4),
+              padding: EdgeInsets.only(bottom: Responsive.h(context, 4)),
               child: Row(
                 children: [
                   Container(
-                    width: 6,
-                    height: 6,
+                    width: Responsive.w(context, 6),
+                    height: Responsive.w(context, 6),
                     decoration: BoxDecoration(
                       color: labelColors[i],
                       shape: BoxShape.circle,
                     ),
                   ),
-                  const SizedBox(width: 4),
+                  SizedBox(width: Responsive.w(context, 4)),
                   Text(
                     labels[i],
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: Responsive.sp(context, 11),
                       fontWeight: FontWeight.w500,
                       color: labelColors[i],
                     ),
@@ -355,8 +359,13 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     ];
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      margin: EdgeInsets.symmetric(horizontal: Responsive.w(context, 20)),
+      padding: EdgeInsets.fromLTRB(
+        Responsive.w(context, 16),
+        Responsive.h(context, 16),
+        Responsive.w(context, 16),
+        Responsive.h(context, 8),
+      ),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(2),
@@ -371,19 +380,19 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Balance',
             style: TextStyle(
-              fontSize: 15,
+              fontSize: Responsive.sp(context, 15),
               fontWeight: FontWeight.w600,
               color: AppColors.darkGreenText,
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: Responsive.h(context, 16)),
           SizedBox(
-            height: 180,
+            height: Responsive.h(context, 180),
             child: CustomPaint(
-              size: Size(double.infinity, 180),
+              size: Size(double.infinity, Responsive.h(context, 180)),
               painter: _BarChartPainter(bars: bars, maxValue: 100),
             ),
           ),
@@ -401,8 +410,13 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     const yLabels = [0.0, 20.0, 40.0, 60.0, 80.0];
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      margin: EdgeInsets.symmetric(horizontal: Responsive.w(context, 20)),
+      padding: EdgeInsets.fromLTRB(
+        Responsive.w(context, 16),
+        Responsive.h(context, 16),
+        Responsive.w(context, 16),
+        Responsive.h(context, 8),
+      ),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(2),
@@ -417,19 +431,19 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'This month balance',
             style: TextStyle(
-              fontSize: 15,
+              fontSize: Responsive.sp(context, 15),
               fontWeight: FontWeight.w600,
               color: AppColors.darkGreenText,
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: Responsive.h(context, 16)),
           SizedBox(
-            height: 180,
+            height: Responsive.h(context, 180),
             child: CustomPaint(
-              size: Size(double.infinity, 180),
+              size: Size(double.infinity, Responsive.h(context, 180)),
               painter: _LineChartPainter(
                 points: points,
                 xLabels: xLabels,
@@ -451,8 +465,13 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     const filterLabels = ['ING', 'BRD', 'Cash'];
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      margin: EdgeInsets.symmetric(horizontal: Responsive.w(context, 20)),
+      padding: EdgeInsets.fromLTRB(
+        Responsive.w(context, 16),
+        Responsive.h(context, 16),
+        Responsive.w(context, 16),
+        Responsive.h(context, 16),
+      ),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(2),
@@ -467,18 +486,18 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Comparing between periods',
             style: TextStyle(
-              fontSize: 15,
+              fontSize: Responsive.sp(context, 15),
               fontWeight: FontWeight.w600,
               color: AppColors.darkGreenText,
             ),
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: Responsive.h(context, 14)),
           // Filter tabs
           Container(
-            padding: const EdgeInsets.all(4),
+            padding: EdgeInsets.all(Responsive.w(context, 4)),
             decoration: BoxDecoration(
               color: AppColors.lightGreen,
               borderRadius: BorderRadius.circular(20),
@@ -491,7 +510,10 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                   onTap: () => setState(() => _selectedPeriodFilter = i),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: Responsive.w(context, 16),
+                      vertical: Responsive.h(context, 6),
+                    ),
                     decoration: BoxDecoration(
                       color: isSelected ? AppColors.primaryGreen : Colors.transparent,
                       borderRadius: BorderRadius.circular(16),
@@ -499,7 +521,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                     child: Text(
                       filterLabels[i],
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: Responsive.sp(context, 12),
                         fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                         color: AppColors.darkText,
                       ),
@@ -509,24 +531,24 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               }),
             ),
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: Responsive.h(context, 14)),
           // Chart
           SizedBox(
-            height: 180,
+            height: Responsive.h(context, 180),
             child: CustomPaint(
-              size: Size(double.infinity, 180),
+              size: Size(double.infinity, Responsive.h(context, 180)),
               painter: _MultiLineChartPainter(),
             ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: Responsive.h(context, 12)),
           // Legend
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               _legendDot(AppColors.chartBlueBorder, 'One year ago'),
-              const SizedBox(width: 20),
+              SizedBox(width: Responsive.w(context, 20)),
               _legendDot(AppColors.chartOrangeBorder, 'Two years ago'),
-              const SizedBox(width: 20),
+              SizedBox(width: Responsive.w(context, 20)),
               _legendDot(AppColors.primaryGreen, 'Present'),
             ],
           ),
@@ -540,14 +562,17 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 8,
-          height: 8,
+          width: Responsive.w(context, 8),
+          height: Responsive.w(context, 8),
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
-        const SizedBox(width: 4),
+        SizedBox(width: Responsive.w(context, 4)),
         Text(
           label,
-          style: const TextStyle(fontSize: 11, color: AppColors.mutedGray),
+          style: TextStyle(
+            fontSize: Responsive.sp(context, 11),
+            color: AppColors.mutedGray,
+          ),
         ),
       ],
     );

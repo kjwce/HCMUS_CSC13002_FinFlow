@@ -3,9 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/i18n/app_language.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/responsive.dart';
 import '../models/transaction_category.dart';
 import '../models/transaction_model.dart';
 import '../providers/transaction_provider.dart';
+
 class EditTransactionScreen extends ConsumerStatefulWidget {
   const EditTransactionScreen({super.key, required this.transaction});
 
@@ -111,12 +113,15 @@ class _EditTransactionScreenState extends ConsumerState<EditTransactionScreen> {
         ],
       ),
       body: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(Responsive.w(context, 24)),
         child: Column(
           children: [
             // Preview chip
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              padding: EdgeInsets.symmetric(
+                horizontal: Responsive.w(context, 16),
+                vertical: Responsive.h(context, 10),
+              ),
               decoration: BoxDecoration(
                 color: _colorForCategory(_selectedCategory).withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(30),
@@ -125,8 +130,8 @@ class _EditTransactionScreenState extends ConsumerState<EditTransactionScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(_iconForCategory(_selectedCategory),
-                      color: _colorForCategory(_selectedCategory), size: 20),
-                  const SizedBox(width: 8),
+                      color: _colorForCategory(_selectedCategory), size: Responsive.w(context, 20)),
+                  SizedBox(width: Responsive.w(context, 8)),
                   Text(_selectedCategory,
                       style: TextStyle(
                         fontWeight: FontWeight.w600,
@@ -135,18 +140,18 @@ class _EditTransactionScreenState extends ConsumerState<EditTransactionScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: Responsive.h(context, 20)),
             TextField(
               controller: _titleController,
               decoration: InputDecoration(labelText: AppStrings.title),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: Responsive.h(context, 12)),
             TextField(
               controller: _amountController,
               keyboardType: TextInputType.number,
               decoration: InputDecoration(labelText: AppStrings.amountVND),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: Responsive.h(context, 12)),
             DropdownButtonFormField<String>(
               initialValue: _selectedCategory,
               decoration: InputDecoration(labelText: AppStrings.category),
@@ -155,8 +160,8 @@ class _EditTransactionScreenState extends ConsumerState<EditTransactionScreen> {
                   value: cat,
                   child: Row(
                     children: [
-                      Icon(_iconForCategory(cat), size: 18, color: _colorForCategory(cat)),
-                      const SizedBox(width: 10),
+                      Icon(_iconForCategory(cat), size: Responsive.w(context, 18), color: _colorForCategory(cat)),
+                      SizedBox(width: Responsive.w(context, 10)),
                       Text(cat),
                     ],
                   ),
@@ -166,7 +171,7 @@ class _EditTransactionScreenState extends ConsumerState<EditTransactionScreen> {
                 if (v != null) setState(() => _selectedCategory = v);
               },
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: Responsive.h(context, 24)),
             ElevatedButton(
               onPressed: () async {
                 final amount = int.tryParse(

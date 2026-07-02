@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/responsive.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../models/goal_model.dart';
 import '../providers/goal_provider.dart';
@@ -16,7 +17,7 @@ class GoalSetupSheet extends ConsumerStatefulWidget {
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (_) => const GoalSetupSheet(),
@@ -84,10 +85,10 @@ class _GoalSetupSheetState extends ConsumerState<GoalSetupSheet> {
 
     return Padding(
       padding: EdgeInsets.only(
-        left: 24,
-        right: 24,
-        top: 24,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+        left: Responsive.w(context, 24),
+        right: Responsive.w(context, 24),
+        top: Responsive.h(context, 24),
+        bottom: MediaQuery.of(context).viewInsets.bottom + Responsive.h(context, 24),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -99,10 +100,10 @@ class _GoalSetupSheetState extends ConsumerState<GoalSetupSheet> {
             children: [
               Text(
                 goal != null ? 'Saving Goal' : 'Set a Saving Goal',
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.w600,
-                  fontSize: 18,
-                  color: Color(0xFF003829),
+                  fontSize: Responsive.sp(context, 18),
+                  color: const Color(0xFF003829),
                 ),
               ),
               IconButton(
@@ -111,30 +112,41 @@ class _GoalSetupSheetState extends ConsumerState<GoalSetupSheet> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: Responsive.h(context, 16)),
 
           if (goal != null) ...[
             // ── Active goal detail ──
             _buildProgressCircle(progress),
-            const SizedBox(height: 12),
+            SizedBox(height: Responsive.h(context, 12)),
             Text(
               goal.name,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Color(0xFF052224)),
+              style: TextStyle(
+                fontSize: Responsive.sp(context, 16),
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF052224),
+              ),
             ),
-            const SizedBox(height: 4),
+            SizedBox(height: Responsive.h(context, 4)),
             Text(
               '${_formatMoney(saved)} / ${_formatMoney(goal.targetAmount)}',
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 14, color: Color(0xFF747875)),
+              style: TextStyle(
+                fontSize: Responsive.sp(context, 14),
+                color: const Color(0xFF747875),
+              ),
             ),
-            const SizedBox(height: 4),
+            SizedBox(height: Responsive.h(context, 4)),
             Text(
               '${(progress * 100).toStringAsFixed(0)}%',
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w700, color: AppColors.primaryGreen),
+              style: TextStyle(
+                fontSize: Responsive.sp(context, 28),
+                fontWeight: FontWeight.w700,
+                color: AppColors.primaryGreen,
+              ),
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: Responsive.h(context, 24)),
             // Delete button
             OutlinedButton.icon(
               onPressed: () async {
@@ -162,7 +174,7 @@ class _GoalSetupSheetState extends ConsumerState<GoalSetupSheet> {
                 side: const BorderSide(color: Colors.red),
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: Responsive.h(context, 8)),
             // Replace with new goal
             TextButton(
               onPressed: () => _startNewGoal(context, gs),
@@ -177,10 +189,13 @@ class _GoalSetupSheetState extends ConsumerState<GoalSetupSheet> {
                 labelText: 'Goal name',
                 hintText: 'e.g. Buy a laptop',
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: Responsive.w(context, 16),
+                  vertical: Responsive.h(context, 12),
+                ),
               ),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: Responsive.h(context, 12)),
             TextField(
               controller: _amountController,
               keyboardType: TextInputType.number,
@@ -188,10 +203,13 @@ class _GoalSetupSheetState extends ConsumerState<GoalSetupSheet> {
                 labelText: 'Target amount (VND)',
                 hintText: '5,000,000',
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: Responsive.w(context, 16),
+                  vertical: Responsive.h(context, 12),
+                ),
               ),
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: Responsive.h(context, 24)),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -199,17 +217,21 @@ class _GoalSetupSheetState extends ConsumerState<GoalSetupSheet> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primaryGreen,
                   foregroundColor: const Color(0xFF093030),
-                  minimumSize: const Size(double.infinity, 48),
+                  minimumSize: Size(double.infinity, Responsive.h(context, 48)),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 child: _isSaving
-                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Text('Start Saving',
-                        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+                    ? SizedBox(
+                        width: Responsive.w(context, 20),
+                        height: Responsive.h(context, 20),
+                        child: const CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Text('Start Saving',
+                        style: TextStyle(fontWeight: FontWeight.w600, fontSize: Responsive.sp(context, 16))),
               ),
             ),
           ],
-          const SizedBox(height: 12),
+          SizedBox(height: Responsive.h(context, 12)),
         ],
       ),
     );
@@ -218,8 +240,8 @@ class _GoalSetupSheetState extends ConsumerState<GoalSetupSheet> {
   Widget _buildProgressCircle(double progress) {
     return Center(
       child: SizedBox(
-        width: 80,
-        height: 80,
+        width: Responsive.w(context, 80),
+        height: Responsive.w(context, 80),
         child: Stack(
           alignment: Alignment.center,
           children: [
@@ -229,7 +251,7 @@ class _GoalSetupSheetState extends ConsumerState<GoalSetupSheet> {
               color: const Color(0xFF007AFF),
               backgroundColor: Colors.white30,
             ),
-            const Icon(Icons.flag, color: Color(0xFF093030), size: 28),
+            Icon(Icons.flag, color: const Color(0xFF093030), size: Responsive.w(context, 28)),
           ],
         ),
       ),
@@ -295,4 +317,3 @@ class _GoalSetupSheetState extends ConsumerState<GoalSetupSheet> {
     return '$text VND';
   }
 }
-

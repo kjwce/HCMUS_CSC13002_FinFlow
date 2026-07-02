@@ -5,6 +5,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../../app/shell/finflow_app.dart';
 import '../../../core/i18n/app_language.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/responsive.dart';
 import '../providers/auth_provider.dart';
 import 'auth_shell.dart';
 
@@ -31,132 +32,139 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: AppLanguage.instance,
-      builder: (context, _) {
-        return AuthShell(
-          title: AppStrings.signIn,
-          footer: Column(
+    return AuthShell(
+      title: AppStrings.signIn,
+      footer: Column(
+        children: [
+          Text(AppStrings.orContinueWith),
+          SizedBox(height: Responsive.h(context, 12)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(AppStrings.orContinueWith),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _SocialButton(
-                    iconWidget: Padding(
-                      padding: const EdgeInsets.all(7),
-                      child: SvgPicture.asset(
-                        'assets/icons/icon-google.svg',
-                        width: 24,
-                        height: 24,
-                      ),
-                    ),
-                    onTap: () async {
-                      setState(() => _isSubmitting = true);
-                      await ref.read(authServiceProvider).signInWithGoogle();
-                      if (!context.mounted) return;
-                      setState(() => _isSubmitting = false);
-                    },
+              _SocialButton(
+                iconWidget: Padding(
+                  padding: EdgeInsets.all(Responsive.w(context, 7)),
+                  child: SvgPicture.asset(
+                    'assets/icons/icon-google.svg',
+                    width: Responsive.w(context, 24),
+                    height: Responsive.h(context, 24),
                   ),
-                  const SizedBox(width: 12),
-                  _SocialButton(icon: Icons.facebook, onTap: () async {
-                    setState(() => _isSubmitting = true);
-                    await ref.read(authServiceProvider).signInWithFacebook();
-                    if (!context.mounted) return;
-                    setState(() => _isSubmitting = false);
-                  }),
-                  const SizedBox(width: 12),
-                  _SocialButton(icon: Icons.apple, onTap: () async {
-                    setState(() => _isSubmitting = true);
-                    await ref.read(authServiceProvider).signInWithApple();
-                    if (!context.mounted) return;
-                    setState(() => _isSubmitting = false);
-                  }),
-                ],
+                ),
+                onTap: () async {
+                  setState(() => _isSubmitting = true);
+                  try {
+                    await ref.read(authServiceProvider).signInWithGoogle();
+                  } catch (e) {
+                    debugPrint('Google sign-in error: $e');
+                  }
+                  if (!context.mounted) return;
+                  setState(() => _isSubmitting = false);
+                },
               ),
-              const SizedBox(height: 18),
-              TextButton(
-                onPressed: () =>
-                    Navigator.of(context).pushReplacementNamed(AppRoutes.signUp),
-                child: Text(AppStrings.newToFinflowSignUp),
-              ),
+              SizedBox(width: Responsive.w(context, 12)),
+              _SocialButton(icon: Icons.facebook, onTap: () async {
+                setState(() => _isSubmitting = true);
+                try {
+                  await ref.read(authServiceProvider).signInWithFacebook();
+                } catch (e) {
+                  debugPrint('Facebook sign-in error: $e');
+                }
+                if (!context.mounted) return;
+                setState(() => _isSubmitting = false);
+              }),
+              SizedBox(width: Responsive.w(context, 12)),
+              _SocialButton(icon: Icons.apple, onTap: () async {
+                setState(() => _isSubmitting = true);
+                try {
+                  await ref.read(authServiceProvider).signInWithApple();
+                } catch (e) {
+                  debugPrint('Apple sign-in error: $e');
+                }
+                if (!context.mounted) return;
+                setState(() => _isSubmitting = false);
+              }),
             ],
           ),
-          children: [
-            TextField(
-              controller: _emailController,
-              keyboardType: TextInputType.emailAddress,
-              decoration: InputDecoration(labelText: AppStrings.email),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _passwordController,
-              obscureText: _obscurePassword,
-              decoration: InputDecoration(
-                labelText: AppStrings.password,
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                  ),
-                  onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                ),
+          SizedBox(height: Responsive.h(context, 18)),
+          TextButton(
+            onPressed: () =>
+                Navigator.of(context).pushReplacementNamed(AppRoutes.signUp),
+            child: Text(AppStrings.newToFinflowSignUp),
+          ),
+        ],
+      ),
+      children: [
+        TextField(
+          controller: _emailController,
+          keyboardType: TextInputType.emailAddress,
+          decoration: InputDecoration(labelText: AppStrings.email),
+        ),
+        SizedBox(height: Responsive.h(context, 12)),
+        TextField(
+          controller: _passwordController,
+          obscureText: _obscurePassword,
+          decoration: InputDecoration(
+            labelText: AppStrings.password,
+            suffixIcon: IconButton(
+              icon: Icon(
+                _obscurePassword ? Icons.visibility_off : Icons.visibility,
               ),
+              onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
             ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: () =>
-                    Navigator.of(context).pushNamed(AppRoutes.forgotPassword),
-                child: Text(AppStrings.forgotPassword),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: _isSubmitting
-                  ? null
-                  : () async {
-                      setState(() => _isSubmitting = true);
+          ),
+        ),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton(
+            onPressed: () =>
+                Navigator.of(context).pushNamed(AppRoutes.forgotPassword),
+            child: Text(AppStrings.forgotPassword),
+          ),
+        ),
+        ElevatedButton(
+          onPressed: _isSubmitting
+              ? null
+              : () async {
+                  setState(() => _isSubmitting = true);
 
-                      try {
-                        final success = await ref
-                            .read(authServiceProvider)
-                            .signIn(
-                              email: _emailController.text.trim().toLowerCase(),
-                              password: _passwordController.text,
-                            );
-                        if (!context.mounted) return;
-                        setState(() => _isSubmitting = false);
-
-                        if (success) {
-                          // Check if user needs to set budget limit
-                          final authService = ref.read(authServiceProvider);
-                          final destination = authService.needsBudgetSetup
-                              ? AppRoutes.budgetSetup
-                              : AppRoutes.dashboard;
-                          Navigator.of(context).pushNamedAndRemoveUntil(
-                            destination,
-                            (route) => false,
-                          );
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(AppStrings.invalidEmailOrPassword),
-                            ),
-                          );
-                        }
-                      } catch (e) {
-                        if (!context.mounted) return;
-                        setState(() => _isSubmitting = false);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('$e')),
+                  try {
+                    final success = await ref
+                        .read(authServiceProvider)
+                        .signIn(
+                          email: _emailController.text.trim().toLowerCase(),
+                          password: _passwordController.text,
                         );
-                      }
-                    },
-              child: Text(_isSubmitting ? AppStrings.signingIn : AppStrings.signIn),
-            ),
-          ],
-        );
-      },
+                    if (!context.mounted) return;
+                    setState(() => _isSubmitting = false);
+
+                    if (success) {
+                      // Check if user needs to set budget limit
+                      final authService = ref.read(authServiceProvider);
+                      final destination = authService.needsBudgetSetup
+                          ? AppRoutes.budgetSetup
+                          : AppRoutes.dashboard;
+                      Navigator.of(context).pushNamedAndRemoveUntil(
+                        destination,
+                        (route) => false,
+                      );
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(AppStrings.invalidEmailOrPassword),
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (!context.mounted) return;
+                    setState(() => _isSubmitting = false);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('$e')),
+                    );
+                  }
+                },
+          child: Text(_isSubmitting ? AppStrings.signingIn : AppStrings.signIn),
+        ),
+      ],
     );
   }
 }
@@ -174,8 +182,8 @@ class _SocialButton extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(24),
       child: Container(
-        height: 44,
-        width: 44,
+        height: Responsive.w(context, 44),
+        width: Responsive.w(context, 44),
         decoration: BoxDecoration(
           color: Colors.white,
           shape: BoxShape.circle,

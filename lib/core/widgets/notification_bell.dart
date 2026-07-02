@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../utils/responsive.dart';
 import '../theme/app_colors.dart';
 
 /// Notification bell icon with a circular green background,
@@ -11,16 +12,16 @@ class NotificationBell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 36,
-      height: 36,
+      width: Responsive.w(context, 36),
+      height: Responsive.h(context, 36),
       decoration: const BoxDecoration(
         color: AppColors.lightGreen,
         shape: BoxShape.circle,
       ),
       child: Center(
         child: SizedBox(
-          width: 16,
-          height: 20,
+          width: Responsive.w(context, 16),
+          height: Responsive.h(context, 20),
           child: SvgPicture.asset(
             'assets/icons/icon_notification.svg',
             colorFilter: const ColorFilter.mode(

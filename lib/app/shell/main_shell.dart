@@ -31,8 +31,13 @@ class _MainShellState extends ConsumerState<MainShell> {
     if (args is int && args >= 0 && args <= 4) {
       _index = args;
     }
-    // Redirect new users (from social sign-in) to budget setup
-    if (AuthService.instance.needsBudgetSetup) {
+    // Redirect new users (from social sign-in) to budget setup.
+    // Only redirect when there is an authenticated user who hasn't set
+    // a budget.  After logout (currentUser == null) this check must be
+    // skipped, otherwise the user is sent to the budget screen instead
+    // of the sign-in screen.
+    final user = AuthService.instance.currentUser;
+    if (user != null && user.budgetLimit <= 0) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         Navigator.of(context).pushReplacementNamed(AppRoutes.budgetSetup);
       });
@@ -51,7 +56,9 @@ class _MainShellState extends ConsumerState<MainShell> {
             const AiScreen(),
             const ScanScreen(),
             const CommunityScreen(),
-            const ProfileScreen(),
+            ProfileScreen(
+              onTabChanged: (i) => setState(() => _index = i),
+            ),
           ],
         ),
       ),

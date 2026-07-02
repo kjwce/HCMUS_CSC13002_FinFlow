@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../core/i18n/app_language.dart';
+import '../../core/utils/responsive.dart';
 import '../../core/widgets/notification_bell.dart';
 import '../../features/auth/providers/auth_provider.dart';
 import '../../features/auth/services/auth_service.dart';
@@ -55,16 +56,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         children: [
           _buildHeaderAndBalance(ts),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
+            padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 20)),
             child: Column(
               children: [
-                const SizedBox(height: 20),
+                SizedBox(height: Responsive.h(context, 20)),
                 _buildGoalSummaryCard(),
-                const SizedBox(height: 25),
+                SizedBox(height: Responsive.h(context, 25)),
                 _buildPeriodTabs(),
-                const SizedBox(height: 25),
+                SizedBox(height: Responsive.h(context, 25)),
                 _buildTransactionList(ts),
-                const SizedBox(height: 100),
+                SizedBox(height: Responsive.h(context, 100)),
               ],
             ),
           ),
@@ -80,7 +81,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       children: [
         // Background Image
         Container(
-          height: 280,
+          height: Responsive.h(context, 280),
           width: double.infinity,
           decoration: const BoxDecoration(
             image: DecorationImage(
@@ -90,7 +91,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
           child: SafeArea(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              padding: EdgeInsets.symmetric(
+                horizontal: Responsive.w(context, 20),
+                vertical: Responsive.h(context, 10),
+              ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -100,21 +104,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     children: [
                       Text(
                         AppStrings.welcomeBack,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontFamily: 'Poppins',
-                          fontSize: 20,
+                          fontSize: Responsive.sp(context, 20),
                           fontWeight: FontWeight.w600,
-                          color: Color(0xFF052224),
+                          color: const Color(0xFF052224),
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      SizedBox(height: Responsive.h(context, 4)),
                       Text(
                         _greeting(),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontFamily: 'Poppins',
-                          fontSize: 14,
+                          fontSize: Responsive.sp(context, 14),
                           fontWeight: FontWeight.w400,
-                          color: Color(0xFF052224),
+                          color: const Color(0xFF052224),
                         ),
                       ),
                     ],
@@ -126,16 +130,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       GestureDetector(
                         onTap: _navigateToDashboard,
                         child: Container(
-                          width: 36,
-                          height: 36,
+                          width: Responsive.w(context, 36),
+                          height: Responsive.h(context, 36),
                           decoration: const BoxDecoration(
                             color: Color(0xFFDFF7E2),
                             shape: BoxShape.circle,
                           ),
                           child: Center(
                             child: SizedBox(
-                              width: 19,
-                              height: 16,
+                              width: Responsive.w(context, 19),
+                              height: Responsive.h(context, 16),
                               child: SvgPicture.asset(
                                 'assets/icons/chart.svg',
                                 colorFilter: const ColorFilter.mode(
@@ -147,7 +151,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      SizedBox(width: Responsive.w(context, 8)),
                       const NotificationBell(),
                     ],
                   ),
@@ -158,11 +162,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
         // Balance Card
         Positioned(
-          top: 100,
-          left: 20,
-          right: 20,
+          top: Responsive.h(context, 100),
+          left: Responsive.w(context, 20),
+          right: Responsive.w(context, 20),
           child: Container(
-            padding: const EdgeInsets.all(20),
+            padding: EdgeInsets.all(Responsive.w(context, 20)),
             decoration: BoxDecoration(
               color: Colors.transparent,
               borderRadius: BorderRadius.circular(24),
@@ -178,7 +182,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       Colors.black,
                       fontWeight: FontWeight.w700,
                     ),
-                    Container(width: 1, height: 40, color: Colors.white.withValues(alpha: 1.2)),
+                    Container(
+                      width: 1,
+                      height: Responsive.h(context, 40),
+                      color: Colors.white.withValues(alpha: 1.2),
+                    ),
                     _buildBalanceItem(
                       AppStrings.totalExpenseLabel,
                       '-${_formatCompact(ts.monthlyExpense)}',
@@ -187,7 +195,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 20),
+                SizedBox(height: Responsive.h(context, 20)),
                 // Progress Bar
                 _buildProgressBar(ts),
               ],
@@ -196,8 +204,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
         // Expense message nằm riêng, chìm trong background
         Positioned(
-          bottom: 5,
-          left: 60,
+          bottom: Responsive.h(context, 5),
+          left: Responsive.w(context, 60),
           right: 0,
           child: Center(child: _buildExpenseMessage(ts)),
         ),
@@ -217,7 +225,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final displayPercent = (rawPercent.clamp(0.0, 100.0) * 10).round() / 10;
 
     return Container(
-      height: 35,
+      height: Responsive.h(context, 35),
       decoration: BoxDecoration(
         color: const Color(0xFFF1FFF3),
         borderRadius: BorderRadius.circular(20),
@@ -234,10 +242,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               alignment: Alignment.center,
               child: Text(
                 '${displayPercent.toStringAsFixed(0)}%',
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: 'Poppins',
                   color: Colors.white,
-                  fontSize: 12,
+                  fontSize: Responsive.sp(context, 12),
                   fontWeight: FontWeight.w400,
                 ),
               ),
@@ -247,15 +255,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             Align(
               alignment: Alignment.centerRight,
               child: Padding(
-                padding: const EdgeInsets.only(right: 15),
+                padding: EdgeInsets.only(right: Responsive.w(context, 15)),
                 child: Text(
                   _formatCompact(budgetLimit),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: 'Poppins',
                     fontStyle: FontStyle.italic,
                     fontWeight: FontWeight.w500,
-                    fontSize: 13,
-                    color: Color(0xFF052224),
+                    fontSize: Responsive.sp(context, 13),
+                    color: const Color(0xFF052224),
                   ),
                 ),
               ),
@@ -279,12 +287,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           budgetLimit <= 0
               ? Icons.info_outline
               : (rawPercent > 100 ? Icons.warning_amber : Icons.check_box_outlined),
-          size: 18,
+          size: Responsive.sp(context, 18),
           color: budgetLimit <= 0
               ? Colors.grey
               : (rawPercent > 100 ? Colors.red : Colors.black54),
         ),
-        const SizedBox(width: 8),
+        SizedBox(width: Responsive.w(context, 8)),
         Expanded(
           child: Text(
             budgetLimit <= 0
@@ -292,7 +300,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 : (rawPercent > 100
                     ? 'Over budget — consider adjusting your spending!'
                     : '$displayPercent% Of Your Expenses, Looks Good.'),
-            style: const TextStyle(fontFamily: 'Poppins', fontSize: 15, fontWeight: FontWeight.w400, color: Color(0xFF052224)),
+            style: TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: Responsive.sp(context, 15),
+              fontWeight: FontWeight.w400,
+              color: const Color(0xFF052224),
+            ),
           ),
         ),
       ],
@@ -309,18 +322,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 14, color: Colors.black54),
-              const SizedBox(width: 4),
-              Text(title, style: const TextStyle(fontFamily: 'Poppins', fontSize: 12, fontWeight: FontWeight.w400, color: Color(0xFF093030))),
+              Icon(icon, size: Responsive.sp(context, 14), color: Colors.black54),
+              SizedBox(width: Responsive.w(context, 4)),
+              Text(title,
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: Responsive.sp(context, 12),
+                  fontWeight: FontWeight.w400,
+                  color: const Color(0xFF093030),
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: Responsive.h(context, 4)),
           Center(
             child: Text(amount,
                 textAlign: TextAlign.center,
                 style: TextStyle(
                     fontFamily: 'Poppins',
-                    fontSize: 24,
+                    fontSize: Responsive.sp(context, 24),
                     fontWeight: fontWeight,
                     color: amountColor)),
           ),
@@ -347,7 +367,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return GestureDetector(
       onTap: () => GoalSetupSheet.show(context),
       child: Container(
-        padding: const EdgeInsets.all(20),
+        padding: EdgeInsets.all(Responsive.w(context, 20)),
         decoration: BoxDecoration(
           color: const Color(0xFF00D293),
           borderRadius: BorderRadius.circular(30),
@@ -360,8 +380,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   alignment: Alignment.center,
                   children: [
                     SizedBox(
-                      width: 60,
-                      height: 60,
+                      width: Responsive.w(context, 60),
+                      height: Responsive.w(context, 60),
                       child: CircularProgressIndicator(
                         value: progress,
                         strokeWidth: 4,
@@ -369,34 +389,39 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         backgroundColor: Colors.white30,
                       ),
                     ),
-                    const _FigmaCarIcon(color: Color(0xFF093030), size: 28),
+                    _FigmaCarIcon(color: const Color(0xFF093030), size: Responsive.w(context, 28)),
                   ],
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: Responsive.h(context, 8)),
                 Text(
                   goal != null
                       ? '${(progress * 100).toStringAsFixed(0)}%'
                       : 'Savings\nOn Goals',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: 'Poppins',
-                    fontSize: 12,
+                    fontSize: Responsive.sp(context, 12),
                     fontWeight: FontWeight.w500,
-                    color: Color(0xFF093030),
+                    color: const Color(0xFF093030),
                   ),
                 ),
               ],
             ),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 15),
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 15)),
             child: SizedBox(
-                height: 80, child: VerticalDivider(color: Colors.white54)),
+                height: Responsive.h(context, 80),
+                child: const VerticalDivider(color: Colors.white54)),
           ),
           Expanded(
             child: Column(
               children: [
-                _buildSummaryRow(const _FigmaWalletIcon(color: Color(0xFF052224), size: 22),
-                    'Revenue Last Week', '+${_formatMoney(revenue)}', const Color(0xFF052224)),
+                _buildSummaryRow(
+                  _FigmaWalletIcon(color: const Color(0xFF052224), size: Responsive.w(context, 22)),
+                  'Revenue Last Week',
+                  '+${_formatMoney(revenue)}',
+                  const Color(0xFF052224),
+                ),
                 const Divider(color: Colors.white54),
                 _buildCategoryRow(selectedCategory, categoryExpense),
               ],
@@ -421,28 +446,42 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       child: Row(
         children: [
           SizedBox(
-            width: 24,
-            height: 24,
+            width: Responsive.w(context, 24),
+            height: Responsive.w(context, 24),
             child: selectedCategory != null
-                ? Icon(_iconForCategory(selectedCategory), size: 22, color: const Color(0xFF0068FF))
+                ? Icon(
+                    _iconForCategory(selectedCategory),
+                    size: Responsive.w(context, 22),
+                    color: const Color(0xFF0068FF),
+                  )
                 : const Icon(Icons.category_outlined, size: 22, color: Colors.black38),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: Responsive.w(context, 10)),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Text(selectedCategory != null ? '$selectedCategory Last Week' : label,
-                        style: const TextStyle(fontFamily: 'Poppins', fontSize: 12, fontWeight: FontWeight.w400, color: Color(0xFF052224))),
-                    const SizedBox(width: 4),
-                    Icon(Icons.expand_more, size: 16, color: color),
+                    Text(
+                      selectedCategory != null ? '$selectedCategory Last Week' : label,
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: Responsive.sp(context, 12),
+                        fontWeight: FontWeight.w400,
+                        color: const Color(0xFF052224),
+                      ),
+                    ),
+                    SizedBox(width: Responsive.w(context, 4)),
+                    Icon(Icons.expand_more, size: Responsive.w(context, 16), color: color),
                   ],
                 ),
                 Text(amount,
                     style: TextStyle(
-                        fontFamily: 'Poppins', fontSize: 15, fontWeight: FontWeight.w700, color: color)),
+                        fontFamily: 'Poppins',
+                        fontSize: Responsive.sp(context, 15),
+                        fontWeight: FontWeight.w700,
+                        color: color)),
               ],
             ),
           ),
@@ -462,34 +501,44 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(Responsive.w(context, 20)),
+        ),
       ),
       builder: (ctx) {
         return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+          padding: EdgeInsets.symmetric(
+            vertical: Responsive.h(context, 20),
+            horizontal: Responsive.w(context, 16),
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Padding(
-                padding: EdgeInsets.only(left: 8, bottom: 12),
+              Padding(
+                padding: EdgeInsets.only(
+                  left: Responsive.w(context, 8),
+                  bottom: Responsive.h(context, 12),
+                ),
                 child: Text(
                   'Select category to track',
                   style: TextStyle(
                     fontFamily: 'Poppins',
-                    fontSize: 16,
+                    fontSize: Responsive.sp(context, 16),
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF003829),
+                    color: const Color(0xFF003829),
                   ),
                 ),
               ),
               ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 320),
+                constraints: BoxConstraints(
+                  maxHeight: Responsive.h(context, 320),
+                ),
                 child: SingleChildScrollView(
                   child: Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
+                    spacing: Responsive.w(context, 12),
+                    runSpacing: Responsive.h(context, 12),
                     children: allCategories.map((cat) {
                       final isSelected = currentSelected == cat.key;
                       return GestureDetector(
@@ -501,8 +550,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Container(
-                              width: 50,
-                              height: 50,
+                              width: Responsive.w(context, 50),
+                              height: Responsive.w(context, 50),
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 border: Border.all(
@@ -511,17 +560,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 ),
                                 color: isSelected ? cat.color.withValues(alpha: 0.1) : const Color(0xFFF5F5F5),
                               ),
-                              child: Icon(cat.icon, color: isSelected ? cat.color : cat.color.withValues(alpha: 0.7), size: 22),
+                              child: Icon(
+                                cat.icon,
+                                color: isSelected ? cat.color : cat.color.withValues(alpha: 0.7),
+                                size: Responsive.w(context, 22),
+                              ),
                             ),
-                            const SizedBox(height: 4),
+                            SizedBox(height: Responsive.h(context, 4)),
                             SizedBox(
-                              width: 56,
+                              width: Responsive.w(context, 56),
                               child: Text(cat.label,
                                   textAlign: TextAlign.center,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
-                                      fontSize: 10,
+                                      fontSize: Responsive.sp(context, 10),
                                       color: const Color(0xFF052224),
                                       fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400)),
                             ),
@@ -543,17 +596,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       Widget icon, String title, String amount, Color color) {
     return Row(
       children: [
-        SizedBox(width: 24, height: 24, child: icon),
-        const SizedBox(width: 10),
+        SizedBox(width: Responsive.w(context, 24), height: Responsive.w(context, 24), child: icon),
+        SizedBox(width: Responsive.w(context, 10)),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(title,
-                style:
-                    const TextStyle(fontFamily: 'Poppins', fontSize: 12, fontWeight: FontWeight.w400, color: Color(0xFF052224))),
+                style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: Responsive.sp(context, 12),
+                    fontWeight: FontWeight.w400,
+                    color: const Color(0xFF052224))),
             Text(amount,
                 style: TextStyle(
-                    fontFamily: 'Poppins', fontSize: 15, fontWeight: FontWeight.w700, color: color)),
+                    fontFamily: 'Poppins',
+                    fontSize: Responsive.sp(context, 15),
+                    fontWeight: FontWeight.w700,
+                    color: color)),
           ],
         ),
       ],
@@ -563,7 +622,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   // --- 3. Tabs Daily/Weekly/Monthly ---
   Widget _buildPeriodTabs() {
     return Container(
-      padding: const EdgeInsets.all(6),
+      padding: EdgeInsets.all(Responsive.w(context, 6)),
       decoration: BoxDecoration(
         color: const Color(0xFFE2F3E5),
         borderRadius: BorderRadius.circular(20),
@@ -575,7 +634,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             child: GestureDetector(
               onTap: () => setState(() => _selectedTab = entry.key),
               child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 12),
+                padding: EdgeInsets.symmetric(
+                  vertical: Responsive.h(context, 12),
+                ),
                 decoration: BoxDecoration(
                   color: isSelected ? const Color(0xFF00D293) : Colors.transparent,
                   borderRadius: BorderRadius.circular(15),
@@ -583,7 +644,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 child: Text(
                   entry.value,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontFamily: 'Poppins', fontSize: 15, fontWeight: FontWeight.w400, color: Color(0xFF052224)),
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: Responsive.sp(context, 15),
+                    fontWeight: FontWeight.w400,
+                    color: const Color(0xFF052224),
+                  ),
                 ),
               ),
             ),
@@ -607,22 +673,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
+            Text(
               'Recent transactions',
-              style: TextStyle(fontFamily: 'Poppins', fontSize: 16, fontWeight: FontWeight.w600, color: Color(0xFF052224)),
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: Responsive.sp(context, 16),
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF052224),
+              ),
             ),
             TextButton.icon(
               onPressed: widget.onAddTap,
-              icon: const Icon(Icons.add_circle, size: 18),
+              icon: Icon(Icons.add_circle, size: Responsive.w(context, 18)),
               label: const Text('Add'),
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: Responsive.h(context, 12)),
         if (ts.currentUserTransactions.isEmpty)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 20),
-            child: Center(
+          Padding(
+            padding: EdgeInsets.symmetric(vertical: Responsive.h(context, 20)),
+            child: const Center(
               child: Text(
                 'No transactions yet.\nTap "Add" to record your first one.',
                 textAlign: TextAlign.center,
@@ -654,44 +725,52 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget _buildTransactionItem(IconData icon, String title, String date,
       String category, String amount, Color iconBg, bool isIncome) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 15),
+      padding: EdgeInsets.only(bottom: Responsive.h(context, 15)),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: EdgeInsets.all(Responsive.w(context, 12)),
             decoration:
                 BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(16)),
             child: Icon(icon, color: Colors.white),
           ),
-          const SizedBox(width: 15),
+          SizedBox(width: Responsive.w(context, 15)),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title,
-                    style: const TextStyle(
-                        fontFamily: 'Poppins', fontWeight: FontWeight.w500, fontSize: 15, color: Color(0xFF052224))),
-                Text(date,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontFamily: 'Poppins',
-                        color: Color(0xFF0068FF),
-                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        fontSize: Responsive.sp(context, 15),
+                        color: const Color(0xFF052224))),
+                Text(date,
+                    style: TextStyle(
+                        fontFamily: 'Poppins',
+                        color: const Color(0xFF0068FF),
+                        fontSize: Responsive.sp(context, 12),
                         fontWeight: FontWeight.w600)),
               ],
             ),
           ),
           if (category.isNotEmpty) ...[
             SizedBox(
-                width: 60,
+                width: Responsive.w(context, 60),
                 child: Text(category,
-                    style: const TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w300, fontSize: 13, color: Color(0xFF052224)))),
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      fontWeight: FontWeight.w300,
+                      fontSize: Responsive.sp(context, 13),
+                      color: const Color(0xFF052224),
+                    ))),
           ],
           Text(
             amount,
             style: TextStyle(
               fontFamily: 'Poppins',
               fontWeight: FontWeight.w500,
-              fontSize: 15,
+              fontSize: Responsive.sp(context, 15),
               color: isIncome ? const Color(0xFF052224) : const Color(0xFF0068FF),
             ),
           ),

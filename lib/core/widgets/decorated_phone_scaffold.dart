@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
+import '../utils/responsive.dart';
 
 class DecoratedPhoneScaffold extends StatelessWidget {
   const DecoratedPhoneScaffold({
@@ -32,16 +33,22 @@ class _CornerBlobs extends StatelessWidget {
   Widget build(BuildContext context) {
     return IgnorePointer(
       child: Stack(
-        children: const [
+        children: [
           Positioned(
-            left: -38,
-            top: -32,
-            child: _Blob(size: 120, alignment: Alignment.bottomRight),
+            left: Responsive.w(context, -38),
+            top: Responsive.h(context, -32),
+            child: _Blob(
+              size: Responsive.w(context, 120),
+              alignment: Alignment.bottomRight,
+            ),
           ),
           Positioned(
-            right: -44,
-            bottom: -36,
-            child: _Blob(size: 140, alignment: Alignment.topLeft),
+            right: Responsive.w(context, -44),
+            bottom: Responsive.h(context, -36),
+            child: _Blob(
+              size: Responsive.w(context, 140),
+              alignment: Alignment.topLeft,
+            ),
           ),
         ],
       ),
