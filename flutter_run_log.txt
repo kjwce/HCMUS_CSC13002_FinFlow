@@ -1,0 +1,243 @@
+Launching lib\main.dart on sdk gphone16k x86 64 in debug mode...
+Running Gradle task 'assembleDebug'...                          
+Running Gradle task 'assembleDebug'...                             20.6s
+√ Built build\app\outputs\flutter-apk\app-debug.apk
+Installing build\app\outputs\flutter-apk\app-debug.apk...        1,127ms
+I/FlutterActivityAndFragmentDelegate(14401): If you are attempting to set --enable-dart-profiling via Intent extras to launch a Flutter component outside of using the Flutter CLI, note that support for setting engine flags on Android via Intent will soon be dropped; see https://github.com/flutter/flutter/issues/180686 for more information on this breaking change. To migrate, set --enable-dart-profiling or any other flags specified via Intent extras on the command line instead or see https://github.com/flutter/flutter/blob/main/docs/engine/Flutter-Android-Engine-Flags.md for alternative methods.
+D/FlutterJNI(14401): Beginning load of flutter...
+D/FlutterJNI(14401): flutter (null) was loaded normally!
+I/flutter (14401): [IMPORTANT:flutter/shell/platform/android/android_context_gl_impeller.cc(104)] Using the Impeller rendering backend (OpenGLES).
+D/FlutterRenderer(14401): Width is zero. 0,0
+I/flutter (14401): supabase.supabase_flutter: INFO: ***** Supabase init completed ***** 
+D/FlutterRenderer(14401): Width is zero. 0,0
+D/FlutterJNI(14401): Sending viewport metrics to the engine.
+Syncing files to device sdk gphone16k x86 64...                 
+I/Choreographer(14401): Skipped 34 frames!  The application may be doing too much work on its main thread.
+D/WindowLayoutComponentImpl(14401): Register WindowLayoutInfoListener on Context=com.finflow.MainActivity@41cb22, of which baseContext=android.app.ContextImpl@55e3e9c
+D/FlutterJNI(14401): Sending viewport metrics to the engine.
+D/WindowOnBackDispatcher(14401): setTopOnBackInvokedCallback (unwrapped): io.flutter.embedding.android.FlutterActivity$1@779c534
+D/InsetsController(14401): hide(ime())
+I/ImeTracker(14401): com.finflow:1e537449: onCancelled at PHASE_CLIENT_ALREADY_HIDDEN
+Syncing files to device sdk gphone16k x86 64...                    274ms
+
+Flutter run key commands.
+r Hot reload. 
+R Hot restart.
+h List all available interactive commands.
+d Detach (terminate "flutter run" but leave application running).
+c Clear the screen
+q Quit (terminate the application on the device).
+
+A Dart VM Service on sdk gphone16k x86 64 is available at: http://127.0.0.1:62850/oAN86qv_dfU=/
+The Flutter DevTools debugger and profiler on sdk gphone16k x86 64 is available at: http://127.0.0.1:62850/oAN86qv_dfU=/devtools/?uri=ws://127.0.0.1:62850/oAN86qv_dfU=/ws
+D/WindowOnBackDispatcher(14401): setTopOnBackInvokedCallback (unwrapped): android.app.Activity$$ExternalSyntheticLambda0@339afd1
+D/ProfileInstaller(14401): Installing profile for com.finflow
+D/DesktopExperienceFlags(14401): Toggle override initialized to: false
+D/WindowOnBackDispatcher(14401): setTopOnBackInvokedCallback (unwrapped): io.flutter.embedding.android.FlutterActivity$1@779c534
+I/ImeTracker(14401): com.finflow:3d71d6ac: onRequestShow at ORIGIN_CLIENT reason SHOW_SOFT_INPUT fromUser false userId 0 displayId 0
+I/HWUI    (14401): Using FreeType backend (prop=Auto)
+D/InsetsController(14401): show(ime())
+D/InsetsController(14401): Setting requestedVisibleTypes to 511 (was 503)
+D/InputConnectionAdaptor(14401): The input method toggled cursor monitoring on
+I/AssistStructure(14401): Flattened final assist data: 404 bytes, containing 1 windows, 3 views
+D/WindowOnBackDispatcher(14401): setTopOnBackInvokedCallback (unwrapped): android.view.ImeBackAnimationController@304dfda
+D/FlutterJNI(14401): Sending viewport metrics to the engine.
+W/InteractionJankMonitor(14401): Initializing without READ_DEVICE_CONFIG permission. enabled=false, interval=1, missedFrameThreshold=3, frameTimeThreshold=64, package=com.finflow
+D/FlutterJNI(14401): Sending viewport metrics to the engine.
+D/FlutterJNI(14401): Sending viewport metrics to the engine.
+D/FlutterJNI(14401): Sending viewport metrics to the engine.
+D/FlutterJNI(14401): Sending viewport metrics to the engine.
+D/FlutterJNI(14401): Sending viewport metrics to the engine.
+D/FlutterJNI(14401): Sending viewport metrics to the engine.
+D/FlutterJNI(14401): Sending viewport metrics to the engine.
+D/FlutterJNI(14401): Sending viewport metrics to the engine.
+D/FlutterJNI(14401): Sending viewport metrics to the engine.
+D/FlutterJNI(14401): Sending viewport metrics to the engine.
+D/FlutterJNI(14401): Sending viewport metrics to the engine.
+D/FlutterJNI(14401): Sending viewport metrics to the engine.
+I/ImeTracker(14401): com.finflow:3d71d6ac: onShown
+D/FlutterJNI(14401): Sending viewport metrics to the engine.
+D/FlutterJNI(14401): Sending viewport metrics to the engine.
+I/ImeTracker(14401): com.finflow:ebde4350: onRequestShow at ORIGIN_CLIENT reason SHOW_SOFT_INPUT fromUser false userId 0 displayId 0
+D/InsetsController(14401): show(ime())
+I/ImeTracker(14401): com.finflow:ebde4350: onCancelled at PHASE_CLIENT_APPLY_ANIMATION
+I/AssistStructure(14401): Flattened final assist data: 404 bytes, containing 1 windows, 3 views
+D/InputConnectionAdaptor(14401): The input method toggled cursor monitoring on
+D/VRI[MainActivity](14401): WindowInsets changed: ime:[0,0,0,63] 
+D/FlutterJNI(14401): Sending viewport metrics to the engine.
+I/ImeTracker(14401): system_server:f2b85b6e: onCancelled at PHASE_CLIENT_ON_CONTROLS_CHANGED
+D/VRI[MainActivity](14401): WindowInsets changed: ime:null 
+D/FlutterJNI(14401): Sending viewport metrics to the engine.
+I/ImeTracker(14401): system_server:21661f05: onCancelled at PHASE_CLIENT_ON_CONTROLS_CHANGED
+I/ImeTracker(14401): com.finflow:d300eac1: onRequestHide at ORIGIN_CLIENT reason HIDE_SOFT_INPUT fromUser false userId 0 displayId 0
+D/InsetsController(14401): hide(ime())
+D/WindowOnBackDispatcher(14401): setTopOnBackInvokedCallback (unwrapped): io.flutter.embedding.android.FlutterActivity$1@779c534
+D/InsetsController(14401): Setting requestedVisibleTypes to 503 (was 511)
+D/CompatChangeReporter(14401): Compat change id reported: 395521150; UID 10231; state: ENABLED
+D/FlutterJNI(14401): Sending viewport metrics to the engine.
+I/ImeTracker(14401): system_server:cb672310: onCancelled at PHASE_CLIENT_ON_CONTROLS_CHANGED
+D/InteractionJankMonitor(14401): Build configuration failed!
+D/InteractionJankMonitor(14401): java.lang.IllegalArgumentException: Must pass in a valid surface control if only instrument surface; 
+D/InteractionJankMonitor(14401): 	at com.android.internal.jank.InteractionJankMonitor$Configuration.validate(InteractionJankMonitor.java:946)
+D/InteractionJankMonitor(14401): 	at com.android.internal.jank.InteractionJankMonitor$Configuration.<init>(InteractionJankMonitor.java:882)
+D/InteractionJankMonitor(14401): 	at com.android.internal.jank.InteractionJankMonitor$Configuration.<init>(InteractionJankMonitor.java:0)
+D/InteractionJankMonitor(14401): 	at com.android.internal.jank.InteractionJankMonitor$Configuration$Builder.build(InteractionJankMonitor.java:852)
+D/InteractionJankMonitor(14401): 	at com.android.internal.jank.InteractionJankMonitor.begin(InteractionJankMonitor.java:400)
+D/InteractionJankMonitor(14401): 	at android.view.inputmethod.ImeTracker$ImeJankTracker.lambda$onRequestAnimation$0(ImeTracker.java:970)
+D/InteractionJankMonitor(14401): 	at android.view.inputmethod.ImeTracker$ImeJankTracker$$ExternalSyntheticLambda0.run(D8$$SyntheticClass:0)
+D/InteractionJankMonitor(14401): 	at android.os.Handler.handleCallback(Handler.java:1095)
+D/InteractionJankMonitor(14401): 	at android.os.Handler.dispatchMessageImpl(Handler.java:135)
+D/InteractionJankMonitor(14401): 	at android.os.Handler.dispatchMessage(Handler.java:125)
+D/InteractionJankMonitor(14401): 	at android.os.Looper.loopOnce(Looper.java:296)
+D/InteractionJankMonitor(14401): 	at android.os.Looper.loop(Looper.java:397)
+D/InteractionJankMonitor(14401): 	at android.app.ActivityThread.main(ActivityThread.java:9523)
+D/InteractionJankMonitor(14401): 	at java.lang.reflect.Method.invoke(Native Method)
+D/InteractionJankMonitor(14401): 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:575)
+D/InteractionJankMonitor(14401): 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:939)
+D/FlutterJNI(14401): Sending viewport metrics to the engine.
+D/FlutterJNI(14401): Sending viewport metrics to the engine.
+D/FlutterJNI(14401): Sending viewport metrics to the engine.
+D/FlutterJNI(14401): Sending viewport metrics to the engine.
+D/FlutterJNI(14401): Sending viewport metrics to the engine.
+D/FlutterJNI(14401): Sending viewport metrics to the engine.
+D/FlutterJNI(14401): Sending viewport metrics to the engine.
+D/FlutterJNI(14401): Sending viewport metrics to the engine.
+D/FlutterJNI(14401): Sending viewport metrics to the engine.
+D/WindowOnBackDispatcher(14401): setTopOnBackInvokedCallback (unwrapped): android.app.Activity$$ExternalSyntheticLambda0@339afd1
+D/FlutterJNI(14401): Sending viewport metrics to the engine.
+D/FlutterJNI(14401): Sending viewport metrics to the engine.
+D/FlutterJNI(14401): Sending viewport metrics to the engine.
+
+══╡ EXCEPTION CAUGHT BY WIDGETS LIBRARY ╞═══════════════════════════════════════════════════════════
+The following assertion was thrown building _MaterialSwitch(dirty, state:
+_MaterialSwitchState#4cd75(tickers: tracking 4 tickers)):
+No Material widget found.
+_MaterialSwitch widgets require a Material widget ancestor within the closest LookupBoundary.
+In Material Design, most widgets are conceptually "printed" on a sheet of material. In Flutter's
+material library, that material is represented by the Material widget. It is the Material widget
+that renders ink splashes, for instance. Because of this, many material library widgets require that
+there be a Material widget in the tree above them.
+To introduce a Material widget, you can either directly include one, or use a widget that contains
+Material itself, such as a Card, Dialog, Drawer, or Scaffold.
+The specific widget that could not find a Material ancestor was:
+  _MaterialSwitch
+The ancestors of this widget were:
+  ...
+  Switch
+  SizedBox
+  Row
+  Row
+  Column
+  ...
+
+The relevant error-causing widget was:
+  Switch
+  Switch:file:///D:/FinFlow2/HCMUS_CSC13002_FinFlow/lib/features/finance/presentation/dashboard_page.dart:482:20
+
+When the exception was thrown, this was the stack:
+#0      debugCheckHasMaterial.<anonymous closure> (package:flutter/src/material/debug.dart:40:7)
+#1      debugCheckHasMaterial (package:flutter/src/material/debug.dart:67:4)
+#2      _MaterialSwitchState.build (package:flutter/src/material/switch.dart:909:12)
+#3      StatefulElement.build (package:flutter/src/widgets/framework.dart:5931:27)
+#4      ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5817:15)
+#5      StatefulElement.performRebuild (package:flutter/src/widgets/framework.dart:5982:11)
+#6      Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#7      ComponentElement._firstBuild (package:flutter/src/widgets/framework.dart:5799:5)
+#8      StatefulElement._firstBuild (package:flutter/src/widgets/framework.dart:5973:11)
+#9      ComponentElement.mount (package:flutter/src/widgets/framework.dart:5793:5)
+...     Normal element mounting (10 frames)
+#19     Element.inflateWidget (package:flutter/src/widgets/framework.dart:4587:20)
+#20     MultiChildRenderObjectElement.inflateWidget (package:flutter/src/widgets/framework.dart:7264:36)
+#21     MultiChildRenderObjectElement.mount (package:flutter/src/widgets/framework.dart:7279:32)
+#22     Element.inflateWidget (package:flutter/src/widgets/framework.dart:4587:20)
+#23     MultiChildRenderObjectElement.inflateWidget (package:flutter/src/widgets/framework.dart:7264:36)
+#24     MultiChildRenderObjectElement.mount (package:flutter/src/widgets/framework.dart:7279:32)
+#25     Element.inflateWidget (package:flutter/src/widgets/framework.dart:4587:20)
+#26     MultiChildRenderObjectElement.inflateWidget (package:flutter/src/widgets/framework.dart:7264:36)
+#27     MultiChildRenderObjectElement.mount (package:flutter/src/widgets/framework.dart:7279:32)
+...     Normal element mounting (16 frames)
+#43     Element.inflateWidget (package:flutter/src/widgets/framework.dart:4587:20)
+#44     MultiChildRenderObjectElement.inflateWidget (package:flutter/src/widgets/framework.dart:7264:36)
+#45     MultiChildRenderObjectElement.mount (package:flutter/src/widgets/framework.dart:7279:32)
+...     Normal element mounting (116 frames)
+#161    Element.inflateWidget (package:flutter/src/widgets/framework.dart:4587:20)
+#162    MultiChildRenderObjectElement.inflateWidget (package:flutter/src/widgets/framework.dart:7264:36)
+#163    MultiChildRenderObjectElement.mount (package:flutter/src/widgets/framework.dart:7279:32)
+...     Normal element mounting (176 frames)
+#339    Element.inflateWidget (package:flutter/src/widgets/framework.dart:4587:20)
+#340    MultiChildRenderObjectElement.inflateWidget (package:flutter/src/widgets/framework.dart:7264:36)
+#341    Element.updateChild (package:flutter/src/widgets/framework.dart:4059:18)
+#342    Element.updateChildren (package:flutter/src/widgets/framework.dart:4255:32)
+#343    MultiChildRenderObjectElement.update (package:flutter/src/widgets/framework.dart:7295:17)
+#344    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#345    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#346    StatefulElement.performRebuild (package:flutter/src/widgets/framework.dart:5982:11)
+#347    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#348    StatefulElement.update (package:flutter/src/widgets/framework.dart:6007:5)
+#349    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#350    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#351    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#352    ProxyElement.update (package:flutter/src/widgets/framework.dart:6149:5)
+#353    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#354    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#355    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#356    ProxyElement.update (package:flutter/src/widgets/framework.dart:6149:5)
+#357    _InheritedNotifierElement.update (package:flutter/src/widgets/inherited_notifier.dart:108:11)
+#358    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#359    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#360    StatefulElement.performRebuild (package:flutter/src/widgets/framework.dart:5982:11)
+#361    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#362    StatefulElement.update (package:flutter/src/widgets/framework.dart:6007:5)
+#363    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#364    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#365    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#366    ProxyElement.update (package:flutter/src/widgets/framework.dart:6149:5)
+#367    _InheritedNotifierElement.update (package:flutter/src/widgets/inherited_notifier.dart:108:11)
+#368    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#369    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#370    StatefulElement.performRebuild (package:flutter/src/widgets/framework.dart:5982:11)
+#371    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#372    StatefulElement.update (package:flutter/src/widgets/framework.dart:6007:5)
+#373    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#374    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#375    StatefulElement.performRebuild (package:flutter/src/widgets/framework.dart:5982:11)
+#376    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#377    StatefulElement.update (package:flutter/src/widgets/framework.dart:6007:5)
+#378    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#379    SingleChildRenderObjectElement.update (package:flutter/src/widgets/framework.dart:7122:14)
+#380    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#381    SingleChildRenderObjectElement.update (package:flutter/src/widgets/framework.dart:7122:14)
+#382    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#383    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#384    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#385    ProxyElement.update (package:flutter/src/widgets/framework.dart:6149:5)
+#386    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#387    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#388    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#389    ProxyElement.update (package:flutter/src/widgets/framework.dart:6149:5)
+#390    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#391    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#392    StatefulElement.performRebuild (package:flutter/src/widgets/framework.dart:5982:11)
+#393    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#394    BuildScope._tryRebuild (package:flutter/src/widgets/framework.dart:2750:15)
+#395    BuildScope._flushDirtyElements (package:flutter/src/widgets/framework.dart:2807:11)
+#396    BuildOwner.buildScope (package:flutter/src/widgets/framework.dart:3111:18)
+#397    WidgetsBinding.drawFrame (package:flutter/src/widgets/binding.dart:1571:21)
+#398    RendererBinding._handlePersistentFrameCallback (package:flutter/src/rendering/binding.dart:509:5)
+#399    SchedulerBinding._invokeFrameCallback (package:flutter/src/scheduler/binding.dart:1430:15)
+#400    SchedulerBinding.handleDrawFrame (package:flutter/src/scheduler/binding.dart:1345:9)
+#401    SchedulerBinding._handleDrawFrame (package:flutter/src/scheduler/binding.dart:1198:5)
+#405    _invoke (dart:ui/hooks.dart:425:10)
+#406    PlatformDispatcher._drawFrame (dart:ui/platform_dispatcher.dart:447:5)
+#407    _drawFrame (dart:ui/hooks.dart:395:31)
+(elided 3 frames from dart:async)
+
+════════════════════════════════════════════════════════════════════════════════════════════════════
+
+D/WindowOnBackDispatcher(14401): setTopOnBackInvokedCallback (unwrapped): io.flutter.embedding.android.FlutterActivity$1@779c534
+Another exception was thrown: A RenderFlex overflowed by 12 pixels on the right.
+Another exception was thrown: A RenderFlex overflowed by 21 pixels on the right.
+I/com.finflow(14401): Thread[2,tid=14408,WaitingInMainSignalCatcherLoop,Thread*=0x73e0b0009380,peer=0x2000cb0,"Signal Catcher"]: reacting to signal 3
+I/com.finflow(14401): 
+I/com.finflow(14401): Wrote stack traces to tombstoned
+Lost connection to device.

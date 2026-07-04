@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -12,6 +13,10 @@ import '../providers/wallet_provider.dart';
 import '../services/transaction_service.dart';
 import '../services/wallet_service.dart';
 
+// ══════════════════════════════════════════════════════════════════════════════
+// DashboardPage
+// ══════════════════════════════════════════════════════════════════════════════
+
 class DashboardPage extends ConsumerStatefulWidget {
   const DashboardPage({super.key});
 
@@ -20,46 +25,208 @@ class DashboardPage extends ConsumerStatefulWidget {
 }
 
 class _DashboardPageState extends ConsumerState<DashboardPage> {
-  var _selectedPeriodFilter = 0;
+  bool _dataLoaded = false;
+  bool _mounted = false;
+
+  // ── Per‑chart period filters ──
+  ChartPeriod _p1 = ChartPeriod.month; // Chart 1: Income/Expense line
+  ChartPeriod _p2 = ChartPeriod.month; // Chart 2: Expense donut
+  ChartPeriod _p3 = ChartPeriod.month; // Chart 3: Expense bar
+  ChartPeriod _p4 = ChartPeriod.month; // Chart 4: Income source
+  ChartPeriod _p5 = ChartPeriod.month; // Chart 5: Grouped bar
+
+  // ── Toggles ──
+  bool _showBalance = false; // Chart 1: show balance line
+  bool _incomeDetailView = false; // Chart 4: bar vs donut
+
+  // ── Touch state ──
+  int _touchedPieIndex = -1; // Chart 2
+  int _touchedIncomePieIndex = -1; // Chart 4 donut
+
+  @override
+  void initState() {
+    super.initState();
+    _mounted = true;
+    // Trigger data fetch — HomeScreen may not have been visited yet.
+    Future.microtask(() async {
+      try {
+        await Future.wait([
+          ref.read(transactionServiceProvider).fetchTransactions(),
+          ref.read(walletServiceProvider).fetchWallets(),
+        ]);
+      } catch (e) {
+        debugPrint('Dashboard fetch error: $e');
+      } finally {
+        if (_mounted) setState(() => _dataLoaded = true);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _mounted = false;
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (!_dataLoaded) {
+      // Show a compact loading indicator instead of partial render
+      return Material(
+        color: Colors.transparent,
+        child: Column(
+          children: [
+            _buildHeader(),
+            const Expanded(
+              child: Center(
+                child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     final ts = ref.watch(transactionServiceProvider);
     final ws = ref.watch(walletServiceProvider);
     final wallets = ws.currentUserWallets;
 
-    return Column(
-      children: [
-        _buildHeader(),
-        Expanded(
-          child: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            padding: EdgeInsets.zero,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(height: Responsive.h(context, 16)),
-                _buildAccountBalanceCard(ts, wallets),
-                SizedBox(height: Responsive.h(context, 14)),
-                _buildEarningsSpentRow(ts, wallets),
-                SizedBox(height: Responsive.h(context, 14)),
-                _buildBarChart(ts, wallets),
-                SizedBox(height: Responsive.h(context, 14)),
-                _buildLineChart(ts),
-                SizedBox(height: Responsive.h(context, 14)),
-                _buildComparingPeriods(ts, wallets),
-                SizedBox(height: Responsive.h(context, 40)),
-              ],
+    // ── Danh sách items trong scroll view (dùng ListView.builder để lazy render) ──
+    final items = <Widget>[
+      SizedBox(height: Responsive.h(context, 16)),
+      // ── Chart 1: Income & Expense Line ──
+      RepaintBoundary(child: _buildIncomeExpenseLineChart(ts)),
+      SizedBox(height: Responsive.h(context, 14)),
+      // ── Chart 2: Expense Donut ──
+      RepaintBoundary(child: _buildExpenseDonutChart(ts)),
+      SizedBox(height: Responsive.h(context, 14)),
+      // ── Chart 3: Expense Bar ──
+      RepaintBoundary(child: _buildExpenseBarChart(ts)),
+      SizedBox(height: Responsive.h(context, 14)),
+      // ── Chart 4: Income by Source ──
+      RepaintBoundary(child: _buildIncomeSourceChart(ts, wallets)),
+      SizedBox(height: Responsive.h(context, 14)),
+      // ── Chart 5: Income vs Expense Grouped Bar ──
+      RepaintBoundary(child: _buildIncomeVsExpenseChart(ts)),
+      SizedBox(height: Responsive.h(context, 14)),
+      SizedBox(height: Responsive.h(context, 40)),
+    ];
+
+    return Material(
+      color: Colors.transparent,
+      child: Column(
+        children: [
+          _buildHeader(),
+          Expanded(
+            child: ListView.builder(
+              physics: const BouncingScrollPhysics(),
+              padding: EdgeInsets.zero,
+              itemCount: items.length,
+              itemBuilder: (context, index) => items[index],
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
-  // --------------------------------------------------------------------------
-  // 1. Header Dashboard
-  // --------------------------------------------------------------------------
+  // ════════════════════════════════════════════════════════════════════════════
+  // Reusable helpers
+  // ════════════════════════════════════════════════════════════════════════════
+
+  Widget _buildChartCard({
+    required String title,
+    required ChartPeriod period,
+    required ValueChanged<ChartPeriod> onPeriodChanged,
+    required Widget chart,
+    Widget? trailing,
+    double chartHeight = 200,
+  }) {
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: Responsive.w(context, 20)),
+      padding: EdgeInsets.fromLTRB(
+        Responsive.w(context, 16),
+        Responsive.h(context, 12),
+        Responsive.w(context, 16),
+        Responsive.h(context, 16),
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                  style: TextStyle(
+                    fontSize: Responsive.sp(context, 15),
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.darkGreenText,
+                  ),
+                ),
+              ),
+              if (trailing case final t?) t,
+            ],
+          ),
+          SizedBox(height: Responsive.h(context, 8)),
+          _PeriodFilter(period: period, onChanged: onPeriodChanged),
+          SizedBox(height: Responsive.h(context, 12)),
+          SizedBox(
+            height: Responsive.h(context, chartHeight),
+            child: chart,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _emptyPlaceholder() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.inbox_rounded,
+            size: Responsive.sp(context, 40),
+            color: AppColors.mutedGray.withValues(alpha: 0.5),
+          ),
+          SizedBox(height: Responsive.h(context, 8)),
+          Text(
+            'No data',
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: Responsive.sp(context, 13),
+              color: AppColors.mutedGray,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // 1. Header (unchanged)
+  // ════════════════════════════════════════════════════════════════════════════
+
   Widget _buildHeader() {
     return Container(
       width: double.infinity,
@@ -97,557 +264,897 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     );
   }
 
-  // --------------------------------------------------------------------------
-  // 2. Account Balance Card (dynamic)
-  // --------------------------------------------------------------------------
-  Widget _buildAccountBalanceCard(TransactionService ts, List<WalletModel> wallets) {
-    final balance = ts.totalBalance;
-    final segments = wallets.map((w) => ts.balanceByWallet(w.id).toDouble()).toList();
-    final colors = wallets.map((w) => w.brandColor).toList();
-    final segSum = segments.fold(0.0, (a, b) => a + b);
+  // ════════════════════════════════════════════════════════════════════════════
+  // CHART 1 — Income & Expense Line Chart (fl_chart LineChart)
+  // ════════════════════════════════════════════════════════════════════════════
 
-    return Container(
-      margin: EdgeInsets.symmetric(horizontal: Responsive.w(context, 20)),
-      padding: EdgeInsets.all(Responsive.w(context, 20)),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(2),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+  Widget _buildIncomeExpenseLineChart(TransactionService ts) {
+    final buckets = ts.periodBuckets(_p1);
+    final hasData = buckets.any((b) => b.income > 0 || b.expense > 0);
+
+    return _buildChartCard(
+      title: 'Income & Expense',
+      period: _p1,
+      onPeriodChanged: (v) => setState(() => _p1 = v),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'Balance',
+            style: TextStyle(
+              fontSize: Responsive.sp(context, 11),
+              color: AppColors.mutedGray,
+            ),
+          ),
+          SizedBox(width: Responsive.w(context, 4)),
+          Material(
+            type: MaterialType.transparency,
+            child: _CustomToggle(
+              value: _showBalance,
+              onChanged: (v) => setState(() => _showBalance = v),
+            ),
           ),
         ],
       ),
-      child: Row(
-        children: [
-          Expanded(
-            flex: 3,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Total balance',
-                  style: TextStyle(
-                    fontSize: Responsive.sp(context, 13),
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.mutedGray,
-                  ),
-                ),
-                SizedBox(height: Responsive.h(context, 4)),
-                Text(
-                  _formatCompact(balance),
-                  style: TextStyle(
-                    fontFamily: 'Roboto',
-                    fontWeight: FontWeight.w500,
-                    fontSize: Responsive.sp(context, 32),
-                    color: AppColors.darkGray,
-                  ),
-                ),
-                SizedBox(height: Responsive.h(context, 14)),
-                ...List.generate(wallets.length, (i) {
-                  final w = wallets[i];
-                  return Padding(
-                    padding: EdgeInsets.only(bottom: Responsive.h(context, 8)),
-                    child: _accountRow(w.shortName, _formatCompact(ts.balanceByWallet(w.id)), w.brandColor),
-                  );
-                }),
-              ],
-            ),
+      chart: hasData ? _buildLineChartBody(buckets) : _emptyPlaceholder(),
+    );
+  }
+
+  Widget _buildLineChartBody(List<PeriodBucket> buckets) {
+    final spotsIncome = <FlSpot>[];
+    final spotsExpense = <FlSpot>[];
+    final spotsBalance = <FlSpot>[];
+
+    for (int i = 0; i < buckets.length; i++) {
+      final x = i.toDouble();
+      spotsIncome.add(FlSpot(x, buckets[i].income.toDouble()));
+      spotsExpense.add(FlSpot(x, buckets[i].expense.toDouble()));
+      spotsBalance.add(FlSpot(x, buckets[i].balance.toDouble()));
+    }
+
+    // Compute Y range
+    double dataMin = 0;
+    double dataMax = 0;
+    for (final b in buckets) {
+      dataMax = math.max(dataMax, b.income.toDouble());
+      dataMax = math.max(dataMax, b.expense.toDouble());
+      if (_showBalance) {
+        dataMax = math.max(dataMax, b.balance.toDouble());
+        dataMin = math.min(dataMin, b.balance.toDouble());
+      }
+    }
+    final range = dataMax - dataMin;
+    final pad = range > 0 ? range * 0.15 : (dataMax > 0 ? dataMax * 0.3 : 1000);
+    final adjMin = (dataMin - pad).clamp(0.0, double.infinity);
+    final adjMax = _safeMax(dataMax + pad, adjMin);
+    if (adjMin == 0 && adjMax == 0) return _emptyPlaceholder();
+
+    return LineChart(
+      LineChartData(
+        lineBarsData: [
+          _lineBar(spotsIncome, AppColors.primaryGreen, 'Income'),
+          _lineBar(spotsExpense, AppColors.coral, 'Expense'),
+          if (_showBalance)
+            _lineBar(spotsBalance, AppColors.chartBlueBorder, 'Balance',
+                dashArray: const [6, 4]),
+        ],
+        minX: 0,
+        maxX: (buckets.length - 1).toDouble(),
+        minY: adjMin,
+        maxY: adjMax,
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          horizontalInterval: _niceAxisInterval(adjMax - adjMin, 4),
+          getDrawingHorizontalLine: (_) => FlLine(
+            color: Colors.grey.withValues(alpha: 0.18),
+            strokeWidth: 1,
           ),
-          SizedBox(width: Responsive.w(context, 16)),
-          SizedBox(
-            width: Responsive.w(context, 110),
-            height: Responsive.w(context, 110),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                if (segSum > 0)
-                  CustomPaint(
-                    painter: _DonutPainter(
-                      segments: segments,
-                      segmentColors: colors,
-                      holeRadiusRatio: 0.58,
+        ),
+        borderData: FlBorderData(show: false),
+        titlesData: FlTitlesData(
+          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 44,
+              getTitlesWidget: (v, _) {
+                if (v == 0) return const SizedBox();
+                return Padding(
+                  padding: EdgeInsets.only(right: Responsive.w(context, 4)),
+                  child: Text(
+                    _formatCompact(v.toInt()),
+                    style: TextStyle(
+                      fontSize: Responsive.sp(context, 10),
+                      color: AppColors.mutedGray,
                     ),
                   ),
-                Text(
-                  _formatCompact(balance),
-                  style: TextStyle(
-                    fontSize: Responsive.sp(context, 13),
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.darkGray,
-                  ),
-                ),
-              ],
+                );
+              },
             ),
           ),
-        ],
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 28,
+              interval: 1,
+              getTitlesWidget: (v, _) {
+                final i = v.toInt();
+                if (i < 0 || i >= buckets.length) return const SizedBox();
+                return Padding(
+                  padding: EdgeInsets.only(top: Responsive.h(context, 4)),
+                  child: Text(
+                    buckets[i].label,
+                    style: TextStyle(
+                      fontSize: Responsive.sp(context, 10),
+                      color: AppColors.mutedGray,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+        lineTouchData: LineTouchData(
+          handleBuiltInTouches: true,
+          touchTooltipData: LineTouchTooltipData(
+            getTooltipColor: (_) => AppColors.darkGray.withValues(alpha: 0.92),
+            tooltipRoundedRadius: 8,
+            tooltipPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            getTooltipItems: (touchedSpots) {
+              if (touchedSpots.isEmpty) return [];
+              final idx = touchedSpots.first.spotIndex;
+              final b = buckets[idx];
+              final items = <LineTooltipItem?>[
+                LineTooltipItem(
+                  b.label,
+                  const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  children: [
+                    TextSpan(
+                      text: '\nIncome: ${_formatVNDCompact(b.income)}',
+                      style: TextStyle(
+                        color: AppColors.primaryGreen,
+                        fontSize: 11,
+                      ),
+                    ),
+                    TextSpan(
+                      text: '\nExpense: ${_formatVNDCompact(b.expense)}',
+                      style: TextStyle(
+                        color: AppColors.coral,
+                        fontSize: 11,
+                      ),
+                    ),
+                    TextSpan(
+                      text: '\nBalance: ${_formatVNDCompact(b.balance)}',
+                      style: TextStyle(
+                        color: _showBalance ? AppColors.chartBlueBorder : AppColors.mutedGray,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ];
+              // Return null entries for remaining touched spots so only 1 tooltip is shown
+              for (int i = 1; i < touchedSpots.length; i++) {
+                items.add(null);
+              }
+              return items;
+            },
+          ),
+        ),
+      ),
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeInOut,
+    );
+  }
+
+  LineChartBarData _lineBar(
+    List<FlSpot> spots,
+    Color color,
+    String label, {
+    List<int>? dashArray,
+  }) {
+    return LineChartBarData(
+      spots: spots,
+      isCurved: true,
+      curveSmoothness: 0.3,
+      color: color,
+      barWidth: 2.5,
+      isStrokeCapRound: true,
+      isStrokeJoinRound: true,
+      dashArray: dashArray,
+      dotData: FlDotData(
+        show: spots.length <= 8,
+        getDotPainter: (spot, percent, barData, index) {
+          return FlDotCirclePainter(
+            radius: 3,
+            color: Colors.white,
+            strokeWidth: 2,
+            strokeColor: color,
+          );
+        },
+      ),
+      belowBarData: BarAreaData(
+        show: true,
+        color: color.withValues(alpha: 0.08),
       ),
     );
   }
 
-  Widget _accountRow(String name, String value, Color color) {
-    return Row(
+  // ════════════════════════════════════════════════════════════════════════════
+  // CHART 2 — Tỷ lệ chi tiêu theo danh mục (Donut Chart — fl_chart PieChart)
+  // ════════════════════════════════════════════════════════════════════════════
+
+  Widget _buildExpenseDonutChart(TransactionService ts) {
+    final catExpense = ts.expenseByCategoryForPeriod(_p2);
+    final totalExpense = catExpense.values.fold(0, (a, b) => a + b);
+
+    return _buildChartCard(
+      title: 'Expense by Category',
+      period: _p2,
+      onPeriodChanged: (v) => setState(() => _p2 = v),
+      chart: totalExpense > 0
+          ? _buildDonutBody(catExpense, totalExpense, _touchedPieIndex, (i) {
+              setState(() => _touchedPieIndex = i);
+            }, Colors.transparent)
+          : _emptyPlaceholder(),
+    );
+  }
+
+  /// Shared donut builder used by Chart 2 and Chart 4.
+  Widget _buildDonutBody(
+    Map<String, int> data,
+    int total,
+    int touchedIndex,
+    ValueChanged<int> onTouch,
+    Color centerColor, {
+    bool useCategoryColors = true,
+    bool isIncome = false,
+  }) {
+    if (data.isEmpty) return _emptyPlaceholder();
+
+    // Sort descending
+    final entries = data.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    // Merge small slices < 5% into "Khác"
+    final threshold = total * 0.05;
+    final mainEntries = <MapEntry<String, int>>[];
+    int otherSum = 0;
+    for (final e in entries) {
+      if (e.value < threshold && mainEntries.length >= 6) {
+        otherSum += e.value;
+      } else {
+        mainEntries.add(e);
+      }
+    }
+    if (otherSum > 0) {
+      mainEntries.add(MapEntry('Other', otherSum));
+    }
+
+    final sections = mainEntries.asMap().entries.map((entry) {
+      final i = entry.key;
+      final e = entry.value;
+      final isTouched = touchedIndex == i;
+      final pct = (e.value / total * 100);
+      Color color;
+      if (useCategoryColors) {
+        color = e.key == 'Other'
+            ? Colors.grey
+            : TransactionCategory.fromKey(e.key).color;
+      } else {
+        // Wallet type colors
+        color = _walletTypeColor(e.key);
+      }
+
+      return PieChartSectionData(
+        value: e.value.toDouble(),
+        color: color,
+        radius: isTouched ? 65 : 55,
+        title: isTouched ? '${pct.toStringAsFixed(1)}%' : '',
+        titleStyle: TextStyle(
+          fontSize: Responsive.sp(context, 11),
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+        titlePositionPercentageOffset: 0.6,
+        borderSide: isTouched
+            ? BorderSide(color: Colors.white, width: 2)
+            : BorderSide.none,
+      );
+    }).toList();
+
+    return Column(
       children: [
-        Container(
-          width: Responsive.w(context, 8),
-          height: Responsive.w(context, 8),
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
+        Expanded(
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              PieChart(
+                PieChartData(
+                  sections: sections,
+                  centerSpaceRadius: Responsive.w(context, 50),
+                  sectionsSpace: 2,
+                  startDegreeOffset: -90,
+                  pieTouchData: PieTouchData(
+                    enabled: true,
+                    touchCallback: (event, response) {
+                      if (!event.isInterestedForInteractions ||
+                          response?.touchedSection == null) {
+                        onTouch(-1);
+                        return;
+                      }
+                      onTouch(response!.touchedSection!.touchedSectionIndex);
+                    },
+                  ),
+                ),
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+              ),
+              IgnorePointer(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _formatVNDCompact(total),
+                      style: TextStyle(
+                        fontSize: Responsive.sp(context, 16),
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.darkGray,
+                      ),
+                    ),
+                    Text(
+                      isIncome ? 'Income' : 'Expense',
+                      style: TextStyle(
+                        fontSize: Responsive.sp(context, 10),
+                        color: AppColors.mutedGray,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
-        SizedBox(width: Responsive.w(context, 6)),
-        Text(
-          '$name account: $value',
-          style: TextStyle(
-            fontSize: Responsive.sp(context, 14),
-            fontWeight: FontWeight.w500,
-            color: color,
+        // Legend
+        Padding(
+          padding: EdgeInsets.only(top: Responsive.h(context, 8)),
+          child: Wrap(
+            alignment: WrapAlignment.center,
+            spacing: Responsive.w(context, 12),
+            runSpacing: Responsive.h(context, 4),
+            children: mainEntries.map((e) {
+              Color color;
+              if (useCategoryColors) {
+                color = e.key == 'Other'
+                    ? Colors.grey
+                    : TransactionCategory.fromKey(e.key).color;
+              } else {
+                color = _walletTypeColor(e.key);
+              }
+              final pct = (e.value / total * 100);
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: Responsive.w(context, 8),
+                    height: Responsive.w(context, 8),
+                    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                  ),
+                  SizedBox(width: Responsive.w(context, 4)),
+                  Flexible(
+                    child: Text(
+                      '${e.key} ${pct.toStringAsFixed(1)}%',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: Responsive.sp(context, 10),
+                        color: AppColors.mutedGray,
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            }).toList(),
           ),
         ),
       ],
     );
   }
 
-  // --------------------------------------------------------------------------
-  // 3. Earnings / Spent row (dynamic)
-  // --------------------------------------------------------------------------
-  Widget _buildEarningsSpentRow(TransactionService ts, List<WalletModel> wallets) {
-    // Earnings: segment by wallet income this month
-    final earningsSegments = wallets.map((w) => ts.monthlyIncomeByWallet(w.id).toDouble()).toList();
-    final earningsColors = wallets.map((w) => w.brandColor).toList();
-    final earningsLabels = wallets.map((w) => w.shortName).toList();
-
-    // Spent: segment by top 3 categories this month
-    final spentByCat = <String, int>{};
-    for (final t in ts.currentUserTransactions.where((t) => t.amount < 0)) {
-      spentByCat.update(t.category, (v) => v + t.amount.abs(), ifAbsent: () => t.amount.abs());
+  Color _walletTypeColor(String type) {
+    switch (type) {
+      case 'bank':
+        return AppColors.ingBlue;
+      case 'ewallet':
+        return AppColors.primaryGreen;
+      case 'cash':
+        return AppColors.chartOrangeBorder;
+      default:
+        return AppColors.mutedGray;
     }
-    final sortedCats = spentByCat.entries.toList()
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // CHART 3 — Chi tiêu từng danh mục (Horizontal Bar Chart — fl_chart BarChart)
+  // ════════════════════════════════════════════════════════════════════════════
+
+  Widget _buildExpenseBarChart(TransactionService ts) {
+    final catExpense = ts.expenseByCategoryForPeriod(_p3);
+    final totalExpense = catExpense.values.fold(0, (a, b) => a + b);
+
+    return _buildChartCard(
+      title: 'Expense Breakdown',
+      period: _p3,
+      onPeriodChanged: (v) => setState(() => _p3 = v),
+      chartHeight: 280,
+      chart: totalExpense > 0
+          ? _buildHorizBarBody(catExpense, totalExpense)
+          : _emptyPlaceholder(),
+    );
+  }
+
+  Widget _buildHorizBarBody(Map<String, int> catExpense, int total) {
+    // Sort descending, take top 8
+    final sorted = catExpense.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
-    final topCats = sortedCats.take(3).toList();
-    final spentSegments = topCats.map((e) => e.value.toDouble()).toList();
-    final spentColors = topCats.map((e) => TransactionCategory.fromKey(e.key).color).toList();
-    final spentLabels = topCats.map((e) => e.key).toList();
+    final top = sorted.take(8).toList();
 
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 20)),
-      child: Row(
-        children: [
-          Expanded(child: _buildMiniCard(
-            title: 'Earnings this month',
-            amount: _formatCompact(ts.monthlyIncome),
-            segments: earningsSegments,
-            segmentColors: earningsColors,
-            labels: earningsLabels,
-            labelColors: earningsColors,
-          )),
-          SizedBox(width: Responsive.w(context, 14)),
-          Expanded(child: _buildMiniCard(
-            title: 'Spent this month',
-            amount: '-${_formatCompact(ts.monthlyExpense)}',
-            segments: spentSegments.isEmpty ? [1] : spentSegments,
-            segmentColors: spentColors.isEmpty ? [AppColors.accentTeal] : spentColors,
-            labels: spentLabels.isEmpty ? ['None'] : spentLabels,
-            labelColors: spentColors.isEmpty ? [AppColors.accentTeal] : spentColors,
-          )),
-        ],
-      ),
-    );
-  }
+    final maxVal = top.isEmpty ? 100.0 : top.first.value.toDouble();
+    final adjMax = _safeMax(maxVal * 1.2, 0);
 
-  Widget _buildMiniCard({
-    required String title,
-    required String amount,
-    required List<double> segments,
-    required List<Color> segmentColors,
-    required List<String> labels,
-    required List<Color> labelColors,
-  }) {
-    return Container(
-      padding: EdgeInsets.all(Responsive.w(context, 16)),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(2),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: Responsive.sp(context, 13),
-              fontWeight: FontWeight.w500,
-              color: AppColors.mutedGray,
-            ),
-          ),
-          SizedBox(height: Responsive.h(context, 4)),
-          Text(
-            amount,
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: Responsive.sp(context, 18),
-              color: AppColors.darkGray,
-            ),
-          ),
-          SizedBox(height: Responsive.h(context, 12)),
-          SizedBox(
-            width: Responsive.w(context, 72),
-            height: Responsive.w(context, 72),
-            child: CustomPaint(
-              painter: _DonutPainter(
-                segments: segments,
-                segmentColors: segmentColors,
-                holeRadiusRatio: 0.55,
+    return BarChart(
+      BarChartData(
+        rotationQuarterTurns: 1,
+        alignment: BarChartAlignment.spaceAround,
+        maxY: adjMax,
+        minY: 0,
+        barGroups: top.asMap().entries.map((entry) {
+          final i = entry.key;
+          final e = entry.value;
+          final cat = TransactionCategory.fromKey(e.key);
+          return BarChartGroupData(
+            x: i,
+            barRods: [
+              BarChartRodData(
+                toY: e.value.toDouble(),
+                color: cat.color,
+                width: Responsive.w(context, 16),
+                borderRadius: const BorderRadius.only(
+                  topRight: Radius.circular(4),
+                  bottomRight: Radius.circular(4),
+                ),
               ),
-            ),
-          ),
-          SizedBox(height: Responsive.h(context, 10)),
-          ...List.generate(labels.length, (i) {
-            return Padding(
-              padding: EdgeInsets.only(bottom: Responsive.h(context, 4)),
-              child: Row(
-                children: [
-                  Container(
-                    width: Responsive.w(context, 6),
-                    height: Responsive.w(context, 6),
-                    decoration: BoxDecoration(
-                      color: labelColors[i],
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  SizedBox(width: Responsive.w(context, 4)),
-                  Text(
-                    labels[i],
+            ],
+          );
+        }).toList(),
+        // rotationQuarterTurns = 1 → which side maps where:
+        //   topTitles   → LEFT   (category names)
+        //   rightTitles → BOTTOM (value labels)
+        //   leftTitles  → TOP    (hidden)
+        //   bottomTitles→ RIGHT  (hidden)
+        titlesData: FlTitlesData(
+          topTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: Responsive.w(context, 60),
+              getTitlesWidget: (value, meta) {
+                final i = value.toInt();
+                if (i < 0 || i >= top.length) return const SizedBox();
+                final cat = TransactionCategory.fromKey(top[i].key);
+                final label = cat.label;
+                final display = label.length > 10
+                    ? '${label.substring(0, 9)}..'
+                    : label;
+                return SideTitleWidget(
+                  meta: meta,
+                  child: Text(
+                    display,
                     style: TextStyle(
-                      fontSize: Responsive.sp(context, 11),
-                      fontWeight: FontWeight.w500,
-                      color: labelColors[i],
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }),
-        ],
-      ),
-    );
-  }
-
-  // --------------------------------------------------------------------------
-  // 4. Balance Bar Chart (dynamic by wallet)
-  // --------------------------------------------------------------------------
-  Widget _buildBarChart(TransactionService ts, List<WalletModel> wallets) {
-    final bars = wallets.map((w) {
-      final bal = ts.balanceByWallet(w.id);
-      return _BarItem(
-        label: w.shortName,
-        value: bal.abs().toDouble(),
-        fill: w.brandColor.withValues(alpha: 0.18),
-        border: w.brandColor,
-      );
-    }).toList();
-
-    final maxVal = bars.isEmpty
-        ? 100.0
-        : bars.map((b) => b.value).reduce((a, b) => a > b ? a : b);
-
-    return Container(
-      margin: EdgeInsets.symmetric(horizontal: Responsive.w(context, 20)),
-      padding: EdgeInsets.fromLTRB(
-        Responsive.w(context, 16),
-        Responsive.h(context, 16),
-        Responsive.w(context, 16),
-        Responsive.h(context, 8),
-      ),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(2),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Balance',
-            style: TextStyle(
-              fontSize: Responsive.sp(context, 15),
-              fontWeight: FontWeight.w600,
-              color: AppColors.darkGreenText,
-            ),
-          ),
-          SizedBox(height: Responsive.h(context, 16)),
-          SizedBox(
-            height: Responsive.h(context, 180),
-            child: bars.isEmpty
-                ? const Center(child: Text('No wallets'))
-                : CustomPaint(
-                    painter: _BarChartPainter(bars: bars, maxValue: maxVal),
-                  ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // --------------------------------------------------------------------------
-  // 5. This Month Balance Line Chart (real data)
-  // --------------------------------------------------------------------------
-  Widget _buildLineChart(TransactionService ts) {
-    final now = DateTime.now();
-    final dayCount = now.day;
-
-    // 4 milestones: day 1, 10, 20, today
-    final milestones = {1, 10, 20, dayCount}.toList()..sort();
-    final points = milestones.map((d) {
-      final date = DateTime(now.year, now.month, d, 23, 59, 59);
-      return ts.balanceAtDate(date).toDouble();
-    }).toList();
-
-    final xLabels = milestones.map((d) => '$d ${_months[now.month - 1]}').toList();
-    xLabels[xLabels.length - 1] = 'Today';
-
-    final minY = points.isEmpty ? 0.0 : points.reduce((a, b) => a < b ? a : b);
-    final maxY = points.isEmpty ? 100.0 : points.reduce((a, b) => a > b ? a : b);
-    final padding = ((maxY - minY) * 0.15).clamp(1.0, double.infinity);
-    final adjustedMin = minY - padding;
-    final adjustedMax = maxY + padding;
-    final step = _niceStep(adjustedMax - adjustedMin, 4);
-
-    final List<double> yLabels = [];
-    for (double y = adjustedMin; y <= adjustedMax + 0.01; y += step) {
-      yLabels.add(y);
-    }
-
-    return Container(
-      margin: EdgeInsets.symmetric(horizontal: Responsive.w(context, 20)),
-      padding: EdgeInsets.fromLTRB(
-        Responsive.w(context, 16),
-        Responsive.h(context, 16),
-        Responsive.w(context, 16),
-        Responsive.h(context, 8),
-      ),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(2),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'This month balance',
-            style: TextStyle(
-              fontSize: Responsive.sp(context, 15),
-              fontWeight: FontWeight.w600,
-              color: AppColors.darkGreenText,
-            ),
-          ),
-          SizedBox(height: Responsive.h(context, 16)),
-          SizedBox(
-            height: Responsive.h(context, 180),
-            child: CustomPaint(
-              painter: _LineChartPainter(
-                points: points,
-                xLabels: xLabels,
-                yLabels: yLabels,
-                lineColor: AppColors.primaryGreen,
-                fillColor: AppColors.primaryGreen.withValues(alpha: 0.12),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // --------------------------------------------------------------------------
-  // 6. Comparing Between Periods (dynamic)
-  // --------------------------------------------------------------------------
-  Widget _buildComparingPeriods(TransactionService ts, List<WalletModel> wallets) {
-    final filterLabels = wallets.map((w) => w.shortName).toList();
-    if (filterLabels.isEmpty) filterLabels.add('Cash');
-
-    if (_selectedPeriodFilter >= filterLabels.length) {
-      _selectedPeriodFilter = 0;
-    }
-
-    final now = DateTime.now();
-    final selectedWalletId = _selectedPeriodFilter < wallets.length
-        ? wallets[_selectedPeriodFilter].id
-        : null;
-
-    // Compute cumulative balance at N equally spaced points this year
-    const dataPointCount = 8;
-    final List<double> presentPoints = [];
-    final List<double> oneYearAgoPoints = [];
-    final List<double> twoYearsAgoPoints = [];
-
-    for (int i = 0; i < dataPointCount; i++) {
-      final frac = (i + 1) / dataPointCount;
-      final dayOfYear = (frac * 365).round().clamp(1, 365);
-      final presentDate = DateTime(now.year, 1, 1).add(Duration(days: dayOfYear - 1));
-      final oneYearDate = DateTime(now.year - 1, 1, 1).add(Duration(days: dayOfYear - 1));
-      final twoYearDate = DateTime(now.year - 2, 1, 1).add(Duration(days: dayOfYear - 1));
-
-      if (presentDate.isBefore(now) || presentDate.day == now.day) {
-        presentPoints.add(_balanceAtDateForWallet(ts, presentDate, selectedWalletId).toDouble());
-      }
-      oneYearAgoPoints.add(_balanceAtDateForWallet(ts, oneYearDate, selectedWalletId).toDouble());
-      twoYearsAgoPoints.add(_balanceAtDateForWallet(ts, twoYearDate, selectedWalletId).toDouble());
-    }
-
-    // Pad to same length
-    while (presentPoints.length < dataPointCount) {
-      presentPoints.add(presentPoints.isEmpty ? 0 : presentPoints.last);
-    }
-
-    final allValues = [...presentPoints, ...oneYearAgoPoints, ...twoYearsAgoPoints];
-    final minY = allValues.isEmpty ? 0.0 : allValues.reduce((a, b) => a < b ? a : b);
-    final maxY = allValues.isEmpty ? 100.0 : allValues.reduce((a, b) => a > b ? a : b);
-    final padding = ((maxY - minY) * 0.15).clamp(1.0, double.infinity);
-    final adjustedMin = minY - padding;
-    final adjustedMax = maxY + padding;
-
-    return Container(
-      margin: EdgeInsets.symmetric(horizontal: Responsive.w(context, 20)),
-      padding: EdgeInsets.fromLTRB(
-        Responsive.w(context, 16),
-        Responsive.h(context, 16),
-        Responsive.w(context, 16),
-        Responsive.h(context, 16),
-      ),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(2),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Comparing between periods',
-            style: TextStyle(
-              fontSize: Responsive.sp(context, 15),
-              fontWeight: FontWeight.w600,
-              color: AppColors.darkGreenText,
-            ),
-          ),
-          SizedBox(height: Responsive.h(context, 14)),
-          Container(
-            padding: EdgeInsets.all(Responsive.w(context, 4)),
-            decoration: BoxDecoration(
-              color: AppColors.lightGreen,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: List.generate(filterLabels.length, (i) {
-                final isSelected = _selectedPeriodFilter == i;
-                return GestureDetector(
-                  onTap: () => setState(() => _selectedPeriodFilter = i),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    padding: EdgeInsets.symmetric(
-                      horizontal: Responsive.w(context, 16),
-                      vertical: Responsive.h(context, 6),
-                    ),
-                    decoration: BoxDecoration(
-                      color: isSelected ? AppColors.primaryGreen : Colors.transparent,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Text(
-                      filterLabels[i],
-                      style: TextStyle(
-                        fontSize: Responsive.sp(context, 12),
-                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                        color: AppColors.darkText,
-                      ),
+                      fontSize: Responsive.sp(context, 10),
+                      color: AppColors.mutedGray,
                     ),
                   ),
                 );
-              }),
+              },
             ),
           ),
-          SizedBox(height: Responsive.h(context, 14)),
-          SizedBox(
-            height: Responsive.h(context, 180),
-            child: CustomPaint(
-              painter: _MultiLineChartPainter(
-                presentPoints: presentPoints,
-                oneYearAgoPoints: oneYearAgoPoints,
-                twoYearsAgoPoints: twoYearsAgoPoints,
-                minY: adjustedMin,
-                maxY: adjustedMax,
-              ),
+          rightTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 44,
+              getTitlesWidget: (value, meta) {
+                if (value <= 0) return const SizedBox();
+                return SideTitleWidget(
+                  meta: meta,
+                  child: Text(
+                    _formatCompact(value.toInt()),
+                    style: TextStyle(
+                      fontSize: Responsive.sp(context, 9),
+                      color: AppColors.mutedGray,
+                    ),
+                  ),
+                );
+              },
             ),
           ),
-          SizedBox(height: Responsive.h(context, 12)),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _legendDot(AppColors.chartBlueBorder, 'One year ago'),
-              SizedBox(width: Responsive.w(context, 20)),
-              _legendDot(AppColors.chartOrangeBorder, 'Two years ago'),
-              SizedBox(width: Responsive.w(context, 20)),
-              _legendDot(AppColors.primaryGreen, 'Present'),
-            ],
+          leftTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          bottomTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        ),
+        gridData: const FlGridData(show: false),
+        borderData: FlBorderData(show: false),
+        barTouchData: BarTouchData(
+          enabled: true,
+          touchTooltipData: BarTouchTooltipData(
+            getTooltipColor: (_) => AppColors.darkGray.withValues(alpha: 0.92),
+            tooltipRoundedRadius: 8,
+            tooltipPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            getTooltipItem: (group, groupIndex, rod, rodIndex) {
+              final e = top[group.x];
+              final pct = total > 0 ? (e.value / total * 100) : 0.0;
+              return BarTooltipItem(
+                '${TransactionCategory.fromKey(e.key).label}\n'
+                '${_formatVNDCompact(e.value)}  (${pct.toStringAsFixed(1)}%)',
+                TextStyle(
+                  color: rod.color ?? Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              );
+            },
           ),
-        ],
+        ),
       ),
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeInOut,
     );
   }
 
-  int _balanceAtDateForWallet(TransactionService ts, DateTime date, String? walletId) {
-    final w = walletId != null ? WalletService.instance.byId(walletId) : null;
-    final initial = w?.initialBalance ?? 0;
-    int income = 0, expense = 0;
-    for (final t in ts.currentUserTransactions.where((t) =>
-        !t.date.isAfter(date) && (walletId == null || t.walletId == walletId))) {
-      if (t.amount > 0) {
-        income += t.amount;
-      } else {
-        expense += t.amount.abs();
-      }
+  // ════════════════════════════════════════════════════════════════════════════
+  // CHART 4 — Thu nhập theo nguồn (Donut + Bar toggle)
+  // ════════════════════════════════════════════════════════════════════════════
+
+  Widget _buildIncomeSourceChart(TransactionService ts, List<WalletModel> wallets) {
+    // Compute by-type grouping from wallet-level data for accuracy
+    final byWallet = ts.incomeByWalletForPeriod(_p4);
+    final byType = <String, int>{'bank': 0, 'ewallet': 0, 'cash': 0};
+    for (final e in byWallet.entries) {
+      final wallet = WalletService.instance.byId(e.key);
+      final type = wallet?.type.name ?? 'bank';
+      byType.update(type, (v) => v + e.value, ifAbsent: () => e.value);
     }
-    return initial + income - expense;
+    byType.removeWhere((_, v) => v == 0);
+    final totalIncome = byType.values.fold(0, (a, b) => a + b);
+
+    return _buildChartCard(
+      title: 'Income by Source',
+      period: _p4,
+      onPeriodChanged: (v) => setState(() => _p4 = v),
+      chart: totalIncome > 0
+          ? _buildDonutBody(
+              byType,
+              totalIncome,
+              _touchedIncomePieIndex,
+              (i) => setState(() => _touchedIncomePieIndex = i),
+              Colors.transparent,
+              useCategoryColors: false,
+              isIncome: true,
+            )
+          : _emptyPlaceholder(),
+    );
   }
 
-  Widget _legendDot(Color color, String label) {
+  Widget _buildIncomeBarBody(TransactionService ts, List<WalletModel> wallets, ChartPeriod period) {
+    final byWallet = ts.incomeByWalletForPeriod(period);
+    if (byWallet.isEmpty) return _emptyPlaceholder();
+
+    final sorted = byWallet.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final maxVal = _safeMax(sorted.first.value.toDouble() * 1.2, 0);
+
+    return BarChart(
+      BarChartData(
+        alignment: BarChartAlignment.spaceAround,
+        maxY: maxVal,
+        minY: 0,
+        barGroups: sorted.asMap().entries.map((entry) {
+          final i = entry.key;
+          final e = entry.value;
+          final wallet = WalletService.instance.byId(e.key);
+          return BarChartGroupData(
+            x: i,
+            barRods: [
+              BarChartRodData(
+                toY: e.value.toDouble(),
+                color: wallet?.brandColor ?? AppColors.primaryGreen,
+                width: Responsive.w(context, 18),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(4),
+                  topRight: Radius.circular(4),
+                ),
+              ),
+            ],
+          );
+        }).toList(),
+        titlesData: FlTitlesData(
+          topTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 44,
+              getTitlesWidget: (v, _) {
+                if (v <= 0) return const SizedBox();
+                return Padding(
+                  padding: EdgeInsets.only(right: Responsive.w(context, 4)),
+                  child: Text(
+                    _formatCompact(v.toInt()),
+                    style: TextStyle(
+                      fontSize: Responsive.sp(context, 10),
+                      color: AppColors.mutedGray,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 28,
+              interval: 1,
+              getTitlesWidget: (v, _) {
+                final i = v.toInt();
+                if (i < 0 || i >= sorted.length) return const SizedBox();
+                final wallet = WalletService.instance.byId(sorted[i].key);
+                final label = wallet?.shortName ?? sorted[i].key;
+                return Padding(
+                  padding: EdgeInsets.only(top: Responsive.h(context, 4)),
+                  child: Text(
+                    label.length > 6 ? '${label.substring(0, 5)}..' : label,
+                    style: TextStyle(
+                      fontSize: Responsive.sp(context, 9),
+                      color: AppColors.mutedGray,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          getDrawingHorizontalLine: (_) => FlLine(
+            color: Colors.grey.withValues(alpha: 0.15),
+            strokeWidth: 1,
+          ),
+        ),
+        borderData: FlBorderData(show: false),
+        barTouchData: BarTouchData(
+          enabled: true,
+          touchTooltipData: BarTouchTooltipData(
+            getTooltipColor: (_) => AppColors.darkGray.withValues(alpha: 0.92),
+            tooltipRoundedRadius: 8,
+            tooltipPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            getTooltipItem: (group, groupIndex, rod, rodIndex) {
+              final e = sorted[group.x];
+              final wallet = WalletService.instance.byId(e.key);
+              return BarTooltipItem(
+                '${wallet?.name ?? e.key}\n${_formatVNDCompact(e.value)}',
+                TextStyle(
+                  color: rod.color ?? Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeInOut,
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // CHART 5 — So sánh Thu/Chi theo kỳ (Grouped Bar Chart)
+  // ════════════════════════════════════════════════════════════════════════════
+
+  Widget _buildIncomeVsExpenseChart(TransactionService ts) {
+    final buckets = ts.periodBuckets(_p5);
+    final hasData = buckets.any((b) => b.income > 0 || b.expense > 0);
+
+    return _buildChartCard(
+      title: 'Income vs Expense',
+      period: _p5,
+      onPeriodChanged: (v) => setState(() => _p5 = v),
+      chart: hasData ? _buildGroupedBarBody(buckets) : _emptyPlaceholder(),
+    );
+  }
+
+  Widget _buildGroupedBarBody(List<PeriodBucket> buckets) {
+    double maxVal = 0;
+    for (final b in buckets) {
+      maxVal = math.max(maxVal, b.income.toDouble());
+      maxVal = math.max(maxVal, b.expense.toDouble());
+    }
+    final adjMax = _safeMax(maxVal * 1.2, 0);
+
+    return Column(
+      children: [
+        Expanded(
+          child: BarChart(
+            BarChartData(
+              alignment: BarChartAlignment.spaceAround,
+              maxY: adjMax,
+              minY: 0,
+              groupsSpace: Responsive.w(context, 8),
+              barGroups: buckets.asMap().entries.map((entry) {
+                final i = entry.key;
+                final b = entry.value;
+                return BarChartGroupData(
+                  x: i,
+                  barsSpace: 4,
+                  barRods: [
+                    BarChartRodData(
+                      toY: b.income.toDouble(),
+                      color: AppColors.primaryGreen,
+                      width: Responsive.w(context, 12),
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(4),
+                        topRight: Radius.circular(4),
+                      ),
+                    ),
+                    BarChartRodData(
+                      toY: b.expense.toDouble(),
+                      color: AppColors.coral,
+                      width: Responsive.w(context, 12),
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(4),
+                        topRight: Radius.circular(4),
+                      ),
+                    ),
+                  ],
+                );
+              }).toList(),
+              titlesData: FlTitlesData(
+                topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false)),
+                rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false)),
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 44,
+                    getTitlesWidget: (v, _) {
+                      if (v <= 0) return const SizedBox();
+                      return Padding(
+                        padding: EdgeInsets.only(right: Responsive.w(context, 4)),
+                        child: Text(
+                          _formatCompact(v.toInt()),
+                          style: TextStyle(
+                            fontSize: Responsive.sp(context, 10),
+                            color: AppColors.mutedGray,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 28,
+                    interval: 1,
+                    getTitlesWidget: (v, _) {
+                      final i = v.toInt();
+                      if (i < 0 || i >= buckets.length) {
+                        return const SizedBox();
+                      }
+                      return Padding(
+                        padding: EdgeInsets.only(top: Responsive.h(context, 4)),
+                        child: Text(
+                          buckets[i].label,
+                          style: TextStyle(
+                            fontSize: Responsive.sp(context, 10),
+                            color: AppColors.mutedGray,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              gridData: FlGridData(
+                show: true,
+                drawVerticalLine: false,
+                getDrawingHorizontalLine: (_) => FlLine(
+                  color: Colors.grey.withValues(alpha: 0.15),
+                  strokeWidth: 1,
+                ),
+              ),
+              borderData: FlBorderData(show: false),
+              barTouchData: BarTouchData(
+                enabled: true,
+                touchTooltipData: BarTouchTooltipData(
+                  getTooltipColor: (_) => AppColors.darkGray.withValues(alpha: 0.92),
+                  tooltipRoundedRadius: 8,
+                  tooltipPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                    final b = buckets[group.x];
+                    final inc = group.barRods[0].toY;
+                    final exp = group.barRods[1].toY;
+                    final diff = inc - exp;
+                    final isSurplus = diff >= 0;
+                    return BarTooltipItem(
+                      b.label,
+                      TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      children: [
+                        TextSpan(
+                          text: '\n● Income: ${_formatVNDCompact(inc.toInt())}',
+                          style: TextStyle(color: AppColors.primaryGreen, fontSize: 11),
+                        ),
+                        TextSpan(
+                          text: '\n● Expense: ${_formatVNDCompact(exp.toInt())}',
+                          style: TextStyle(color: AppColors.coral, fontSize: 11),
+                        ),
+                        TextSpan(
+                          text: '\n${isSurplus ? "✅ Surplus" : "⚠️ Deficit"}: ${_formatVNDCompact(diff.abs().toInt())}',
+                          style: TextStyle(
+                            color: isSurplus ? AppColors.primaryGreen : AppColors.coral,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ),
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.easeInOut,
+          ),
+        ),
+        SizedBox(height: Responsive.h(context, 8)),
+        // Legend
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            legendDot(AppColors.primaryGreen, 'Income'),
+            SizedBox(width: Responsive.w(context, 20)),
+            legendDot(AppColors.coral, 'Expense'),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget legendDot(Color color, String label) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
           width: Responsive.w(context, 8),
           height: Responsive.w(context, 8),
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: color,
+          ),
         ),
         SizedBox(width: Responsive.w(context, 4)),
         Text(
@@ -661,15 +1168,44 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     );
   }
 
-  // --------------------------------------------------------------------------
-  // Helpers
-  // --------------------------------------------------------------------------
-  static const _months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-  ];
+  // ════════════════════════════════════════════════════════════════════════════
+  // Formatting helpers
+  // ════════════════════════════════════════════════════════════════════════════
 
-  static double _niceStep(double range, int targetSteps) {
+  /// Ensure maxY > minY so fl_chart never gets zero-range that crashes the engine.
+  static double _safeMax(double val, double min) {
+    if (val > min) return val;
+    return min + 1000; // fallback range
+  }
+
+  static String _formatVNDCompact(int amount) {
+    if (amount >= 1000000000) {
+      return '${(amount / 1000000000).toStringAsFixed(1)}B₫';
+    }
+    if (amount >= 1000000) {
+      return '${(amount / 1000000).toStringAsFixed(1)}M₫';
+    }
+    if (amount >= 1000) {
+      return '${(amount / 1000).toStringAsFixed(0)}K₫';
+    }
+    return '$amount₫';
+  }
+
+  static String _formatCompact(int amount) {
+    if (amount >= 1000000000) {
+      return '${(amount / 1000000000).toStringAsFixed(1)}B';
+    }
+    if (amount >= 1000000) {
+      return '${(amount / 1000000).toStringAsFixed(1)}M';
+    }
+    if (amount >= 1000) {
+      return '${(amount / 1000).toStringAsFixed(1)}K';
+    }
+    return '$amount';
+  }
+
+  static double _niceAxisInterval(double range, int targetSteps) {
+    if (range <= 0) return 1;
     final roughStep = range / targetSteps;
     final magnitude = math.pow(10, (math.log(roughStep) / math.ln10).floor()).toDouble();
     final residual = roughStep / magnitude;
@@ -685,510 +1221,108 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     }
     return niceStep * magnitude;
   }
-
-  static String _formatCompact(int amount) {
-    if (amount >= 1000000000) {
-      return '${(amount / 1000000000).toStringAsFixed(1)}B';
-    }
-    if (amount >= 1000000) {
-      return '${(amount / 1000000).toStringAsFixed(1)}M';
-    }
-    if (amount >= 1000) {
-      return '${(amount / 1000).toStringAsFixed(1)}K';
-    }
-    return '$amount';
-  }
 }
 
-// =============================================================================
-// Data classes
-// =============================================================================
+// ══════════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════════
+// _PeriodFilter — reusable widget
+// ══════════════════════════════════════════════════════════════════════════════
 
-class _BarItem {
-  const _BarItem({
-    required this.label,
+class _CustomToggle extends StatelessWidget {
+  const _CustomToggle({
     required this.value,
-    required this.fill,
-    required this.border,
-  });
-  final String label;
-  final double value;
-  final Color fill;
-  final Color border;
-}
-
-// =============================================================================
-// Custom painters
-// =============================================================================
-
-class _DonutPainter extends CustomPainter {
-  _DonutPainter({
-    required this.segments,
-    required this.segmentColors,
-    this.holeRadiusRatio = 0.6,
+    required this.onChanged,
   });
 
-  final List<double> segments;
-  final List<Color> segmentColors;
-  final double holeRadiusRatio;
+  final bool value;
+  final ValueChanged<bool> onChanged;
 
   @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = math.min(size.width, size.height) / 2;
-    final total = segments.fold(0.0, (a, b) => a + b);
-    if (total == 0) return;
-
-    double startAngle = -math.pi / 2;
-
-    for (int i = 0; i < segments.length; i++) {
-      final sweepAngle = (segments[i] / total) * 2 * math.pi;
-      final paint = Paint()
-        ..color = segmentColors[i]
-        ..style = PaintingStyle.fill;
-      canvas.drawArc(
-        Rect.fromCircle(center: center, radius: radius),
-        startAngle,
-        sweepAngle,
-        true,
-        paint,
-      );
-      startAngle += sweepAngle;
-    }
-
-    canvas.drawCircle(
-      center,
-      radius * holeRadiusRatio,
-      Paint()..color = Colors.white,
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => onChanged(!value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: 40,
+        height: 24,
+        decoration: BoxDecoration(
+          color: value ? AppColors.primaryGreen : Colors.grey.shade300,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: AnimatedAlign(
+          duration: const Duration(milliseconds: 200),
+          alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+          child: Container(
+            margin: const EdgeInsets.all(2),
+            width: 20,
+            height: 20,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+            ),
+          ),
+        ),
+      ),
     );
-  }
-
-  @override
-  bool shouldRepaint(covariant _DonutPainter oldDelegate) {
-    return oldDelegate.segments != segments ||
-        oldDelegate.segmentColors != segmentColors;
   }
 }
 
-class _BarChartPainter extends CustomPainter {
-  _BarChartPainter({
-    required this.bars,
-    this.maxValue = 100,
+class _PeriodFilter extends StatelessWidget {
+  const _PeriodFilter({
+    required this.period,
+    required this.onChanged,
   });
 
-  final List<_BarItem> bars;
-  final double maxValue;
+  final ChartPeriod period;
+  final ValueChanged<ChartPeriod> onChanged;
+
+  static const _labels = ['Day', 'Week', 'Month', 'Year'];
+  static const _values = [
+    ChartPeriod.day,
+    ChartPeriod.week,
+    ChartPeriod.month,
+    ChartPeriod.year,
+  ];
 
   @override
-  void paint(Canvas canvas, Size size) {
-    const leftMargin = 32.0;
-    const bottomMargin = 28.0;
-    const topMargin = 8.0;
-    final chartWidth = size.width - leftMargin;
-    final chartHeight = size.height - topMargin - bottomMargin;
-
-    const yLabelValues = [0.0, 50.0, 100.0];
-    final gridPaint = Paint()
-      ..color = Colors.grey.withValues(alpha: 0.2)
-      ..strokeWidth = 1;
-
-    for (final label in yLabelValues) {
-      final y = topMargin + chartHeight * (1 - label / (maxValue > 0 ? maxValue : 100));
-
-      canvas.drawLine(
-        Offset(leftMargin, y),
-        Offset(size.width, y),
-        gridPaint,
-      );
-
-      _drawText(
-        canvas,
-        label.toInt().toString(),
-        Offset(leftMargin - 6, y),
-        Colors.grey.shade600,
-        10,
-        anchorRight: true,
-        anchorCenterY: true,
-      );
-    }
-
-    final barCount = bars.length;
-    if (barCount == 0) return;
-    final totalBarAreaWidth = chartWidth;
-    final barSpacing = totalBarAreaWidth / (barCount * 2 + 1);
-    final barWidth = barSpacing;
-
-    for (int i = 0; i < barCount; i++) {
-      final bar = bars[i];
-      final barHeight = chartHeight * (bar.value / (maxValue > 0 ? maxValue : 1));
-      final x = leftMargin + barSpacing * (2 * i + 1) - barWidth / 2;
-      final y = topMargin + chartHeight - barHeight;
-
-      final barRect = RRect.fromRectAndCorners(
-        Rect.fromLTWH(x, y, barWidth, barHeight),
-        topLeft: const Radius.circular(3),
-        topRight: const Radius.circular(3),
-      );
-
-      canvas.drawRRect(barRect, Paint()..color = bar.fill);
-
-      canvas.drawRRect(
-        barRect,
-        Paint()
-          ..color = bar.border
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.5,
-      );
-
-      _drawText(
-        canvas,
-        bar.label,
-        Offset(x + barWidth / 2, size.height - 2),
-        Colors.grey.shade600,
-        10,
-        anchorCenterX: true,
-      );
-    }
-  }
-
-  void _drawText(
-    Canvas canvas,
-    String text,
-    Offset position,
-    Color color,
-    double fontSize, {
-    bool anchorRight = false,
-    bool anchorCenterX = false,
-    bool anchorCenterY = false,
-  }) {
-    final tp = TextPainter(
-      text: TextSpan(
-        text: text,
-        style: TextStyle(fontSize: fontSize, color: color),
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.all(Responsive.w(context, 4)),
+      decoration: BoxDecoration(
+        color: AppColors.lightGreen,
+        borderRadius: BorderRadius.circular(20),
       ),
-      textDirection: TextDirection.ltr,
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(4, (i) {
+            final isSelected = period == _values[i];
+            return GestureDetector(
+              onTap: () => onChanged(_values[i]),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: EdgeInsets.symmetric(
+                  horizontal: Responsive.w(context, 14),
+                  vertical: Responsive.h(context, 6),
+                ),
+                decoration: BoxDecoration(
+                  color: isSelected ? AppColors.primaryGreen : Colors.transparent,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Text(
+                  _labels[i],
+                  style: TextStyle(
+                    fontSize: Responsive.sp(context, 12),
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                    color: isSelected ? Colors.white : AppColors.darkText,
+                  ),
+                ),
+              ),
+            );
+          }),
+        ),
+      ),
     );
-    tp.layout();
-    double dx = position.dx;
-    double dy = position.dy;
-    if (anchorRight) dx -= tp.width;
-    if (anchorCenterX) dx -= tp.width / 2;
-    if (anchorCenterY) dy -= tp.height / 2;
-    tp.paint(canvas, Offset(dx, dy));
   }
-
-  @override
-  bool shouldRepaint(covariant _BarChartPainter oldDelegate) {
-    return oldDelegate.bars != bars;
-  }
-}
-
-class _LineChartPainter extends CustomPainter {
-  _LineChartPainter({
-    required this.points,
-    required this.xLabels,
-    required this.yLabels,
-    required this.lineColor,
-    required this.fillColor,
-  });
-
-  final List<double> points;
-  final List<String> xLabels;
-  final List<double> yLabels;
-  final Color lineColor;
-  final Color fillColor;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    const leftMargin = 32.0;
-    const bottomMargin = 28.0;
-    const topMargin = 8.0;
-    final chartWidth = size.width - leftMargin;
-    final chartHeight = size.height - topMargin - bottomMargin;
-
-    if (yLabels.isEmpty) return;
-    final maxY = yLabels.last;
-    final minY = yLabels.first;
-    final yRange = maxY - minY;
-
-    final gridPaint = Paint()
-      ..color = Colors.grey.withValues(alpha: 0.2)
-      ..strokeWidth = 1;
-
-    for (final label in yLabels) {
-      final y = topMargin + chartHeight * (1 - (label - minY) / (yRange > 0 ? yRange : 1));
-
-      canvas.drawLine(
-        Offset(leftMargin, y),
-        Offset(size.width, y),
-        gridPaint,
-      );
-
-      _drawText(
-        canvas,
-        _formatLabel(label),
-        Offset(leftMargin - 6, y),
-        Colors.grey.shade600,
-        10,
-        anchorRight: true,
-        anchorCenterY: true,
-      );
-    }
-
-    final dataPoints = <Offset>[];
-    for (int i = 0; i < points.length; i++) {
-      final x = leftMargin + chartWidth * (i / ((points.length - 1).clamp(1, points.length - 1)));
-      final y = topMargin + chartHeight * (1 - (points[i] - minY) / (yRange > 0 ? yRange : 1));
-      dataPoints.add(Offset(x, y));
-    }
-
-    if (dataPoints.isEmpty) return;
-
-    final fillPath = Path();
-    fillPath.moveTo(dataPoints.first.dx, topMargin + chartHeight);
-    for (final pt in dataPoints) {
-      fillPath.lineTo(pt.dx, pt.dy);
-    }
-    fillPath.lineTo(dataPoints.last.dx, topMargin + chartHeight);
-    fillPath.close();
-
-    canvas.drawPath(fillPath, Paint()..color = fillColor);
-
-    final linePath = Path();
-    linePath.moveTo(dataPoints.first.dx, dataPoints.first.dy);
-    for (int i = 1; i < dataPoints.length; i++) {
-      linePath.lineTo(dataPoints[i].dx, dataPoints[i].dy);
-    }
-
-    canvas.drawPath(
-      linePath,
-      Paint()
-        ..color = lineColor
-        ..strokeWidth = 2.5
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round,
-    );
-
-    for (final pt in dataPoints) {
-      canvas.drawCircle(pt, 4, Paint()..color = Colors.white);
-      canvas.drawCircle(
-        pt,
-        4,
-        Paint()
-          ..color = lineColor
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2,
-      );
-    }
-
-    for (int i = 0; i < xLabels.length; i++) {
-      _drawText(
-        canvas,
-        xLabels[i],
-        Offset(dataPoints[i].dx, size.height - 2),
-        Colors.grey.shade600,
-        10,
-        anchorCenterX: true,
-      );
-    }
-  }
-
-  void _drawText(
-    Canvas canvas,
-    String text,
-    Offset position,
-    Color color,
-    double fontSize, {
-    bool anchorRight = false,
-    bool anchorCenterX = false,
-    bool anchorCenterY = false,
-  }) {
-    final tp = TextPainter(
-      text: TextSpan(
-        text: text,
-        style: TextStyle(fontSize: fontSize, color: color),
-      ),
-      textDirection: TextDirection.ltr,
-    );
-    tp.layout();
-    double dx = position.dx;
-    double dy = position.dy;
-    if (anchorRight) dx -= tp.width;
-    if (anchorCenterX) dx -= tp.width / 2;
-    if (anchorCenterY) dy -= tp.height / 2;
-    tp.paint(canvas, Offset(dx, dy));
-  }
-
-  static String _formatLabel(double v) {
-    if (v >= 1000000) return '${(v / 1000000).toStringAsFixed(0)}M';
-    if (v >= 1000) return '${(v / 1000).toStringAsFixed(0)}K';
-    return v.toInt().toString();
-  }
-
-  @override
-  bool shouldRepaint(covariant _LineChartPainter oldDelegate) {
-    return oldDelegate.points != points;
-  }
-}
-
-class _MultiLineChartPainter extends CustomPainter {
-  _MultiLineChartPainter({
-    required this.presentPoints,
-    required this.oneYearAgoPoints,
-    required this.twoYearsAgoPoints,
-    required this.minY,
-    required this.maxY,
-  });
-
-  final List<double> presentPoints;
-  final List<double> oneYearAgoPoints;
-  final List<double> twoYearsAgoPoints;
-  final double minY;
-  final double maxY;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    const leftMargin = 32.0;
-    const bottomMargin = 28.0;
-    const topMargin = 8.0;
-    final chartWidth = size.width - leftMargin;
-    final chartHeight = size.height - topMargin - bottomMargin;
-    final yRange = maxY - minY;
-
-    // Y-axis grid
-    final gridPaint = Paint()
-      ..color = Colors.grey.withValues(alpha: 0.2)
-      ..strokeWidth = 1;
-
-    // Create ~5 evenly spaced Y labels
-    final int ySteps = 5;
-    for (int i = 0; i <= ySteps; i++) {
-      final label = minY + (yRange * i / ySteps);
-      final y = topMargin + chartHeight * (1 - (label - minY) / (yRange > 0 ? yRange : 1));
-
-      canvas.drawLine(
-        Offset(leftMargin, y),
-        Offset(size.width, y),
-        gridPaint,
-      );
-      _drawText(
-        canvas,
-        _formatLabel(label),
-        Offset(leftMargin - 6, y),
-        Colors.grey.shade600,
-        10,
-        anchorRight: true,
-        anchorCenterY: true,
-      );
-    }
-
-    // X labels
-    const xLabels = ['May', 'Jun'];
-
-    // Three lines
-    final lines = <_LineData>[
-      _LineData(
-        points: oneYearAgoPoints,
-        color: AppColors.chartBlueBorder,
-        areaColor: AppColors.chartBlueBorder.withValues(alpha: 0.08),
-      ),
-      _LineData(
-        points: twoYearsAgoPoints,
-        color: AppColors.chartOrangeBorder,
-        areaColor: AppColors.chartOrangeBorder.withValues(alpha: 0.08),
-      ),
-      _LineData(
-        points: presentPoints,
-        color: AppColors.primaryGreen,
-        areaColor: AppColors.primaryGreen.withValues(alpha: 0.08),
-      ),
-    ];
-
-    const dataPointCount = 8;
-
-    for (final line in lines) {
-      final dataPoints = <Offset>[];
-      for (int i = 0; i < line.points.length; i++) {
-        final x = leftMargin + chartWidth * (i / (dataPointCount - 1));
-        final y = topMargin + chartHeight * (1 - (line.points[i] - minY) / (yRange > 0 ? yRange : 1));
-        dataPoints.add(Offset(x, y));
-      }
-
-      if (dataPoints.isEmpty) continue;
-
-      final fillPath = Path();
-      fillPath.moveTo(dataPoints.first.dx, topMargin + chartHeight);
-      for (final pt in dataPoints) {
-        fillPath.lineTo(pt.dx, pt.dy);
-      }
-      fillPath.lineTo(dataPoints.last.dx, topMargin + chartHeight);
-      fillPath.close();
-      canvas.drawPath(fillPath, Paint()..color = line.areaColor);
-
-      final linePath = Path();
-      linePath.moveTo(dataPoints.first.dx, dataPoints.first.dy);
-      for (int i = 1; i < dataPoints.length; i++) {
-        linePath.lineTo(dataPoints[i].dx, dataPoints[i].dy);
-      }
-      canvas.drawPath(
-        linePath,
-        Paint()
-          ..color = line.color
-          ..strokeWidth = 2.0
-          ..style = PaintingStyle.stroke
-          ..strokeCap = StrokeCap.round
-          ..strokeJoin = StrokeJoin.round,
-      );
-    }
-
-    _drawText(canvas, xLabels[0], Offset(leftMargin, size.height - 2), Colors.grey.shade600, 10, anchorCenterX: true);
-    _drawText(canvas, xLabels[1], Offset(size.width - 2, size.height - 2), Colors.grey.shade600, 10, anchorRight: true);
-  }
-
-  void _drawText(
-    Canvas canvas,
-    String text,
-    Offset position,
-    Color color,
-    double fontSize, {
-    bool anchorRight = false,
-    bool anchorCenterX = false,
-    bool anchorCenterY = false,
-  }) {
-    final tp = TextPainter(
-      text: TextSpan(
-        text: text,
-        style: TextStyle(fontSize: fontSize, color: color),
-      ),
-      textDirection: TextDirection.ltr,
-    );
-    tp.layout();
-    double dx = position.dx;
-    double dy = position.dy;
-    if (anchorRight) dx -= tp.width;
-    if (anchorCenterX) dx -= tp.width / 2;
-    if (anchorCenterY) dy -= tp.height / 2;
-    tp.paint(canvas, Offset(dx, dy));
-  }
-
-  static String _formatLabel(double v) {
-    if (v >= 1000000) return '${(v / 1000000).toStringAsFixed(0)}M';
-    if (v >= 1000) return '${(v / 1000).toStringAsFixed(0)}K';
-    return v.toInt().toString();
-  }
-
-  @override
-  bool shouldRepaint(covariant _MultiLineChartPainter oldDelegate) => false;
-}
-
-class _LineData {
-  const _LineData({
-    required this.points,
-    required this.color,
-    required this.areaColor,
-  });
-  final List<double> points;
-  final Color color;
-  final Color areaColor;
 }
