@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/responsive.dart';
@@ -24,16 +26,16 @@ class DashboardPage extends ConsumerStatefulWidget {
   ConsumerState<DashboardPage> createState() => _DashboardPageState();
 }
 
-class _DashboardPageState extends ConsumerState<DashboardPage> {
+class _DashboardPageState extends ConsumerState<DashboardPage>
+    with TickerProviderStateMixin {
   bool _dataLoaded = false;
   bool _mounted = false;
 
-  // ── Per‑chart period filters ──
-  ChartPeriod _p1 = ChartPeriod.month; // Chart 1: Income/Expense line
-  ChartPeriod _p2 = ChartPeriod.month; // Chart 2: Expense donut
-  ChartPeriod _p3 = ChartPeriod.month; // Chart 3: Expense bar
-  ChartPeriod _p4 = ChartPeriod.month; // Chart 4: Income source
-  ChartPeriod _p5 = ChartPeriod.month; // Chart 5: Grouped bar
+  ChartPeriod _period = ChartPeriod.month;
+  int _offset = 0;
+  Timer? _refreshTimer;
+  DateTime _lastRefreshDate = DateTime.now();
+  late final AnimationController _entryController;
 
   // ── Toggles ──
   bool _showBalance = false; // Chart 1: show balance line
@@ -47,6 +49,10 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   void initState() {
     super.initState();
     _mounted = true;
+    _entryController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
     // Trigger data fetch — HomeScreen may not have been visited yet.
     Future.microtask(() async {
       try {
@@ -57,14 +63,42 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       } catch (e) {
         debugPrint('Dashboard fetch error: $e');
       } finally {
-        if (_mounted) setState(() => _dataLoaded = true);
+        if (_mounted) {
+          setState(() => _dataLoaded = true);
+          _entryController.forward();
+          _startRefreshTimer();
+        }
       }
     });
+  }
+
+  void _startRefreshTimer() {
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      final now = DateTime.now();
+      final oldDate = _lastRefreshDate;
+      final periodChanged =
+          now.day != oldDate.day ||
+          _isoWeek(now) != _isoWeek(oldDate) ||
+          now.month != oldDate.month ||
+          now.year != oldDate.year;
+      if (periodChanged && _mounted) {
+        setState(() => _lastRefreshDate = now);
+      }
+    });
+  }
+
+  int _isoWeek(DateTime d) {
+    final startOfYear = DateTime(d.year, 1, 1);
+    final diff = d.difference(startOfYear).inDays;
+    return (diff / 7).ceil() + 1;
   }
 
   @override
   void dispose() {
     _mounted = false;
+    _refreshTimer?.cancel();
+    _entryController.dispose();
     super.dispose();
   }
 
@@ -98,19 +132,49 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     final items = <Widget>[
       SizedBox(height: Responsive.h(context, 16)),
       // ── Chart 1: Income & Expense Line ──
-      RepaintBoundary(child: _buildIncomeExpenseLineChart(ts)),
+      _ScrollReveal(
+        delay: Duration.zero,
+        child: _chartWithAnimation(
+          child: RepaintBoundary(child: _buildIncomeExpenseLineChart(ts)),
+          interval: const Interval(0.0, 0.7, curve: Curves.easeOut),
+        ),
+      ),
       SizedBox(height: Responsive.h(context, 14)),
       // ── Chart 2: Expense Donut ──
-      RepaintBoundary(child: _buildExpenseDonutChart(ts)),
+      _ScrollReveal(
+        delay: const Duration(milliseconds: 80),
+        child: _chartWithAnimation(
+          child: RepaintBoundary(child: _buildExpenseDonutChart(ts)),
+          interval: const Interval(0.15, 0.85, curve: Curves.easeOut),
+        ),
+      ),
       SizedBox(height: Responsive.h(context, 14)),
       // ── Chart 3: Expense Bar ──
-      RepaintBoundary(child: _buildExpenseBarChart(ts)),
+      _ScrollReveal(
+        delay: const Duration(milliseconds: 160),
+        child: _chartWithAnimation(
+          child: RepaintBoundary(child: _buildExpenseBarChart(ts)),
+          interval: const Interval(0.25, 0.95, curve: Curves.easeOut),
+        ),
+      ),
       SizedBox(height: Responsive.h(context, 14)),
       // ── Chart 4: Income by Source ──
-      RepaintBoundary(child: _buildIncomeSourceChart(ts, wallets)),
+      _ScrollReveal(
+        delay: const Duration(milliseconds: 240),
+        child: _chartWithAnimation(
+          child: RepaintBoundary(child: _buildIncomeSourceChart(ts, wallets)),
+          interval: const Interval(0.35, 1.0, curve: Curves.easeOut),
+        ),
+      ),
       SizedBox(height: Responsive.h(context, 14)),
       // ── Chart 5: Income vs Expense Grouped Bar ──
-      RepaintBoundary(child: _buildIncomeVsExpenseChart(ts)),
+      _ScrollReveal(
+        delay: const Duration(milliseconds: 320),
+        child: _chartWithAnimation(
+          child: RepaintBoundary(child: _buildIncomeVsExpenseChart(ts)),
+          interval: const Interval(0.45, 1.0, curve: Curves.easeOut),
+        ),
+      ),
       SizedBox(height: Responsive.h(context, 14)),
       SizedBox(height: Responsive.h(context, 40)),
     ];
@@ -139,8 +203,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
   Widget _buildChartCard({
     required String title,
-    required ChartPeriod period,
-    required ValueChanged<ChartPeriod> onPeriodChanged,
     required Widget chart,
     Widget? trailing,
     double chartHeight = 200,
@@ -187,7 +249,39 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             ],
           ),
           SizedBox(height: Responsive.h(context, 8)),
-          _PeriodFilter(period: period, onChanged: onPeriodChanged),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.chevron_left, size: 20),
+                color: _offset < 0
+                    ? AppColors.darkGreenText
+                    : AppColors.mutedGray.withValues(alpha: 0.4),
+                onPressed: _offset > -12
+                    ? () => setState(() => _offset--)
+                    : null,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                padding: EdgeInsets.zero,
+              ),
+              Text(
+                _periodLabel(_period, _offset),
+                style: TextStyle(
+                  fontSize: Responsive.sp(context, 12),
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.darkGreenText,
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.chevron_right, size: 20),
+                color: _offset < 0
+                    ? AppColors.darkGreenText
+                    : AppColors.mutedGray.withValues(alpha: 0.4),
+                onPressed: _offset < 0 ? () => setState(() => _offset++) : null,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                padding: EdgeInsets.zero,
+              ),
+            ],
+          ),
           SizedBox(height: Responsive.h(context, 12)),
           SizedBox(
             height: Responsive.h(context, chartHeight),
@@ -196,7 +290,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                     scrollDirection: Axis.horizontal,
                     physics: const BouncingScrollPhysics(),
                     child: SizedBox(
-                      width: _chartWidth(context, period),
+                      width: _chartWidth(context, _period),
                       child: chart,
                     ),
                   )
@@ -205,6 +299,64 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         ],
       ),
     );
+  }
+
+  Widget _chartWithAnimation({
+    required Widget child,
+    required Interval interval,
+  }) {
+    return FadeTransition(
+      opacity: CurvedAnimation(parent: _entryController, curve: interval),
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0, 0.25),
+          end: Offset.zero,
+        ).animate(CurvedAnimation(parent: _entryController, curve: interval)),
+        child: child,
+      ),
+    );
+  }
+
+  String _periodLabel(ChartPeriod period, int offset) {
+    final now = DateTime.now();
+    switch (period) {
+      case ChartPeriod.day:
+        final d = now.subtract(Duration(days: -offset));
+        return offset == 0 ? 'Today' : '${d.day}/${d.month}/${d.year}';
+      case ChartPeriod.week:
+        final weekStart = now.subtract(
+          Duration(days: now.weekday - 1 + (-offset * 7)),
+        );
+        final weekEnd = weekStart.add(const Duration(days: 6));
+        return offset == 0
+            ? 'This week'
+            : '${weekStart.day}/${weekStart.month} - ${weekEnd.day}/${weekEnd.month}';
+      case ChartPeriod.month:
+        final d = DateTime(now.year, now.month + offset);
+        return offset == 0
+            ? '${_monthName(now.month)} ${now.year}'
+            : '${_monthName(d.month)} ${d.year}';
+      case ChartPeriod.year:
+        return '${now.year + offset}';
+    }
+  }
+
+  String _monthName(int month) {
+    const names = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return names[month - 1];
   }
 
   double _chartWidth(BuildContext context, ChartPeriod period) {
@@ -257,29 +409,89 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         horizontal: Responsive.w(context, 4),
         vertical: Responsive.h(context, 12),
       ),
-      decoration: const BoxDecoration(
-        color: AppColors.dashboardHeaderBg,
-      ),
-      child: Row(
+      decoration: const BoxDecoration(color: AppColors.dashboardHeaderBg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          IconButton(
-            icon: const Icon(
-              Icons.arrow_back_ios_new_rounded,
-              size: 20,
-              color: AppColors.darkGreenText,
-            ),
-            onPressed: () => Navigator.of(context).pop(),
-            tooltip: 'Back',
-            constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-            padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 12)),
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  size: 20,
+                  color: AppColors.darkGreenText,
+                ),
+                onPressed: () => Navigator.of(context).pop(),
+                tooltip: 'Back',
+                constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                padding: EdgeInsets.symmetric(
+                  horizontal: Responsive.w(context, 12),
+                ),
+              ),
+              Text(
+                'Dashboard',
+                style: TextStyle(
+                  fontFamily: 'Roboto',
+                  fontWeight: FontWeight.w500,
+                  fontSize: Responsive.sp(context, 18),
+                  color: AppColors.darkGreenText,
+                ),
+              ),
+            ],
           ),
-          Text(
-            'Dashboard',
-            style: TextStyle(
-              fontFamily: 'Roboto',
-              fontWeight: FontWeight.w500,
-              fontSize: Responsive.sp(context, 18),
-              color: AppColors.darkGreenText,
+          Container(
+            margin: EdgeInsets.fromLTRB(
+              Responsive.w(context, 16),
+              0,
+              Responsive.w(context, 16),
+              Responsive.h(context, 8),
+            ),
+            padding: EdgeInsets.all(Responsive.w(context, 4)),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: ['Day', 'Week', 'Month'].asMap().entries.map((e) {
+                final periods = [
+                  ChartPeriod.day,
+                  ChartPeriod.week,
+                  ChartPeriod.month,
+                ];
+                final isSelected = _period == periods[e.key];
+                return GestureDetector(
+                  onTap: () => setState(() {
+                    _period = periods[e.key];
+                    _offset = 0;
+                  }),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: Responsive.w(context, 20),
+                      vertical: Responsive.h(context, 8),
+                    ),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? AppColors.primaryGreen
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Text(
+                      e.value,
+                      style: TextStyle(
+                        fontSize: Responsive.sp(context, 13),
+                        fontWeight: isSelected
+                            ? FontWeight.w600
+                            : FontWeight.w400,
+                        color: isSelected
+                            ? Colors.white
+                            : AppColors.darkGreenText,
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
             ),
           ),
         ],
@@ -292,14 +504,12 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   // ════════════════════════════════════════════════════════════════════════════
 
   Widget _buildIncomeExpenseLineChart(TransactionService ts) {
-    final buckets = ts.periodBuckets(_p1);
+    final buckets = ts.periodBuckets(_period, offset: _offset);
     final hasData = buckets.any((b) => b.income > 0 || b.expense > 0);
 
     return _buildChartCard(
       title: 'Income & Expense',
       scrollable: true,
-      period: _p1,
-      onPeriodChanged: (v) => setState(() => _p1 = v),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -359,8 +569,12 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           _lineBar(spotsIncome, AppColors.primaryGreen, 'Income'),
           _lineBar(spotsExpense, AppColors.coral, 'Expense'),
           if (_showBalance)
-            _lineBar(spotsBalance, AppColors.chartBlueBorder, 'Balance',
-                dashArray: const [6, 4]),
+            _lineBar(
+              spotsBalance,
+              AppColors.chartBlueBorder,
+              'Balance',
+              dashArray: const [6, 4],
+            ),
         ],
         minX: 0,
         maxX: (buckets.length - 1).toDouble(),
@@ -377,8 +591,12 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         ),
         borderData: FlBorderData(show: false),
         titlesData: FlTitlesData(
-          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          rightTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
           leftTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
@@ -425,7 +643,10 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           touchTooltipData: LineTouchTooltipData(
             getTooltipColor: (_) => AppColors.darkGray.withValues(alpha: 0.92),
             tooltipRoundedRadius: 8,
-            tooltipPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            tooltipPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 8,
+            ),
             getTooltipItems: (touchedSpots) {
               if (touchedSpots.isEmpty) return [];
               final idx = touchedSpots.first.spotIndex;
@@ -448,15 +669,14 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                     ),
                     TextSpan(
                       text: '\nExpense: ${_formatVNDCompact(b.expense)}',
-                      style: TextStyle(
-                        color: AppColors.coral,
-                        fontSize: 11,
-                      ),
+                      style: TextStyle(color: AppColors.coral, fontSize: 11),
                     ),
                     TextSpan(
                       text: '\nBalance: ${_formatVNDCompact(b.balance)}',
                       style: TextStyle(
-                        color: _showBalance ? AppColors.chartBlueBorder : AppColors.mutedGray,
+                        color: _showBalance
+                            ? AppColors.chartBlueBorder
+                            : AppColors.mutedGray,
                         fontSize: 11,
                       ),
                     ),
@@ -515,13 +735,11 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   // ════════════════════════════════════════════════════════════════════════════
 
   Widget _buildExpenseDonutChart(TransactionService ts) {
-    final catExpense = ts.expenseByCategoryForPeriod(_p2);
+    final catExpense = ts.expenseByCategoryForPeriod(_period, offset: _offset);
     final totalExpense = catExpense.values.fold(0, (a, b) => a + b);
 
     return _buildChartCard(
       title: 'Expense by Category',
-      period: _p2,
-      onPeriodChanged: (v) => setState(() => _p2 = v),
       chart: totalExpense > 0
           ? _buildDonutBody(catExpense, totalExpense, _touchedPieIndex, (i) {
               setState(() => _touchedPieIndex = i);
@@ -668,7 +886,10 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                   Container(
                     width: Responsive.w(context, 8),
                     height: Responsive.w(context, 8),
-                    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                    ),
                   ),
                   SizedBox(width: Responsive.w(context, 4)),
                   Flexible(
@@ -709,13 +930,11 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   // ════════════════════════════════════════════════════════════════════════════
 
   Widget _buildExpenseBarChart(TransactionService ts) {
-    final catExpense = ts.expenseByCategoryForPeriod(_p3);
+    final catExpense = ts.expenseByCategoryForPeriod(_period, offset: _offset);
     final totalExpense = catExpense.values.fold(0, (a, b) => a + b);
 
     return _buildChartCard(
       title: 'Expense Breakdown',
-      period: _p3,
-      onPeriodChanged: (v) => setState(() => _p3 = v),
       chartHeight: 280,
       chart: totalExpense > 0
           ? _buildHorizBarBody(catExpense, totalExpense)
@@ -807,10 +1026,12 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               },
             ),
           ),
-          leftTitles:
-              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          bottomTitles:
-              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          leftTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          bottomTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
         ),
         gridData: const FlGridData(show: false),
         borderData: FlBorderData(show: false),
@@ -819,7 +1040,10 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           touchTooltipData: BarTouchTooltipData(
             getTooltipColor: (_) => AppColors.darkGray.withValues(alpha: 0.92),
             tooltipRoundedRadius: 8,
-            tooltipPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            tooltipPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 8,
+            ),
             getTooltipItem: (group, groupIndex, rod, rodIndex) {
               final e = top[group.x];
               final pct = total > 0 ? (e.value / total * 100) : 0.0;
@@ -845,9 +1069,12 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   // CHART 4 — Thu nhập theo nguồn (Donut + Bar toggle)
   // ════════════════════════════════════════════════════════════════════════════
 
-  Widget _buildIncomeSourceChart(TransactionService ts, List<WalletModel> wallets) {
+  Widget _buildIncomeSourceChart(
+    TransactionService ts,
+    List<WalletModel> wallets,
+  ) {
     // Compute by-type grouping from wallet-level data for accuracy
-    final byWallet = ts.incomeByWalletForPeriod(_p4);
+    final byWallet = ts.incomeByWalletForPeriod(_period, offset: _offset);
     final byType = <String, int>{'bank': 0, 'ewallet': 0, 'cash': 0};
     for (final e in byWallet.entries) {
       final wallet = WalletService.instance.byId(e.key);
@@ -859,8 +1086,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
     return _buildChartCard(
       title: 'Income by Source',
-      period: _p4,
-      onPeriodChanged: (v) => setState(() => _p4 = v),
       chart: totalIncome > 0
           ? _buildDonutBody(
               byType,
@@ -875,8 +1100,12 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     );
   }
 
-  Widget _buildIncomeBarBody(TransactionService ts, List<WalletModel> wallets, ChartPeriod period) {
-    final byWallet = ts.incomeByWalletForPeriod(period);
+  Widget _buildIncomeBarBody(
+    TransactionService ts,
+    List<WalletModel> wallets,
+    ChartPeriod period,
+  ) {
+    final byWallet = ts.incomeByWalletForPeriod(period, offset: _offset);
     if (byWallet.isEmpty) return _emptyPlaceholder();
 
     final sorted = byWallet.entries.toList()
@@ -908,10 +1137,12 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           );
         }).toList(),
         titlesData: FlTitlesData(
-          topTitles:
-              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles:
-              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          rightTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
           leftTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
@@ -969,7 +1200,10 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           touchTooltipData: BarTouchTooltipData(
             getTooltipColor: (_) => AppColors.darkGray.withValues(alpha: 0.92),
             tooltipRoundedRadius: 8,
-            tooltipPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            tooltipPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 8,
+            ),
             getTooltipItem: (group, groupIndex, rod, rodIndex) {
               final e = sorted[group.x];
               final wallet = WalletService.instance.byId(e.key);
@@ -995,14 +1229,12 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   // ════════════════════════════════════════════════════════════════════════════
 
   Widget _buildIncomeVsExpenseChart(TransactionService ts) {
-    final buckets = ts.periodBuckets(_p5);
+    final buckets = ts.periodBuckets(_period, offset: _offset);
     final hasData = buckets.any((b) => b.income > 0 || b.expense > 0);
 
     return _buildChartCard(
       title: 'Income vs Expense',
       scrollable: true,
-      period: _p5,
-      onPeriodChanged: (v) => setState(() => _p5 = v),
       chart: hasData ? _buildGroupedBarBody(buckets) : _emptyPlaceholder(),
     );
   }
@@ -1054,9 +1286,11 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               }).toList(),
               titlesData: FlTitlesData(
                 topTitles: const AxisTitles(
-                    sideTitles: SideTitles(showTitles: false)),
+                  sideTitles: SideTitles(showTitles: false),
+                ),
                 rightTitles: const AxisTitles(
-                    sideTitles: SideTitles(showTitles: false)),
+                  sideTitles: SideTitles(showTitles: false),
+                ),
                 leftTitles: AxisTitles(
                   sideTitles: SideTitles(
                     showTitles: true,
@@ -1064,7 +1298,9 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                     getTitlesWidget: (v, _) {
                       if (v <= 0) return const SizedBox();
                       return Padding(
-                        padding: EdgeInsets.only(right: Responsive.w(context, 4)),
+                        padding: EdgeInsets.only(
+                          right: Responsive.w(context, 4),
+                        ),
                         child: Text(
                           _formatCompact(v.toInt()),
                           style: TextStyle(
@@ -1112,9 +1348,13 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               barTouchData: BarTouchData(
                 enabled: true,
                 touchTooltipData: BarTouchTooltipData(
-                  getTooltipColor: (_) => AppColors.darkGray.withValues(alpha: 0.92),
+                  getTooltipColor: (_) =>
+                      AppColors.darkGray.withValues(alpha: 0.92),
                   tooltipRoundedRadius: 8,
-                  tooltipPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  tooltipPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   getTooltipItem: (group, groupIndex, rod, rodIndex) {
                     final b = buckets[group.x];
                     final inc = group.barRods[0].toY;
@@ -1131,16 +1371,26 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                       children: [
                         TextSpan(
                           text: '\n● Income: ${_formatVNDCompact(inc.toInt())}',
-                          style: TextStyle(color: AppColors.primaryGreen, fontSize: 11),
-                        ),
-                        TextSpan(
-                          text: '\n● Expense: ${_formatVNDCompact(exp.toInt())}',
-                          style: TextStyle(color: AppColors.coral, fontSize: 11),
-                        ),
-                        TextSpan(
-                          text: '\n${isSurplus ? "✅ Surplus" : "⚠️ Deficit"}: ${_formatVNDCompact(diff.abs().toInt())}',
                           style: TextStyle(
-                            color: isSurplus ? AppColors.primaryGreen : AppColors.coral,
+                            color: AppColors.primaryGreen,
+                            fontSize: 11,
+                          ),
+                        ),
+                        TextSpan(
+                          text:
+                              '\n● Expense: ${_formatVNDCompact(exp.toInt())}',
+                          style: TextStyle(
+                            color: AppColors.coral,
+                            fontSize: 11,
+                          ),
+                        ),
+                        TextSpan(
+                          text:
+                              '\n${isSurplus ? "✅ Surplus" : "⚠️ Deficit"}: ${_formatVNDCompact(diff.abs().toInt())}',
+                          style: TextStyle(
+                            color: isSurplus
+                                ? AppColors.primaryGreen
+                                : AppColors.coral,
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
                           ),
@@ -1176,10 +1426,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         Container(
           width: Responsive.w(context, 8),
           height: Responsive.w(context, 8),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: color,
-          ),
+          decoration: BoxDecoration(shape: BoxShape.circle, color: color),
         ),
         SizedBox(width: Responsive.w(context, 4)),
         Text(
@@ -1232,7 +1479,9 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   static double _niceAxisInterval(double range, int targetSteps) {
     if (range <= 0) return 1;
     final roughStep = range / targetSteps;
-    final magnitude = math.pow(10, (math.log(roughStep) / math.ln10).floor()).toDouble();
+    final magnitude = math
+        .pow(10, (math.log(roughStep) / math.ln10).floor())
+        .toDouble();
     final residual = roughStep / magnitude;
     double niceStep;
     if (residual <= 1.5) {
@@ -1250,14 +1499,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ══════════════════════════════════════════════════════════════════════════════
-// _PeriodFilter — reusable widget
-// ══════════════════════════════════════════════════════════════════════════════
-
 class _CustomToggle extends StatelessWidget {
-  const _CustomToggle({
-    required this.value,
-    required this.onChanged,
-  });
+  const _CustomToggle({required this.value, required this.onChanged});
 
   final bool value;
   final ValueChanged<bool> onChanged;
@@ -1292,60 +1535,59 @@ class _CustomToggle extends StatelessWidget {
   }
 }
 
-class _PeriodFilter extends StatelessWidget {
-  const _PeriodFilter({
-    required this.period,
-    required this.onChanged,
-  });
+class _ScrollReveal extends StatefulWidget {
+  const _ScrollReveal({required this.child, this.delay = Duration.zero});
 
-  final ChartPeriod period;
-  final ValueChanged<ChartPeriod> onChanged;
+  final Widget child;
+  final Duration delay;
 
-  static const _labels = ['Day', 'Week', 'Month', 'Year'];
-  static const _values = [
-    ChartPeriod.day,
-    ChartPeriod.week,
-    ChartPeriod.month,
-    ChartPeriod.year,
-  ];
+  @override
+  State<_ScrollReveal> createState() => _ScrollRevealState();
+}
+
+class _ScrollRevealState extends State<_ScrollReveal>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  bool _triggered = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+  }
+
+  void trigger() {
+    if (_triggered) return;
+    _triggered = true;
+    Future.delayed(widget.delay, () {
+      if (mounted) _ctrl.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.all(Responsive.w(context, 4)),
-      decoration: BoxDecoration(
-        color: AppColors.lightGreen,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: FittedBox(
-        fit: BoxFit.scaleDown,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: List.generate(4, (i) {
-            final isSelected = period == _values[i];
-            return GestureDetector(
-              onTap: () => onChanged(_values[i]),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: EdgeInsets.symmetric(
-                  horizontal: Responsive.w(context, 14),
-                  vertical: Responsive.h(context, 6),
-                ),
-                decoration: BoxDecoration(
-                  color: isSelected ? AppColors.primaryGreen : Colors.transparent,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Text(
-                  _labels[i],
-                  style: TextStyle(
-                    fontSize: Responsive.sp(context, 12),
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                    color: isSelected ? Colors.white : AppColors.darkText,
-                  ),
-                ),
-              ),
-            );
-          }),
+    return VisibilityDetector(
+      key: Key('reveal_${widget.hashCode}'),
+      onVisibilityChanged: (info) {
+        if (info.visibleFraction > 0.15) trigger();
+      },
+      child: FadeTransition(
+        opacity: CurvedAnimation(parent: _ctrl, curve: Curves.easeOut),
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0, 0.2),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic)),
+          child: widget.child,
         ),
       ),
     );

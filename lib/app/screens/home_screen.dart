@@ -8,6 +8,7 @@ import '../../core/widgets/notification_bell.dart';
 import '../../features/auth/providers/auth_provider.dart';
 import '../../features/auth/services/auth_service.dart';
 import '../../features/finance/models/transaction_category.dart';
+import '../../features/finance/models/transaction_model.dart';
 import '../../features/finance/presentation/dashboard_page.dart';
 import '../../features/finance/presentation/edit_transaction_screen.dart';
 import '../../features/finance/presentation/goal_setup_sheet.dart';
@@ -27,7 +28,14 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
+  static const _headlineFont = 'Manrope';
+  static const _bodyFont = 'Hanken Grotesk';
+  static const _incomeColor = Color(0xFF00513E);
+  static const _expenseColor = Color(0xFFBA1A1A);
+
   int _selectedTab = 2; // Monthly
+  var _summaryMetric = _SummaryMetric.revenue;
+  var _summaryPeriod = _SummaryPeriod.week;
 
   @override
   void initState() {
@@ -37,16 +45,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     TransactionService.instance.addListener(_onTransactionsChanged);
     GoalService.instance.addListener(_onTransactionsChanged);
     Future.microtask(() {
-      ref.read(transactionServiceProvider).fetchTransactions()
-        .catchError((e) => debugPrint('fetchTransactions error: $e'));
+      ref
+          .read(transactionServiceProvider)
+          .fetchTransactions()
+          .catchError((e) => debugPrint('fetchTransactions error: $e'));
     });
     Future.microtask(() {
-      ref.read(goalServiceProvider).fetchGoals()
-        .catchError((e) => debugPrint('fetchGoals error: $e'));
+      ref
+          .read(goalServiceProvider)
+          .fetchGoals()
+          .catchError((e) => debugPrint('fetchGoals error: $e'));
     });
     Future.microtask(() {
-      ref.read(walletServiceProvider).fetchWallets()
-        .catchError((e) => debugPrint('fetchWallets error: $e'));
+      ref
+          .read(walletServiceProvider)
+          .fetchWallets()
+          .catchError((e) => debugPrint('fetchWallets error: $e'));
     });
   }
 
@@ -66,18 +80,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       child: Column(
         children: [
           _buildHeaderAndBalance(ts),
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 20)),
-            child: Column(
-              children: [
-                SizedBox(height: Responsive.h(context, 20)),
-                _buildGoalSummaryCard(),
-                SizedBox(height: Responsive.h(context, 25)),
-                _buildPeriodTabs(),
-                SizedBox(height: Responsive.h(context, 25)),
-                _buildTransactionList(ts),
-                SizedBox(height: Responsive.h(context, 100)),
-              ],
+          Transform.translate(
+            offset: Offset(0, -Responsive.h(context, 18)),
+            child: Container(
+              width: double.infinity,
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(
+                  top: Radius.circular(Responsive.w(context, 42)),
+                ),
+              ),
+              child: Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: Responsive.w(context, 20),
+                ),
+                child: Column(
+                  children: [
+                    SizedBox(height: Responsive.h(context, 14)),
+                    _buildGoalSummaryCard(),
+                    SizedBox(height: Responsive.h(context, 25)),
+                    _buildPeriodTabs(),
+                    SizedBox(height: Responsive.h(context, 25)),
+                    _buildTransactionList(ts),
+                    SizedBox(height: Responsive.h(context, 100)),
+                  ],
+                ),
+              ),
             ),
           ),
         ],
@@ -87,140 +116,141 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   // --- 1. Header + Balance Card đè lên ảnh ---
   Widget _buildHeaderAndBalance(TransactionService ts) {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        // Background Image
-        Container(
-          height: Responsive.h(context, 280),
-          width: double.infinity,
-          decoration: const BoxDecoration(
-            image: DecorationImage(
-              image: AssetImage('assets/home_bg.png'),
-              fit: BoxFit.cover,
-            ),
-          ),
-          child: SafeArea(
-            child: Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: Responsive.w(context, 20),
-                vertical: Responsive.h(context, 10),
+    return SizedBox(
+      height: Responsive.h(context, 275),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          // Background Image
+          Container(
+            height: Responsive.h(context, 292),
+            width: double.infinity,
+            decoration: const BoxDecoration(
+              image: DecorationImage(
+                image: AssetImage('assets/home_bg.png'),
+                fit: BoxFit.cover,
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        AppStrings.welcomeBack,
-                        style: TextStyle(
-                          fontFamily: 'Poppins',
-                          fontSize: Responsive.sp(context, 20),
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF052224),
-                        ),
-                      ),
-                      SizedBox(height: Responsive.h(context, 4)),
-                      Text(
-                        _greeting(),
-                        style: TextStyle(
-                          fontFamily: 'Poppins',
-                          fontSize: Responsive.sp(context, 14),
-                          fontWeight: FontWeight.w400,
-                          color: const Color(0xFF052224),
-                        ),
-                      ),
-                    ],
-                  ),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Chart icon — pushes to DashboardPage
-                      GestureDetector(
-                        onTap: _navigateToDashboard,
-                        child: Container(
-                          width: Responsive.w(context, 36),
-                          height: Responsive.h(context, 36),
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFDFF7E2),
-                            shape: BoxShape.circle,
+            ),
+            child: SafeArea(
+              child: Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: Responsive.w(context, 20),
+                  vertical: Responsive.h(context, 10),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          AppStrings.welcomeBack,
+                          style: TextStyle(
+                            fontFamily: _headlineFont,
+                            fontSize: Responsive.sp(context, 20),
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF052224),
                           ),
-                          child: Center(
-                            child: SizedBox(
-                              width: Responsive.w(context, 19),
-                              height: Responsive.h(context, 16),
-                              child: SvgPicture.asset(
-                                'assets/icons/chart.svg',
-                                colorFilter: const ColorFilter.mode(
-                                  Color(0xFF093030),
-                                  BlendMode.srcIn,
+                        ),
+                        SizedBox(height: Responsive.h(context, 4)),
+                        Text(
+                          _greeting(),
+                          style: TextStyle(
+                            fontFamily: _bodyFont,
+                            fontSize: Responsive.sp(context, 14),
+                            fontWeight: FontWeight.w400,
+                            color: const Color(0xFF052224),
+                          ),
+                        ),
+                      ],
+                    ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Chart icon — pushes to DashboardPage
+                        _PressableScale(
+                          onTap: _navigateToDashboard,
+                          child: Container(
+                            width: Responsive.w(context, 36),
+                            height: Responsive.h(context, 36),
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFDFF7E2),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Center(
+                              child: SizedBox(
+                                width: Responsive.w(context, 19),
+                                height: Responsive.h(context, 16),
+                                child: SvgPicture.asset(
+                                  'assets/icons/chart.svg',
+                                  colorFilter: const ColorFilter.mode(
+                                    Color(0xFF093030),
+                                    BlendMode.srcIn,
+                                  ),
                                 ),
                               ),
                             ),
                           ),
                         ),
+                        SizedBox(width: Responsive.w(context, 8)),
+                        const NotificationBell(),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          // Balance Card
+          Positioned(
+            top: Responsive.h(context, 72),
+            left: Responsive.w(context, 20),
+            right: Responsive.w(context, 20),
+            child: Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: Responsive.w(context, 20),
+                vertical: Responsive.h(context, 14),
+              ),
+              decoration: BoxDecoration(
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      _buildBalanceItem(
+                        AppStrings.totalBalance,
+                        '+${_formatMoney(ts.totalBalance)}',
+                        Icons.north_east,
+                        _incomeColor,
+                        fontWeight: FontWeight.w700,
                       ),
-                      SizedBox(width: Responsive.w(context, 8)),
-                      const NotificationBell(),
+                      Container(
+                        width: 1,
+                        height: Responsive.h(context, 40),
+                        color: Colors.white.withValues(alpha: 1.2),
+                      ),
+                      _buildBalanceItem(
+                        AppStrings.totalExpenseLabel,
+                        '-${_formatMoney(ts.monthlyExpense)}',
+                        Icons.south_west,
+                        _expenseColor,
+                      ),
                     ],
                   ),
+                  SizedBox(height: Responsive.h(context, 12)),
+                  // Progress Bar
+                  _buildProgressBar(ts),
+                  SizedBox(height: Responsive.h(context, 8)),
+                  _buildExpenseMessage(ts),
                 ],
               ),
             ),
           ),
-        ),
-        // Balance Card
-        Positioned(
-          top: Responsive.h(context, 100),
-          left: Responsive.w(context, 20),
-          right: Responsive.w(context, 20),
-          child: Container(
-            padding: EdgeInsets.all(Responsive.w(context, 20)),
-            decoration: BoxDecoration(
-              color: Colors.transparent,
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    _buildBalanceItem(
-                      AppStrings.totalBalance,
-                      _formatCompact(ts.totalBalance),
-                      Icons.north_east,
-                      Colors.black,
-                      fontWeight: FontWeight.w700,
-                    ),
-                    Container(
-                      width: 1,
-                      height: Responsive.h(context, 40),
-                      color: Colors.white.withValues(alpha: 1.2),
-                    ),
-                    _buildBalanceItem(
-                      AppStrings.totalExpenseLabel,
-                      '-${_formatCompact(ts.monthlyExpense)}',
-                      Icons.south_west,
-                      const Color(0xFF0068FF),
-                    ),
-                  ],
-                ),
-                SizedBox(height: Responsive.h(context, 20)),
-                // Progress Bar
-                _buildProgressBar(ts),
-              ],
-            ),
-          ),
-        ),
-        // Expense message nằm riêng, chìm trong background
-        Positioned(
-          bottom: Responsive.h(context, 5),
-          left: Responsive.w(context, 60),
-          right: 0,
-          child: Center(child: _buildExpenseMessage(ts)),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -234,51 +264,97 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ? (ts.monthlyExpense / budgetLimit) * 100
         : 0.0;
     final displayPercent = (rawPercent.clamp(0.0, 100.0) * 10).round() / 10;
+    final progressColor = budgetLimit > 0 && rawPercent >= 100
+        ? const Color(0xFFBA1A1A)
+        : const Color(0xFF00C49A);
 
     return Container(
-      height: Responsive.h(context, 35),
+      padding: EdgeInsets.symmetric(
+        horizontal: Responsive.w(context, 16),
+        vertical: Responsive.h(context, 10),
+      ),
       decoration: BoxDecoration(
         color: const Color(0xFFF1FFF3),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(18),
       ),
-      child: Stack(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          FractionallySizedBox(
-            widthFactor: budgetRatio > 0 ? budgetRatio : 0.05,
-            child: Container(
-              decoration: BoxDecoration(
-                color: const Color(0xFF011D1E),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                '${displayPercent.toStringAsFixed(0)}%',
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Monthly budget',
                 style: TextStyle(
-                  fontFamily: 'Poppins',
-                  color: Colors.white,
-                  fontSize: Responsive.sp(context, 12),
-                  fontWeight: FontWeight.w400,
+                  fontFamily: _bodyFont,
+                  fontSize: Responsive.sp(context, 13),
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF052224),
                 ),
+              ),
+              Text(
+                '${displayPercent.toStringAsFixed(0)}% used',
+                style: TextStyle(
+                  fontFamily: _headlineFont,
+                  fontSize: Responsive.sp(context, 13),
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF052224),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: Responsive.h(context, 8)),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: SizedBox(
+              height: Responsive.h(context, 8),
+              child: Stack(
+                children: [
+                  Container(color: Colors.white),
+                  FractionallySizedBox(
+                    widthFactor: budgetRatio,
+                    child: Container(color: progressColor),
+                  ),
+                ],
               ),
             ),
           ),
-          if (budgetLimit > 0)
-            Align(
-              alignment: Alignment.centerRight,
-              child: Padding(
-                padding: EdgeInsets.only(right: Responsive.w(context, 15)),
+          SizedBox(height: Responsive.h(context, 8)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
                 child: Text(
-                  _formatCompact(budgetLimit),
+                  '${_formatMoney(ts.monthlyExpense)} spent',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontFamily: 'Poppins',
-                    fontStyle: FontStyle.italic,
+                    fontFamily: _bodyFont,
+                    fontSize: Responsive.sp(context, 12),
                     fontWeight: FontWeight.w500,
-                    fontSize: Responsive.sp(context, 13),
                     color: const Color(0xFF052224),
                   ),
                 ),
               ),
-            ),
+              SizedBox(width: Responsive.w(context, 12)),
+              Expanded(
+                child: Text(
+                  budgetLimit > 0
+                      ? '${_formatMoney(budgetLimit)} limit'
+                      : 'No limit',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                    fontFamily: _bodyFont,
+                    fontSize: Responsive.sp(context, 12),
+                    fontWeight: FontWeight.w500,
+                    color: const Color(0xFF052224),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -297,8 +373,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         Icon(
           budgetLimit <= 0
               ? Icons.info_outline
-              : (rawPercent > 100 ? Icons.warning_amber : Icons.check_box_outlined),
-          size: Responsive.sp(context, 18),
+              : (rawPercent > 100
+                    ? Icons.warning_amber
+                    : Icons.check_box_outlined),
+          size: Responsive.sp(context, 14),
           color: budgetLimit <= 0
               ? Colors.grey
               : (rawPercent > 100 ? Colors.red : Colors.black54),
@@ -309,12 +387,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             budgetLimit <= 0
                 ? 'Set a budget limit in Settings to track your spending.'
                 : (rawPercent > 100
-                    ? 'Over budget — consider adjusting your spending!'
-                    : '$displayPercent% Of Your Expenses, Looks Good.'),
+                      ? 'Over budget — consider adjusting your spending!'
+                      : '$displayPercent% Of Your Expenses, Looks Good.'),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontFamily: 'Poppins',
-              fontSize: Responsive.sp(context, 15),
-              fontWeight: FontWeight.w400,
+              fontFamily: _bodyFont,
+              fontSize: Responsive.sp(context, 12),
+              fontWeight: FontWeight.w500,
               color: const Color(0xFF052224),
             ),
           ),
@@ -324,8 +404,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget _buildBalanceItem(
-      String title, String amount, IconData icon, Color amountColor,
-      {FontWeight fontWeight = FontWeight.w600}) {
+    String title,
+    String amount,
+    IconData icon,
+    Color amountColor, {
+    FontWeight fontWeight = FontWeight.w600,
+  }) {
     return Expanded(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -333,11 +417,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: Responsive.sp(context, 14), color: Colors.black54),
+              Icon(
+                icon,
+                size: Responsive.sp(context, 14),
+                color: Colors.black54,
+              ),
               SizedBox(width: Responsive.w(context, 4)),
-              Text(title,
+              Text(
+                title,
                 style: TextStyle(
-                  fontFamily: 'Poppins',
+                  fontFamily: _bodyFont,
                   fontSize: Responsive.sp(context, 12),
                   fontWeight: FontWeight.w400,
                   color: const Color(0xFF093030),
@@ -347,13 +436,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
           SizedBox(height: Responsive.h(context, 4)),
           Center(
-            child: Text(amount,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.center,
+              child: Text(
+                amount,
+                maxLines: 1,
+                softWrap: false,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: Responsive.sp(context, 24),
-                    fontWeight: fontWeight,
-                    color: amountColor)),
+                  fontFamily: _headlineFont,
+                  fontSize: Responsive.sp(context, 24),
+                  fontWeight: fontWeight,
+                  color: amountColor,
+                ),
+              ),
+            ),
           ),
         ],
       ),
@@ -370,22 +468,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final progress = goal != null ? gs.progressRatio(ts.totalBalance) : 0.0;
 
     // Computed values
-    final revenue = ts.revenueLast7Days;
+    final metricRange = _summaryDateRange(_summaryPeriod);
+    final metricAmount = _summaryMetric == _SummaryMetric.revenue
+        ? ts.incomeBetween(metricRange.start, metricRange.end)
+        : ts.expenseBetween(metricRange.start, metricRange.end);
+    final metricColor = _summaryMetric == _SummaryMetric.revenue
+        ? _incomeColor
+        : _expenseColor;
+    final metricTitle = '${_summaryMetric.label} Last ${_summaryPeriod.label}';
+    final metricAmountText =
+        '${_summaryMetric == _SummaryMetric.revenue ? '+' : '-'}${_formatMoney(metricAmount)}';
     final categoryExpense = selectedCategory != null
         ? ts.categoryExpenseLast7Days(selectedCategory)
         : 0;
 
-    return GestureDetector(
-      onTap: () => GoalSetupSheet.show(context),
-      child: Container(
-        padding: EdgeInsets.all(Responsive.w(context, 20)),
-        decoration: BoxDecoration(
-          color: const Color(0xFF00D293),
-          borderRadius: BorderRadius.circular(30),
-        ),
-        child: Row(
-          children: [
-            Column(
+    return Container(
+      padding: EdgeInsets.all(Responsive.w(context, 20)),
+      decoration: BoxDecoration(
+        color: const Color(0xFF00D293),
+        borderRadius: BorderRadius.circular(30),
+      ),
+      child: Row(
+        children: [
+          _PressableScale(
+            onTap: () => GoalSetupSheet.show(context),
+            child: Column(
               children: [
                 Stack(
                   alignment: Alignment.center,
@@ -412,13 +519,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ],
                 ),
                 SizedBox(height: Responsive.h(context, 8)),
+                if (goal != null) ...[
+                  Text(
+                    'Saving Goal',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: _bodyFont,
+                      fontSize: Responsive.sp(context, 11),
+                      fontWeight: FontWeight.w400,
+                      color: const Color(0xFF052224),
+                    ),
+                  ),
+                  SizedBox(height: Responsive.h(context, 2)),
+                ],
                 Text(
                   goal != null
                       ? '${(progress * 100).toStringAsFixed(0)}%'
                       : 'Savings\nOn Goals',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontFamily: 'Poppins',
+                    fontFamily: _bodyFont,
                     fontSize: Responsive.sp(context, 12),
                     fontWeight: FontWeight.w500,
                     color: const Color(0xFF093030),
@@ -426,20 +546,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
               ],
             ),
+          ),
           Padding(
-            padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 15)),
+            padding: EdgeInsets.symmetric(
+              horizontal: Responsive.w(context, 15),
+            ),
             child: SizedBox(
-                height: Responsive.h(context, 80),
-                child: const VerticalDivider(color: Colors.white54)),
+              height: Responsive.h(context, 80),
+              child: const VerticalDivider(color: Colors.white54),
+            ),
           ),
           Expanded(
             child: Column(
               children: [
                 _buildSummaryRow(
-                  _FigmaWalletIcon(color: const Color(0xFF052224), size: Responsive.w(context, 22)),
-                  'Revenue Last Week',
-                  '+${_formatMoney(revenue)}',
-                  const Color(0xFF052224),
+                  _FigmaWalletIcon(
+                    color: const Color(0xFF052224),
+                    size: Responsive.w(context, 22),
+                  ),
+                  metricTitle,
+                  metricAmountText,
+                  metricColor,
+                  onTap: _showSummaryMetricPicker,
+                  showChevron: true,
                 ),
                 const Divider(color: Colors.white54),
                 _buildCategoryRow(selectedCategory, categoryExpense),
@@ -448,6 +577,175 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  _DateRange _summaryDateRange(_SummaryPeriod period) {
+    final now = DateTime.now();
+    final start = switch (period) {
+      _SummaryPeriod.day => now.subtract(const Duration(days: 1)),
+      _SummaryPeriod.week => now.subtract(const Duration(days: 7)),
+      _SummaryPeriod.month => now.subtract(const Duration(days: 30)),
+      _SummaryPeriod.year => now.subtract(const Duration(days: 365)),
+    };
+    return _DateRange(start, now);
+  }
+
+  void _showSummaryMetricPicker() {
+    var selectedMetric = _summaryMetric;
+    var selectedPeriod = _summaryPeriod;
+
+    showModalBottomSheet(
+      context: context,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(Responsive.w(context, 20)),
+        ),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return Padding(
+              padding: EdgeInsets.symmetric(
+                vertical: Responsive.h(context, 20),
+                horizontal: Responsive.w(context, 16),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Choose summary',
+                    style: TextStyle(
+                      fontFamily: _headlineFont,
+                      fontSize: Responsive.sp(context, 16),
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF003829),
+                    ),
+                  ),
+                  SizedBox(height: Responsive.h(context, 16)),
+                  _buildPickerSection(
+                    title: 'Type',
+                    children: _SummaryMetric.values.map((metric) {
+                      return _buildPickerChip(
+                        label: metric.label,
+                        selected: selectedMetric == metric,
+                        color: metric == _SummaryMetric.revenue
+                            ? _incomeColor
+                            : _expenseColor,
+                        onTap: () => setSheetState(() {
+                          selectedMetric = metric;
+                        }),
+                      );
+                    }).toList(),
+                  ),
+                  SizedBox(height: Responsive.h(context, 16)),
+                  _buildPickerSection(
+                    title: 'Period',
+                    children: _SummaryPeriod.values.map((period) {
+                      return _buildPickerChip(
+                        label: 'Last ${period.label}',
+                        selected: selectedPeriod == period,
+                        color: const Color(0xFF00A37A),
+                        onTap: () => setSheetState(() {
+                          selectedPeriod = period;
+                        }),
+                      );
+                    }).toList(),
+                  ),
+                  SizedBox(height: Responsive.h(context, 20)),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF00513E),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        padding: EdgeInsets.symmetric(
+                          vertical: Responsive.h(context, 14),
+                        ),
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _summaryMetric = selectedMetric;
+                          _summaryPeriod = selectedPeriod;
+                        });
+                        Navigator.of(ctx).pop();
+                      },
+                      child: Text(
+                        'Apply',
+                        style: TextStyle(
+                          fontFamily: _bodyFont,
+                          fontWeight: FontWeight.w700,
+                          fontSize: Responsive.sp(context, 14),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildPickerSection({
+    required String title,
+    required List<Widget> children,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            fontFamily: _bodyFont,
+            fontSize: Responsive.sp(context, 12),
+            fontWeight: FontWeight.w600,
+            color: const Color(0xFF052224),
+          ),
+        ),
+        SizedBox(height: Responsive.h(context, 8)),
+        Wrap(
+          spacing: Responsive.w(context, 8),
+          runSpacing: Responsive.h(context, 8),
+          children: children,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPickerChip({
+    required String label,
+    required bool selected,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return _PressableScale(
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: Responsive.w(context, 14),
+          vertical: Responsive.h(context, 10),
+        ),
+        decoration: BoxDecoration(
+          color: selected ? color : const Color(0xFFF3F5F4),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: selected ? color : const Color(0xFFBBCCC5)),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontFamily: _bodyFont,
+            fontSize: Responsive.sp(context, 13),
+            fontWeight: FontWeight.w700,
+            color: selected ? Colors.white : const Color(0xFF052224),
+          ),
+        ),
       ),
     );
   }
@@ -455,12 +753,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   /// Build the dynamic category row (formerly hardcoded "Food Last Week").
   Widget _buildCategoryRow(String? selectedCategory, int expense) {
     final label = selectedCategory ?? 'Select category';
-    final amount = selectedCategory != null ? '${expense > 0 ? '-' : ''}${_formatMoney(expense)}' : '—';
+    final amount = selectedCategory != null
+        ? '${expense > 0 ? '-' : ''}${_formatMoney(expense)}'
+        : '—';
     final color = selectedCategory != null
         ? const Color(0xFF0068FF)
         : Colors.black38;
 
-    return GestureDetector(
+    return _PressableScale(
       onTap: () => _showCategoryPicker(selectedCategory),
       child: Row(
         children: [
@@ -473,7 +773,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     size: Responsive.w(context, 22),
                     color: const Color(0xFF0068FF),
                   )
-                : const Icon(Icons.category_outlined, size: 22, color: Colors.black38),
+                : const Icon(
+                    Icons.category_outlined,
+                    size: 22,
+                    color: Colors.black38,
+                  ),
           ),
           SizedBox(width: Responsive.w(context, 10)),
           Expanded(
@@ -483,24 +787,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 Row(
                   children: [
                     Text(
-                      selectedCategory != null ? '$selectedCategory Last Week' : label,
+                      selectedCategory != null
+                          ? '$selectedCategory Last Week'
+                          : label,
                       style: TextStyle(
-                        fontFamily: 'Poppins',
+                        fontFamily: _bodyFont,
                         fontSize: Responsive.sp(context, 12),
                         fontWeight: FontWeight.w400,
                         color: const Color(0xFF052224),
                       ),
                     ),
                     SizedBox(width: Responsive.w(context, 4)),
-                    Icon(Icons.expand_more, size: Responsive.w(context, 16), color: color),
+                    Icon(
+                      Icons.expand_more,
+                      size: Responsive.w(context, 16),
+                      color: color,
+                    ),
                   ],
                 ),
-                Text(amount,
-                    style: TextStyle(
-                        fontFamily: 'Poppins',
-                        fontSize: Responsive.sp(context, 15),
-                        fontWeight: FontWeight.w700,
-                        color: color)),
+                Text(
+                  amount,
+                  style: TextStyle(
+                    fontFamily: _headlineFont,
+                    fontSize: Responsive.sp(context, 15),
+                    fontWeight: FontWeight.w700,
+                    color: color,
+                  ),
+                ),
               ],
             ),
           ),
@@ -513,8 +826,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void _showCategoryPicker(String? currentSelected) {
     // Build full category list: 14 built-in + custom
     final builtIn = TransactionCategory.all;
-    final custom = CustomCategoryStore.instance.items.map((c) =>
-      TransactionCategory(key: c.name, label: c.name, icon: c.iconData, color: c.color),
+    final custom = CustomCategoryStore.instance.items.map(
+      (c) => TransactionCategory(
+        key: c.name,
+        label: c.name,
+        icon: c.iconData,
+        color: c.color,
+      ),
     );
     final allCategories = [...builtIn, ...custom];
 
@@ -543,7 +861,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 child: Text(
                   'Select category to track',
                   style: TextStyle(
-                    fontFamily: 'Poppins',
+                    fontFamily: _headlineFont,
                     fontSize: Responsive.sp(context, 16),
                     fontWeight: FontWeight.w600,
                     color: const Color(0xFF003829),
@@ -560,7 +878,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     runSpacing: Responsive.h(context, 12),
                     children: allCategories.map((cat) {
                       final isSelected = currentSelected == cat.key;
-                      return GestureDetector(
+                      return _PressableScale(
                         onTap: () {
                           AuthService.instance.saveSelectedCategory(cat.key);
                           Navigator.of(ctx).pop();
@@ -574,28 +892,39 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 border: Border.all(
-                                  color: isSelected ? cat.color : cat.color.withValues(alpha: 0.5),
+                                  color: isSelected
+                                      ? cat.color
+                                      : cat.color.withValues(alpha: 0.5),
                                   width: isSelected ? 3 : 2,
                                 ),
-                                color: isSelected ? cat.color.withValues(alpha: 0.1) : const Color(0xFFF5F5F5),
+                                color: isSelected
+                                    ? cat.color.withValues(alpha: 0.1)
+                                    : const Color(0xFFF5F5F5),
                               ),
                               child: Icon(
                                 cat.icon,
-                                color: isSelected ? cat.color : cat.color.withValues(alpha: 0.7),
+                                color: isSelected
+                                    ? cat.color
+                                    : cat.color.withValues(alpha: 0.7),
                                 size: Responsive.w(context, 22),
                               ),
                             ),
                             SizedBox(height: Responsive.h(context, 4)),
                             SizedBox(
                               width: Responsive.w(context, 56),
-                              child: Text(cat.label,
-                                  textAlign: TextAlign.center,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                      fontSize: Responsive.sp(context, 10),
-                                      color: const Color(0xFF052224),
-                                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400)),
+                              child: Text(
+                                cat.label,
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: Responsive.sp(context, 10),
+                                  color: const Color(0xFF052224),
+                                  fontWeight: isSelected
+                                      ? FontWeight.w600
+                                      : FontWeight.w400,
+                                ),
+                              ),
                             ),
                           ],
                         ),
@@ -612,79 +941,156 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget _buildSummaryRow(
-      Widget icon, String title, String amount, Color color) {
-    return Row(
+    Widget icon,
+    String title,
+    String amount,
+    Color color, {
+    VoidCallback? onTap,
+    bool showChevron = false,
+  }) {
+    final row = Row(
       children: [
-        SizedBox(width: Responsive.w(context, 24), height: Responsive.w(context, 24), child: icon),
+        SizedBox(
+          width: Responsive.w(context, 24),
+          height: Responsive.w(context, 24),
+          child: icon,
+        ),
         SizedBox(width: Responsive.w(context, 10)),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: _bodyFont,
+                        fontSize: Responsive.sp(context, 12),
+                        fontWeight: FontWeight.w400,
+                        color: const Color(0xFF052224),
+                      ),
+                    ),
+                  ),
+                  if (showChevron) ...[
+                    SizedBox(width: Responsive.w(context, 4)),
+                    Icon(
+                      Icons.expand_more,
+                      size: Responsive.w(context, 16),
+                      color: color,
+                    ),
+                  ],
+                ],
+              ),
+              Text(
+                amount,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: Responsive.sp(context, 12),
-                    fontWeight: FontWeight.w400,
-                    color: const Color(0xFF052224))),
-            Text(amount,
-                style: TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: Responsive.sp(context, 15),
-                    fontWeight: FontWeight.w700,
-                    color: color)),
-          ],
+                  fontFamily: _headlineFont,
+                  fontSize: Responsive.sp(context, 15),
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );
+
+    if (onTap == null) return row;
+    return _PressableScale(onTap: onTap, child: row);
   }
 
   // --- 3. Tabs Daily/Weekly/Monthly ---
   Widget _buildPeriodTabs() {
+    final labels = ['Daily', 'Weekly', 'Monthly'];
+
     return Container(
       padding: EdgeInsets.all(Responsive.w(context, 6)),
       decoration: BoxDecoration(
         color: const Color(0xFFE2F3E5),
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Row(
-        children: ['Daily', 'Weekly', 'Monthly'].asMap().entries.map((entry) {
-          bool isSelected = _selectedTab == entry.key;
-          return Expanded(
-            child: GestureDetector(
-              onTap: () => setState(() => _selectedTab = entry.key),
-              child: Container(
-                padding: EdgeInsets.symmetric(
-                  vertical: Responsive.h(context, 12),
-                ),
-                decoration: BoxDecoration(
-                  color: isSelected ? const Color(0xFF00D293) : Colors.transparent,
-                  borderRadius: BorderRadius.circular(15),
-                ),
-                child: Text(
-                  entry.value,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: Responsive.sp(context, 15),
-                    fontWeight: FontWeight.w400,
-                    color: const Color(0xFF052224),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final tabWidth = constraints.maxWidth / labels.length;
+
+          return SizedBox(
+            height: Responsive.h(context, 44),
+            child: Stack(
+              children: [
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 240),
+                  curve: Curves.easeOutCubic,
+                  left: tabWidth * _selectedTab,
+                  top: 0,
+                  bottom: 0,
+                  width: tabWidth,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF00D293),
+                      borderRadius: BorderRadius.circular(15),
+                    ),
                   ),
                 ),
-              ),
+                Row(
+                  children: labels.asMap().entries.map((entry) {
+                    return Expanded(
+                      child: _PressableScale(
+                        onTap: () => setState(() => _selectedTab = entry.key),
+                        child: Center(
+                          child: Text(
+                            entry.value,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontFamily: _bodyFont,
+                              fontSize: Responsive.sp(context, 15),
+                              fontWeight: FontWeight.w400,
+                              color: const Color(0xFF052224),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
             ),
           );
-        }).toList(),
+        },
       ),
     );
   }
 
   static const _months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
 
   // --- 4. Transaction List ---
   Widget _buildTransactionList(TransactionService ts) {
+    final visibleTransactions = _transactionsForSelectedTab(ts);
+    final emptyMessage = switch (_selectedTab) {
+      0 => 'No transactions today.\nTap "Add" to record one.',
+      1 => 'No transactions this week.\nTap "Add" to record one.',
+      _ => 'No transactions this month.\nTap "Add" to record one.',
+    };
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -695,7 +1101,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             Text(
               'Recent transactions',
               style: TextStyle(
-                fontFamily: 'Poppins',
+                fontFamily: _headlineFont,
                 fontSize: Responsive.sp(context, 16),
                 fontWeight: FontWeight.w600,
                 color: const Color(0xFF052224),
@@ -703,25 +1109,50 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
             TextButton.icon(
               onPressed: widget.onAddTap,
-              icon: Icon(Icons.add_circle, size: Responsive.w(context, 18)),
-              label: const Text('Add'),
+              style: TextButton.styleFrom(
+                backgroundColor: const Color(0xFF00C49A),
+                foregroundColor: Colors.white,
+                padding: EdgeInsets.symmetric(
+                  horizontal: Responsive.w(context, 14),
+                  vertical: Responsive.h(context, 9),
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                minimumSize: Size.zero,
+              ),
+              icon: Icon(Icons.add_rounded, size: Responsive.w(context, 18)),
+              label: Text(
+                'Add',
+                style: TextStyle(
+                  fontFamily: _bodyFont,
+                  fontSize: Responsive.sp(context, 14),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ),
           ],
         ),
         SizedBox(height: Responsive.h(context, 12)),
-        if (ts.currentUserTransactions.isEmpty)
+        if (visibleTransactions.isEmpty)
           Padding(
             padding: EdgeInsets.symmetric(vertical: Responsive.h(context, 20)),
-            child: const Center(
+            child: Center(
               child: Text(
-                'No transactions yet.\nTap "Add" to record your first one.',
+                emptyMessage,
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey),
+                style: const TextStyle(color: Colors.grey),
               ),
             ),
           )
         else
-          ...(ts.currentUserTransactions.map((t) => GestureDetector(
+          ...(visibleTransactions.map(
+            (t) => Padding(
+              padding: EdgeInsets.only(bottom: Responsive.h(context, 15)),
+              child: _PressableScale(
+                pressedOverlayColor: const Color(0x33000000),
+                borderRadius: BorderRadius.circular(16),
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => EditTransactionScreen(transaction: t),
@@ -736,21 +1167,56 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   _iconColorForCategory(t.category),
                   t.amount > 0,
                 ),
-              ))),
+              ),
+            ),
+          )),
       ],
     );
   }
 
-  Widget _buildTransactionItem(IconData icon, String title, String date,
-      String category, String amount, Color iconBg, bool isIncome) {
+  List<TransactionModel> _transactionsForSelectedTab(TransactionService ts) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final start = switch (_selectedTab) {
+      0 => today,
+      1 => today.subtract(Duration(days: today.weekday - DateTime.monday)),
+      _ => DateTime(today.year, today.month),
+    };
+    final end = switch (_selectedTab) {
+      0 => today.add(const Duration(days: 1)),
+      1 => start.add(const Duration(days: 7)),
+      _ => DateTime(today.year, today.month + 1),
+    };
+
+    final transactions = ts.currentUserTransactions
+        .where((t) => !t.date.isBefore(start) && t.date.isBefore(end))
+        .toList(growable: false);
+
+    return transactions;
+  }
+
+  Widget _buildTransactionItem(
+    IconData icon,
+    String title,
+    String date,
+    String category,
+    String amount,
+    Color iconBg,
+    bool isIncome,
+  ) {
     return Padding(
-      padding: EdgeInsets.only(bottom: Responsive.h(context, 15)),
+      padding: EdgeInsets.symmetric(
+        horizontal: Responsive.w(context, 6),
+        vertical: Responsive.h(context, 4),
+      ),
       child: Row(
         children: [
           Container(
             padding: EdgeInsets.all(Responsive.w(context, 12)),
-            decoration:
-                BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(16)),
+            decoration: BoxDecoration(
+              color: iconBg,
+              borderRadius: BorderRadius.circular(16),
+            ),
             child: Icon(icon, color: Colors.white),
           ),
           SizedBox(width: Responsive.w(context, 15)),
@@ -758,39 +1224,67 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title,
-                    style: TextStyle(
-                        fontFamily: 'Poppins',
-                        fontWeight: FontWeight.w500,
-                        fontSize: Responsive.sp(context, 15),
-                        color: const Color(0xFF052224))),
-                Text(date,
-                    style: TextStyle(
-                        fontFamily: 'Poppins',
-                        color: const Color(0xFF0068FF),
-                        fontSize: Responsive.sp(context, 12),
-                        fontWeight: FontWeight.w600)),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontFamily: _bodyFont,
+                    fontWeight: FontWeight.w500,
+                    fontSize: Responsive.sp(context, 15),
+                    color: const Color(0xFF052224),
+                  ),
+                ),
+                Text(
+                  date,
+                  style: TextStyle(
+                    fontFamily: _bodyFont,
+                    color: const Color(0xFF0068FF),
+                    fontSize: Responsive.sp(context, 12),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ],
             ),
           ),
-          if (category.isNotEmpty) ...[
-            SizedBox(
-                width: Responsive.w(context, 60),
-                child: Text(category,
+          SizedBox(
+            width: Responsive.w(context, 112),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      amount,
+                      maxLines: 1,
+                      softWrap: false,
+                      textAlign: TextAlign.right,
+                      style: TextStyle(
+                        fontFamily: _headlineFont,
+                        fontWeight: FontWeight.w500,
+                        fontSize: Responsive.sp(context, 15),
+                        color: isIncome ? _incomeColor : _expenseColor,
+                      ),
+                    ),
+                  ),
+                ),
+                if (category.isNotEmpty) ...[
+                  SizedBox(height: Responsive.h(context, 4)),
+                  Text(
+                    category,
+                    textAlign: TextAlign.right,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontFamily: 'Poppins',
+                      fontFamily: _bodyFont,
                       fontWeight: FontWeight.w300,
                       fontSize: Responsive.sp(context, 13),
                       color: const Color(0xFF052224),
-                    ))),
-          ],
-          Text(
-            amount,
-            style: TextStyle(
-              fontFamily: 'Poppins',
-              fontWeight: FontWeight.w500,
-              fontSize: Responsive.sp(context, 15),
-              color: isIncome ? const Color(0xFF052224) : const Color(0xFF0068FF),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
         ],
@@ -810,19 +1304,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   static String _formatSignedMoney(int amount) {
     final sign = amount < 0 ? '-' : '+';
     return '$sign ${_formatMoney(amount.abs())}';
-  }
-
-  static String _formatCompact(int amount) {
-    if (amount >= 1000000000) {
-      return '${(amount / 1000000000).toStringAsFixed(1)}B';
-    }
-    if (amount >= 1000000) {
-      return '${(amount / 1000000).toStringAsFixed(1)}M';
-    }
-    if (amount >= 1000) {
-      return '${(amount / 1000).toStringAsFixed(1)}K';
-    }
-    return '$amount';
   }
 
   static String _formatMoney(int amount) {
@@ -855,13 +1336,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             const DashboardPage(),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(1.0, 0.0),
-              end: Offset.zero,
-            ).animate(CurvedAnimation(
-              parent: animation,
-              curve: Curves.easeInOutCubic,
-            )),
+            position:
+                Tween<Offset>(
+                  begin: const Offset(1.0, 0.0),
+                  end: Offset.zero,
+                ).animate(
+                  CurvedAnimation(
+                    parent: animation,
+                    curve: Curves.easeInOutCubic,
+                  ),
+                ),
             child: child,
           );
         },
@@ -876,7 +1360,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 // =============================================================================
 
 class _FigmaWalletIcon extends StatelessWidget {
-  const _FigmaWalletIcon({this.color = const Color(0xFF093030), this.size = 22});
+  const _FigmaWalletIcon({
+    this.color = const Color(0xFF093030),
+    this.size = 22,
+  });
   final Color color;
   final double size;
 
@@ -884,14 +1371,59 @@ class _FigmaWalletIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     return CustomPaint(
       size: Size(size, size * 0.93),
-      painter: _HomeIconPainter(color: color, path: (Canvas canvas, Size size, Paint paint) {
-        final sc = size.shortestSide / 28;
-        canvas.save(); canvas.scale(sc);
-        final p = Path()
-          ..moveTo(21.6682, 14.3281)..lineTo(12.8841, 19.9656)..cubicTo(12.7171, 20.0728, 12.5042, 20.0774, 12.3328, 19.9775)..lineTo(1.31931, 13.5628)..cubicTo(0.978071, 13.3641, 0.967569, 12.8749, 1.29997, 12.6617)..lineTo(19.2617, 1.14022)..cubicTo(19.4286, 1.03318, 19.6414, 1.02858, 19.8127, 1.1283)..lineTo(30.826, 7.53796)..cubicTo(31.1674, 7.73662, 31.178, 8.22591, 30.8456, 8.4392)..lineTo(25.6599, 11.7665)..moveTo(21.6735, 18.8056)..lineTo(12.8839, 24.4432)..cubicTo(12.717, 24.5503, 12.5043, 24.5549, 12.333, 24.4551)..lineTo(1.31917, 18.0452)..cubicTo(0.977933, 17.8466, 0.967187, 17.3575, 1.29938, 17.1441)..lineTo(4.2337, 15.2591)..moveTo(27.912, 10.3243)..lineTo(30.8258, 12.0205)..cubicTo(31.1672, 12.2192, 31.1777, 12.7087, 30.8451, 12.9219)..lineTo(25.6119, 16.2763)..moveTo(28.1254, 14.6618)..lineTo(30.8608, 16.357)..cubicTo(31.1911, 16.5617, 31.1948, 17.0408, 30.8678, 17.2507)..lineTo(12.8841, 28.7913)..cubicTo(12.7171, 28.8985, 12.5042, 28.903, 12.3328, 28.8032)..lineTo(1.31931, 22.3885)..cubicTo(0.978067, 22.1898, 0.967564, 21.7005, 1.29996, 21.4873)..lineTo(4.12163, 19.6774)..moveTo(13.8573, 4.94937)..lineTo(25.3494, 11.6406)..cubicTo(25.5119, 11.7352, 25.6119, 11.9091, 25.6119, 12.0972)..lineTo(25.6119, 20.3306)..cubicTo(25.6119, 20.5104, 25.5204, 20.6779, 25.3691, 20.7751)..lineTo(22.4873, 22.6258)..cubicTo(22.1357, 22.8516, 21.6735, 22.5992, 21.6735, 22.1813)..lineTo(21.6735, 14.6318)..cubicTo(21.6735, 14.4438, 21.5736, 14.2699, 21.4112, 14.1753)..lineTo(10.3854, 7.7506)..cubicTo(10.0443, 7.55186, 10.0338, 7.06291, 10.3659, 6.84961)..lineTo(13.306, 4.96139)..cubicTo(13.473, 4.85419, 13.6859, 4.84954, 13.8573, 4.94937)..close();
-        canvas.drawPath(p, paint);
-        canvas.restore();
-      }),
+      painter: _HomeIconPainter(
+        color: color,
+        path: (Canvas canvas, Size size, Paint paint) {
+          final sc = size.shortestSide / 28;
+          canvas.save();
+          canvas.scale(sc);
+          final p = Path()
+            ..moveTo(21.6682, 14.3281)
+            ..lineTo(12.8841, 19.9656)
+            ..cubicTo(12.7171, 20.0728, 12.5042, 20.0774, 12.3328, 19.9775)
+            ..lineTo(1.31931, 13.5628)
+            ..cubicTo(0.978071, 13.3641, 0.967569, 12.8749, 1.29997, 12.6617)
+            ..lineTo(19.2617, 1.14022)
+            ..cubicTo(19.4286, 1.03318, 19.6414, 1.02858, 19.8127, 1.1283)
+            ..lineTo(30.826, 7.53796)
+            ..cubicTo(31.1674, 7.73662, 31.178, 8.22591, 30.8456, 8.4392)
+            ..lineTo(25.6599, 11.7665)
+            ..moveTo(21.6735, 18.8056)
+            ..lineTo(12.8839, 24.4432)
+            ..cubicTo(12.717, 24.5503, 12.5043, 24.5549, 12.333, 24.4551)
+            ..lineTo(1.31917, 18.0452)
+            ..cubicTo(0.977933, 17.8466, 0.967187, 17.3575, 1.29938, 17.1441)
+            ..lineTo(4.2337, 15.2591)
+            ..moveTo(27.912, 10.3243)
+            ..lineTo(30.8258, 12.0205)
+            ..cubicTo(31.1672, 12.2192, 31.1777, 12.7087, 30.8451, 12.9219)
+            ..lineTo(25.6119, 16.2763)
+            ..moveTo(28.1254, 14.6618)
+            ..lineTo(30.8608, 16.357)
+            ..cubicTo(31.1911, 16.5617, 31.1948, 17.0408, 30.8678, 17.2507)
+            ..lineTo(12.8841, 28.7913)
+            ..cubicTo(12.7171, 28.8985, 12.5042, 28.903, 12.3328, 28.8032)
+            ..lineTo(1.31931, 22.3885)
+            ..cubicTo(0.978067, 22.1898, 0.967564, 21.7005, 1.29996, 21.4873)
+            ..lineTo(4.12163, 19.6774)
+            ..moveTo(13.8573, 4.94937)
+            ..lineTo(25.3494, 11.6406)
+            ..cubicTo(25.5119, 11.7352, 25.6119, 11.9091, 25.6119, 12.0972)
+            ..lineTo(25.6119, 20.3306)
+            ..cubicTo(25.6119, 20.5104, 25.5204, 20.6779, 25.3691, 20.7751)
+            ..lineTo(22.4873, 22.6258)
+            ..cubicTo(22.1357, 22.8516, 21.6735, 22.5992, 21.6735, 22.1813)
+            ..lineTo(21.6735, 14.6318)
+            ..cubicTo(21.6735, 14.4438, 21.5736, 14.2699, 21.4112, 14.1753)
+            ..lineTo(10.3854, 7.7506)
+            ..cubicTo(10.0443, 7.55186, 10.0338, 7.06291, 10.3659, 6.84961)
+            ..lineTo(13.306, 4.96139)
+            ..cubicTo(13.473, 4.85419, 13.6859, 4.84954, 13.8573, 4.94937)
+            ..close();
+          canvas.drawPath(p, paint);
+          canvas.restore();
+        },
+      ),
     );
   }
 }
@@ -914,4 +1446,94 @@ class _HomeIconPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _HomeIconPainter oldDelegate) => false;
+}
+
+class _PressableScale extends StatefulWidget {
+  const _PressableScale({
+    required this.child,
+    required this.onTap,
+    this.pressedOverlayColor,
+    this.borderRadius,
+  });
+
+  final Widget child;
+  final VoidCallback? onTap;
+  final Color? pressedOverlayColor;
+  final BorderRadius? borderRadius;
+
+  @override
+  State<_PressableScale> createState() => _PressableScaleState();
+}
+
+class _PressableScaleState extends State<_PressableScale> {
+  var _pressed = false;
+
+  void _setPressed(bool value) {
+    if (_pressed == value || widget.onTap == null) return;
+    setState(() => _pressed = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: widget.onTap,
+      onTapDown: (_) => _setPressed(true),
+      onTapUp: (_) => _setPressed(false),
+      onTapCancel: () => _setPressed(false),
+      child: AnimatedScale(
+        scale: _pressed ? 0.97 : 1,
+        duration: const Duration(milliseconds: 110),
+        curve: Curves.easeOutCubic,
+        child: AnimatedOpacity(
+          opacity: _pressed ? 0.82 : 1,
+          duration: const Duration(milliseconds: 110),
+          curve: Curves.easeOutCubic,
+          child: Stack(
+            children: [
+              widget.child,
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 110),
+                    curve: Curves.easeOutCubic,
+                    decoration: BoxDecoration(
+                      color: _pressed
+                          ? widget.pressedOverlayColor
+                          : Colors.transparent,
+                      borderRadius: widget.borderRadius,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+enum _SummaryMetric {
+  revenue('Revenue'),
+  expense('Expense');
+
+  const _SummaryMetric(this.label);
+  final String label;
+}
+
+enum _SummaryPeriod {
+  day('Day'),
+  week('Week'),
+  month('Month'),
+  year('Year');
+
+  const _SummaryPeriod(this.label);
+  final String label;
+}
+
+class _DateRange {
+  const _DateRange(this.start, this.end);
+  final DateTime start;
+  final DateTime end;
 }

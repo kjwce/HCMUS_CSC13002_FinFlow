@@ -135,10 +135,10 @@ class TransactionService extends ChangeNotifier {
   int categoryExpenseLast7Days(String category) {
     final cutoff = DateTime.now().subtract(const Duration(days: 7));
     return currentUserTransactions
-        .where((t) =>
-            t.amount < 0 &&
-            t.category == category &&
-            t.date.isAfter(cutoff))
+        .where(
+          (t) =>
+              t.amount < 0 && t.category == category && t.date.isAfter(cutoff),
+        )
         .fold(0, (total, t) => total + t.amount.abs());
   }
 
@@ -147,8 +147,7 @@ class TransactionService extends ChangeNotifier {
   int balanceByWallet(String walletId) {
     final wallet = WalletService.instance.byId(walletId);
     final initial = wallet?.initialBalance ?? 0;
-    final txs =
-        currentUserTransactions.where((t) => t.walletId == walletId);
+    final txs = currentUserTransactions.where((t) => t.walletId == walletId);
     int income = 0, expense = 0;
     for (final t in txs) {
       if (t.amount > 0) {
@@ -164,10 +163,10 @@ class TransactionService extends ChangeNotifier {
   int monthlyIncomeByWallet(String walletId) {
     final now = DateTime.now();
     return currentUserTransactions
-        .where((t) =>
-            t.walletId == walletId &&
-            t.amount > 0 &&
-            _sameMonth(t.date, now))
+        .where(
+          (t) =>
+              t.walletId == walletId && t.amount > 0 && _sameMonth(t.date, now),
+        )
         .fold(0, (total, t) => total + t.amount);
   }
 
@@ -175,10 +174,10 @@ class TransactionService extends ChangeNotifier {
   int monthlyExpenseByWallet(String walletId) {
     final now = DateTime.now();
     return currentUserTransactions
-        .where((t) =>
-            t.walletId == walletId &&
-            t.amount < 0 &&
-            _sameMonth(t.date, now))
+        .where(
+          (t) =>
+              t.walletId == walletId && t.amount < 0 && _sameMonth(t.date, now),
+        )
         .fold(0, (total, t) => total + t.amount.abs());
   }
 
@@ -186,8 +185,7 @@ class TransactionService extends ChangeNotifier {
   int balanceAtDate(DateTime date) {
     final walletService = WalletService.instance;
     final initialSum = walletService.totalInitialBalance;
-    final txs = currentUserTransactions
-        .where((t) => !t.date.isAfter(date));
+    final txs = currentUserTransactions.where((t) => !t.date.isAfter(date));
     int income = 0, expense = 0;
     for (final t in txs) {
       if (t.amount > 0) {
@@ -202,14 +200,20 @@ class TransactionService extends ChangeNotifier {
   /// Income between two dates (inclusive).
   int incomeBetween(DateTime start, DateTime end) {
     return currentUserTransactions
-        .where((t) => t.amount > 0 && !t.date.isBefore(start) && !t.date.isAfter(end))
+        .where(
+          (t) =>
+              t.amount > 0 && !t.date.isBefore(start) && !t.date.isAfter(end),
+        )
         .fold(0, (sum, t) => sum + t.amount);
   }
 
   /// Expense (absolute) between two dates (inclusive).
   int expenseBetween(DateTime start, DateTime end) {
     return currentUserTransactions
-        .where((t) => t.amount < 0 && !t.date.isBefore(start) && !t.date.isAfter(end))
+        .where(
+          (t) =>
+              t.amount < 0 && !t.date.isBefore(start) && !t.date.isAfter(end),
+        )
         .fold(0, (sum, t) => sum + t.amount.abs());
   }
 
@@ -217,9 +221,14 @@ class TransactionService extends ChangeNotifier {
   /// Returns a map of categoryKey → total expense (positive).
   Map<String, int> expenseByCategoryBetween(DateTime start, DateTime end) {
     final map = <String, int>{};
-    for (final t in currentUserTransactions
-        .where((t) => t.amount < 0 && !t.date.isBefore(start) && !t.date.isAfter(end))) {
-      map.update(t.category, (v) => v + t.amount.abs(), ifAbsent: () => t.amount.abs());
+    for (final t in currentUserTransactions.where(
+      (t) => t.amount < 0 && !t.date.isBefore(start) && !t.date.isAfter(end),
+    )) {
+      map.update(
+        t.category,
+        (v) => v + t.amount.abs(),
+        ifAbsent: () => t.amount.abs(),
+      );
     }
     return map;
   }
@@ -227,9 +236,14 @@ class TransactionService extends ChangeNotifier {
   /// Income breakdown by walletId between two dates.
   Map<String, int> incomeByWalletBetween(DateTime start, DateTime end) {
     final map = <String, int>{};
-    for (final t in currentUserTransactions
-        .where((t) => t.amount > 0 && !t.date.isBefore(start) && !t.date.isAfter(end))) {
-      map.update(t.walletId ?? '', (v) => v + t.amount, ifAbsent: () => t.amount);
+    for (final t in currentUserTransactions.where(
+      (t) => t.amount > 0 && !t.date.isBefore(start) && !t.date.isAfter(end),
+    )) {
+      map.update(
+        t.walletId ?? '',
+        (v) => v + t.amount,
+        ifAbsent: () => t.amount,
+      );
     }
     return map;
   }
@@ -244,50 +258,49 @@ class TransactionService extends ChangeNotifier {
   /// Return an exclusive‑end date range for [period].
   /// The [end] is midnight of the day *after* the last included day, so
   /// `!t.date.isAfter(end)` correctly includes transactions on the last day.
-  DateRange dateRangeForPeriod(ChartPeriod period) {
+  DateRange dateRangeForPeriod(ChartPeriod period, {int offset = 0}) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
 
     switch (period) {
       case ChartPeriod.day:
+        final targetDay = today.add(Duration(days: offset));
         return DateRange(
-          start: today.subtract(const Duration(days: 6)),
-          end: today.add(const Duration(days: 1)),
+          start: targetDay,
+          end: targetDay.add(const Duration(days: 1)),
         );
       case ChartPeriod.week:
         final daysFromMonday = today.weekday - DateTime.monday;
-        final thisMonday = today.subtract(Duration(days: daysFromMonday));
+        final thisMonday = today
+            .subtract(Duration(days: daysFromMonday))
+            .add(Duration(days: offset * 7));
         return DateRange(
-          start: thisMonday.subtract(const Duration(days: 49)),
+          start: thisMonday,
           end: thisMonday.add(const Duration(days: 7)),
         );
       case ChartPeriod.month:
-        int targetMonth = today.month - 5;
-        int targetYear = today.year;
-        while (targetMonth <= 0) {
-          targetMonth += 12;
-          targetYear--;
-        }
+        final target = DateTime(today.year, today.month + offset, 1);
         return DateRange(
-          start: DateTime(targetYear, targetMonth, 1),
-          end: DateTime(today.year, today.month + 1, 1),
+          start: target,
+          end: DateTime(target.year, target.month + 1, 1),
         );
       case ChartPeriod.year:
+        final year = today.year + offset;
         return DateRange(
-          start: DateTime(today.year - 2, 1, 1),
-          end: DateTime(today.year + 1, 1, 1),
+          start: DateTime(year, 1, 1),
+          end: DateTime(year + 1, 1, 1),
         );
     }
   }
 
   /// Build a list of [PeriodBucket] for time‑series charts (cached).
   /// Buckets are ordered oldest‑to‑newest.
-  List<PeriodBucket> periodBuckets(ChartPeriod period) {
-    final cacheKey = 'pb_${period.name}_${_snapshotDate()}';
+  List<PeriodBucket> periodBuckets(ChartPeriod period, {int offset = 0}) {
+    final cacheKey = 'pb_${period.name}_${offset}_${_snapshotDate()}';
     if (_cachedPeriodBuckets.containsKey(cacheKey)) {
       return _cachedPeriodBuckets[cacheKey]!;
     }
-    final result = _computePeriodBuckets(period);
+    final result = _computePeriodBuckets(period, offset: offset);
     // ── Limit data points per period to prevent OOM ──
     final int maxBuckets;
     switch (period) {
@@ -296,7 +309,7 @@ class TransactionService extends ChangeNotifier {
       case ChartPeriod.week:
         maxBuckets = 8;
       case ChartPeriod.month:
-        maxBuckets = 12;
+        maxBuckets = 6;
       case ChartPeriod.year:
         maxBuckets = 3;
     }
@@ -314,52 +327,73 @@ class TransactionService extends ChangeNotifier {
     return '${n.year}_${n.month}_${n.day}_${n.hour}';
   }
 
-  List<PeriodBucket> _computePeriodBuckets(ChartPeriod period) {
+  List<PeriodBucket> _computePeriodBuckets(
+    ChartPeriod period, {
+    int offset = 0,
+  }) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final bucketDefs = <(DateTime start, String label)>[];
 
     switch (period) {
-      case ChartPeriod.day: {
-        const names = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
-        for (int i = 6; i >= 0; i--) {
-          final d = today.subtract(Duration(days: i));
-          bucketDefs.add((d, names[d.weekday % 7]));
-        }
-        break;
-      }
-      case ChartPeriod.week: {
-        final daysFromMonday = today.weekday - DateTime.monday;
-        final thisMonday = today.subtract(Duration(days: daysFromMonday));
-        for (int i = 7; i >= 0; i--) {
-          final ws = thisMonday.subtract(Duration(days: i * 7));
-          bucketDefs.add((ws, 'W${8 - i}'));
-        }
-        break;
-      }
-      case ChartPeriod.month: {
-        const names = [
-          'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-        ];
-        for (int i = 11; i >= 0; i--) {
-          int m = now.month - i;
-          int y = now.year;
-          while (m <= 0) {
-            m += 12;
-            y--;
+      case ChartPeriod.day:
+        {
+          const names = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+          final daysFromMonday = today.weekday - DateTime.monday;
+          final weekStart = today
+              .subtract(Duration(days: daysFromMonday))
+              .add(Duration(days: offset * 7));
+          for (int i = 0; i < 7; i++) {
+            final d = weekStart.add(Duration(days: i));
+            bucketDefs.add((d, names[d.weekday % 7]));
           }
-          bucketDefs.add((DateTime(y, m, 1), names[m - 1]));
+          break;
         }
-        break;
-      }
-      case ChartPeriod.year: {
-        for (int i = 2; i >= 0; i--) {
-          final y = now.year + 2 - i;
-          bucketDefs.add((DateTime(y, 1, 1), '$y'));
+      case ChartPeriod.week:
+        {
+          final daysFromMonday = today.weekday - DateTime.monday;
+          final thisMonday = today.subtract(Duration(days: daysFromMonday));
+          final startMonday = thisMonday.add(Duration(days: offset * 8 * 7));
+          for (int i = 7; i >= 0; i--) {
+            final ws = startMonday.subtract(Duration(days: i * 7));
+            bucketDefs.add((ws, 'W${8 - i}'));
+          }
+          break;
         }
-        break;
-      }
+      case ChartPeriod.month:
+        {
+          const names = [
+            'Jan',
+            'Feb',
+            'Mar',
+            'Apr',
+            'May',
+            'Jun',
+            'Jul',
+            'Aug',
+            'Sep',
+            'Oct',
+            'Nov',
+            'Dec',
+          ];
+          final endMonth = DateTime(now.year, now.month + offset * 6, 1);
+          for (int i = 5; i >= 0; i--) {
+            final month = DateTime(endMonth.year, endMonth.month - i, 1);
+            final m = month.month;
+            final y = month.year;
+            bucketDefs.add((DateTime(y, m, 1), names[m - 1]));
+          }
+          break;
+        }
+      case ChartPeriod.year:
+        {
+          final endYear = now.year + offset * 3;
+          for (int i = 2; i >= 0; i--) {
+            final y = endYear - i;
+            bucketDefs.add((DateTime(y, 1, 1), '$y'));
+          }
+          break;
+        }
     }
 
     return bucketDefs.map((b) {
@@ -394,12 +428,15 @@ class TransactionService extends ChangeNotifier {
   }
 
   /// Expense breakdown by category for [period] (cached).
-  Map<String, int> expenseByCategoryForPeriod(ChartPeriod period) {
-    final cacheKey = 'exp_${period.name}_${_snapshotDate()}';
+  Map<String, int> expenseByCategoryForPeriod(
+    ChartPeriod period, {
+    int offset = 0,
+  }) {
+    final cacheKey = 'exp_${period.name}_${offset}_${_snapshotDate()}';
     final inner = _cachedExpenseByCategory;
     if (inner.containsKey(cacheKey)) return inner[cacheKey]!;
 
-    final range = dateRangeForPeriod(period);
+    final range = dateRangeForPeriod(period, offset: offset);
     final result = expenseByCategoryBetween(range.start, range.end);
 
     if (inner.length > 8) inner.remove(inner.keys.first);
@@ -408,12 +445,15 @@ class TransactionService extends ChangeNotifier {
   }
 
   /// Income breakdown by wallet type (bank / ewallet / cash) for [period] (cached).
-  Map<String, int> incomeByWalletTypeForPeriod(ChartPeriod period) {
-    final cacheKey = 'incType_${period.name}_${_snapshotDate()}';
+  Map<String, int> incomeByWalletTypeForPeriod(
+    ChartPeriod period, {
+    int offset = 0,
+  }) {
+    final cacheKey = 'incType_${period.name}_${offset}_${_snapshotDate()}';
     final inner = _cachedIncomeByWalletType;
     if (inner.containsKey(cacheKey)) return inner[cacheKey]!;
 
-    final range = dateRangeForPeriod(period);
+    final range = dateRangeForPeriod(period, offset: offset);
     final map = <String, int>{'bank': 0, 'ewallet': 0, 'cash': 0};
     final ws = WalletService.instance;
 
@@ -431,12 +471,15 @@ class TransactionService extends ChangeNotifier {
   }
 
   /// Income breakdown by individual wallet for [period] (cached).
-  Map<String, int> incomeByWalletForPeriod(ChartPeriod period) {
-    final cacheKey = 'incWal_${period.name}_${_snapshotDate()}';
+  Map<String, int> incomeByWalletForPeriod(
+    ChartPeriod period, {
+    int offset = 0,
+  }) {
+    final cacheKey = 'incWal_${period.name}_${offset}_${_snapshotDate()}';
     final inner = _cachedIncomeByWallet;
     if (inner.containsKey(cacheKey)) return inner[cacheKey]!;
 
-    final range = dateRangeForPeriod(period);
+    final range = dateRangeForPeriod(period, offset: offset);
     final result = incomeByWalletBetween(range.start, range.end);
 
     if (inner.length > 8) inner.remove(inner.keys.first);

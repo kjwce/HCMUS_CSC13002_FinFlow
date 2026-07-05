@@ -77,14 +77,16 @@ class AddTransactionSheet extends ConsumerStatefulWidget {
   }
 
   @override
-  ConsumerState<AddTransactionSheet> createState() => _AddTransactionSheetState();
+  ConsumerState<AddTransactionSheet> createState() =>
+      _AddTransactionSheetState();
 }
 
 enum _AccountCategory { bank, ewallet, cash }
 
 class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   final _amountController = TextEditingController();
-  var _isExpense = true;
+  final _nameController = TextEditingController();
+  var _isExpense = false;
   String? _selectedWalletId;
   String? _selectedWalletName;
   var _selectedCategory = 'Food';
@@ -130,6 +132,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   void dispose() {
     _amountController.removeListener(_formatAmount);
     _amountController.dispose();
+    _nameController.dispose();
     super.dispose();
   }
 
@@ -140,7 +143,9 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
         left: Responsive.w(context, 24),
         right: Responsive.w(context, 24),
         top: Responsive.h(context, 24),
-        bottom: MediaQuery.of(context).viewInsets.bottom + Responsive.h(context, 24),
+        bottom:
+            MediaQuery.of(context).viewInsets.bottom +
+            Responsive.h(context, 24),
       ),
       child: SingleChildScrollView(
         child: Column(
@@ -179,11 +184,17 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                   _SegmentTab(
                     label: 'New income',
                     isSelected: !_isExpense,
+                    selectedColor: const Color(0xFF006C52),
+                    selectedTextColor: Colors.white,
+                    unselectedTextColor: const Color(0xFF008768),
                     onTap: () => setState(() => _isExpense = false),
                   ),
                   _SegmentTab(
                     label: 'New expense',
                     isSelected: _isExpense,
+                    selectedColor: const Color(0xFFBA1A1A),
+                    selectedTextColor: Colors.white,
+                    unselectedTextColor: const Color(0xFFBA1A1A),
                     onTap: () => setState(() => _isExpense = true),
                   ),
                 ],
@@ -252,24 +263,57 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
             ),
             SizedBox(height: Responsive.h(context, 20)),
 
+            // ── Optional transaction name ──
+            Text(
+              'Name',
+              style: TextStyle(
+                fontWeight: FontWeight.w500,
+                fontSize: Responsive.sp(context, 16),
+                color: const Color(0xFF747875),
+              ),
+            ),
+            SizedBox(height: Responsive.h(context, 8)),
+            TextField(
+              controller: _nameController,
+              textInputAction: TextInputAction.next,
+              decoration: InputDecoration(
+                hintText: 'Optional transaction name',
+                filled: true,
+                fillColor: Colors.white,
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: Responsive.w(context, 16),
+                  vertical: Responsive.h(context, 14),
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+            SizedBox(height: Responsive.h(context, 20)),
+
             // ── From account (Bank / Wallet / Cash) ──
-            Text('From account',
-                style: TextStyle(
-                  fontWeight: FontWeight.w500,
-                  fontSize: Responsive.sp(context, 16),
-                  color: const Color(0xFF747875),
-                )),
+            Text(
+              'From account',
+              style: TextStyle(
+                fontWeight: FontWeight.w500,
+                fontSize: Responsive.sp(context, 16),
+                color: const Color(0xFF747875),
+              ),
+            ),
             SizedBox(height: Responsive.h(context, 8)),
             _buildAccountCategorySelector(),
             SizedBox(height: Responsive.h(context, 20)),
 
             // ── Category grid ──
-            Text('From category',
-                style: TextStyle(
-                  fontWeight: FontWeight.w500,
-                  fontSize: Responsive.sp(context, 16),
-                  color: const Color(0xFF707974),
-                )),
+            Text(
+              'From category',
+              style: TextStyle(
+                fontWeight: FontWeight.w500,
+                fontSize: Responsive.sp(context, 16),
+                color: const Color(0xFF707974),
+              ),
+            ),
             SizedBox(height: Responsive.h(context, 8)),
             _buildCategoryGrid(),
 
@@ -301,34 +345,46 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                 }
                 try {
                   final sign = _isExpense ? -1 : 1;
-                  await ref.read(transactionServiceProvider).add(
-                    TransactionModel(
-                      id: 't_${DateTime.now().millisecondsSinceEpoch}',
-                      userId: ref.read(authServiceProvider).currentUser!.id,
-                      title: _selectedCategory,
-                      category: _selectedCategory,
-                      amount: amount * sign,
-                      date: DateTime.now(),
-                      walletId: _selectedWalletId,
-                    ),
-                  );
+                  final transactionName = _nameController.text.trim();
+                  await ref
+                      .read(transactionServiceProvider)
+                      .add(
+                        TransactionModel(
+                          id: 't_${DateTime.now().millisecondsSinceEpoch}',
+                          userId: ref.read(authServiceProvider).currentUser!.id,
+                          title: transactionName.isNotEmpty
+                              ? transactionName
+                              : _selectedCategory,
+                          category: _selectedCategory,
+                          amount: amount * sign,
+                          date: DateTime.now(),
+                          walletId: _selectedWalletId,
+                        ),
+                      );
                   if (!context.mounted) return;
                   Navigator.of(context).pop();
                 } catch (e) {
                   if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('$e')),
-                  );
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text('$e')));
                 }
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF1CA380),
                 foregroundColor: Colors.white,
                 minimumSize: Size(double.infinity, Responsive.h(context, 50)),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
-              child: Text('Confirm',
-                  style: TextStyle(fontWeight: FontWeight.w500, fontSize: Responsive.sp(context, 16))),
+              child: Text(
+                'Confirm',
+                style: TextStyle(
+                  fontWeight: FontWeight.w500,
+                  fontSize: Responsive.sp(context, 16),
+                ),
+              ),
             ),
             SizedBox(height: Responsive.h(context, 12)),
           ],
@@ -345,11 +401,25 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
         // 3 category chips on one line
         Row(
           children: [
-            Expanded(child: _accountChip('Bank', Icons.account_balance, _AccountCategory.bank)),
+            Expanded(
+              child: _accountChip(
+                'Bank',
+                Icons.account_balance,
+                _AccountCategory.bank,
+              ),
+            ),
             SizedBox(width: Responsive.w(context, 8)),
-            Expanded(child: _accountChip('E-Wallet', Icons.wallet, _AccountCategory.ewallet)),
+            Expanded(
+              child: _accountChip(
+                'E-Wallet',
+                Icons.wallet,
+                _AccountCategory.ewallet,
+              ),
+            ),
             SizedBox(width: Responsive.w(context, 8)),
-            Expanded(child: _accountChip('Cash', Icons.money, _AccountCategory.cash)),
+            Expanded(
+              child: _accountChip('Cash', Icons.money, _AccountCategory.cash),
+            ),
           ],
         ),
         // Show selected wallet name below
@@ -392,7 +462,9 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
           color: isSelected ? const Color(0xFF1CA380) : Colors.white,
           borderRadius: BorderRadius.circular(34),
           border: Border.all(
-            color: isSelected ? const Color(0xFF1CA380) : const Color(0xFFBFC9C3),
+            color: isSelected
+                ? const Color(0xFF1CA380)
+                : const Color(0xFFBFC9C3),
           ),
         ),
         child: Row(
@@ -574,12 +646,14 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     // Collect visible items: popular + custom
     final items = <TransactionCategory>[
       ...TransactionCategory.popular,
-      ...store.items.map((c) => TransactionCategory(
-            key: c.name,
-            label: c.name,
-            icon: c.iconData,
-            color: c.color,
-          )),
+      ...store.items.map(
+        (c) => TransactionCategory(
+          key: c.name,
+          label: c.name,
+          icon: c.iconData,
+          color: c.color,
+        ),
+      ),
     ];
 
     // If the selected category is an extended built-in not yet shown, add it
@@ -594,14 +668,22 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       spacing: Responsive.w(context, 12),
       runSpacing: Responsive.h(context, 12),
       children: [
-        ...items.map((cat) => _buildCategoryCircle(cat.key, cat.icon, cat.color, cat.label)),
+        ...items.map(
+          (cat) =>
+              _buildCategoryCircle(cat.key, cat.icon, cat.color, cat.label),
+        ),
         // "More" button
         _buildMoreButton(),
       ],
     );
   }
 
-  Widget _buildCategoryCircle(String key, IconData icon, Color color, String label) {
+  Widget _buildCategoryCircle(
+    String key,
+    IconData icon,
+    Color color,
+    String label,
+  ) {
     final isSelected = _selectedCategory == key;
     return GestureDetector(
       onTap: () => setState(() => _selectedCategory = key),
@@ -617,22 +699,30 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                 color: isSelected ? color : color.withValues(alpha: 0.5),
                 width: isSelected ? 3 : 2,
               ),
-              color: isSelected ? color.withValues(alpha: 0.1) : const Color(0xFFF5F5F5),
+              color: isSelected
+                  ? color.withValues(alpha: 0.1)
+                  : const Color(0xFFF5F5F5),
             ),
-            child: Icon(icon,
-                color: isSelected ? color : color.withValues(alpha: 0.7), size: Responsive.w(context, 22)),
+            child: Icon(
+              icon,
+              color: isSelected ? color : color.withValues(alpha: 0.7),
+              size: Responsive.w(context, 22),
+            ),
           ),
           SizedBox(height: Responsive.h(context, 4)),
           SizedBox(
             width: Responsive.w(context, 56),
-            child: Text(label,
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                    fontSize: Responsive.sp(context, 10),
-                    color: AppColors.darkText,
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400)),
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: Responsive.sp(context, 10),
+                color: AppColors.darkText,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+              ),
+            ),
           ),
         ],
       ),
@@ -653,14 +743,20 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
               border: Border.all(color: const Color(0xFFBFC9C3), width: 2),
               color: Colors.white,
             ),
-            child: Icon(Icons.add, color: const Color(0xFF707974), size: Responsive.w(context, 22)),
+            child: Icon(
+              Icons.add,
+              color: const Color(0xFF707974),
+              size: Responsive.w(context, 22),
+            ),
           ),
           SizedBox(height: Responsive.h(context, 4)),
-          Text('More',
-              style: TextStyle(
-                fontSize: Responsive.sp(context, 10),
-                color: const Color(0xFF707974),
-              )),
+          Text(
+            'More',
+            style: TextStyle(
+              fontSize: Responsive.sp(context, 10),
+              color: const Color(0xFF707974),
+            ),
+          ),
         ],
       ),
     );
@@ -711,189 +807,235 @@ class _MoreCategorySheetState extends ConsumerState<_MoreCategorySheet> {
         left: Responsive.w(context, 24),
         right: Responsive.w(context, 24),
         top: Responsive.h(context, 24),
-        bottom: MediaQuery.of(context).viewInsets.bottom + Responsive.h(context, 24),
+        bottom:
+            MediaQuery.of(context).viewInsets.bottom +
+            Responsive.h(context, 24),
       ),
       child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('More Categories',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: Responsive.sp(context, 18),
-                  color: const Color(0xFF003829),
-                )),
-          SizedBox(height: Responsive.h(context, 16)),
+            Text(
+              'More Categories',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: Responsive.sp(context, 18),
+                color: const Color(0xFF003829),
+              ),
+            ),
+            SizedBox(height: Responsive.h(context, 16)),
 
-          // ── Built-in extended categories ──
-          Text('Built-in',
+            // ── Built-in extended categories ──
+            Text(
+              'Built-in',
               style: TextStyle(
                 fontWeight: FontWeight.w500,
                 fontSize: Responsive.sp(context, 14),
                 color: const Color(0xFF747875),
-              )),
-          SizedBox(height: Responsive.h(context, 8)),
-          Wrap(
-            spacing: Responsive.w(context, 12),
-            runSpacing: Responsive.h(context, 12),
-            children: TransactionCategory.extended.map((cat) {
-              return GestureDetector(
-                onTap: () => Navigator.of(context).pop(cat.key),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: Responsive.w(context, 50),
-                      height: Responsive.w(context, 50),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: cat.color.withValues(alpha: 0.5), width: 2),
-                        color: cat.color.withValues(alpha: 0.1),
+              ),
+            ),
+            SizedBox(height: Responsive.h(context, 8)),
+            Wrap(
+              spacing: Responsive.w(context, 12),
+              runSpacing: Responsive.h(context, 12),
+              children: TransactionCategory.extended.map((cat) {
+                return GestureDetector(
+                  onTap: () => Navigator.of(context).pop(cat.key),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: Responsive.w(context, 50),
+                        height: Responsive.w(context, 50),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: cat.color.withValues(alpha: 0.5),
+                            width: 2,
+                          ),
+                          color: cat.color.withValues(alpha: 0.1),
+                        ),
+                        child: Icon(
+                          cat.icon,
+                          color: cat.color,
+                          size: Responsive.w(context, 22),
+                        ),
                       ),
-                      child: Icon(cat.icon, color: cat.color, size: Responsive.w(context, 22)),
-                    ),
-                    SizedBox(height: Responsive.h(context, 4)),
-                    Text(cat.label,
+                      SizedBox(height: Responsive.h(context, 4)),
+                      Text(
+                        cat.label,
                         style: TextStyle(
                           fontSize: Responsive.sp(context, 10),
                           color: AppColors.darkText,
-                        )),
-                  ],
-                ),
-              );
-            }).toList(),
-          ),
-
-          SizedBox(height: Responsive.h(context, 24)),
-          const Divider(),
-          SizedBox(height: Responsive.h(context, 12)),
-
-          // ── Custom category ──
-          Text('Custom Category',
-              style: TextStyle(
-                fontWeight: FontWeight.w500,
-                fontSize: Responsive.sp(context, 14),
-                color: const Color(0xFF747875),
-              )),
-          SizedBox(height: Responsive.h(context, 8)),
-          TextField(
-            controller: _customNameController,
-            decoration: InputDecoration(
-              hintText: 'e.g. Tuition, Repair...',
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-              contentPadding: EdgeInsets.symmetric(
-                horizontal: Responsive.w(context, 16),
-                vertical: Responsive.h(context, 12),
-              ),
-            ),
-          ),
-          SizedBox(height: Responsive.h(context, 12)),
-
-          // ── Icon picker ──
-          Text('Pick icon',
-              style: TextStyle(
-                fontWeight: FontWeight.w500,
-                fontSize: Responsive.sp(context, 13),
-                color: const Color(0xFF747875),
-              )),
-          SizedBox(height: Responsive.h(context, 6)),
-          SizedBox(
-            height: Responsive.h(context, 36),
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              children: _customIcons.map((icn) {
-                final isSelected = icn == _customIcon;
-                return GestureDetector(
-                  onTap: () => setState(() => _customIcon = icn),
-                  child: Container(
-                    width: Responsive.w(context, 36),
-                    height: Responsive.w(context, 36),
-                    margin: EdgeInsets.only(right: Responsive.w(context, 6)),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: isSelected ? _customColor.withValues(alpha: 0.2) : const Color(0xFFF5F5F5),
-                      border: Border.all(
-                        color: isSelected ? _customColor : const Color(0xFFBFC9C3),
-                        width: 2,
+                        ),
                       ),
-                    ),
-                    child: Icon(
-                      icn,
-                      size: Responsive.w(context, 18),
-                      color: isSelected ? _customColor : const Color(0xFF707974),
-                    ),
+                    ],
                   ),
                 );
               }).toList(),
             ),
-          ),
-          SizedBox(height: Responsive.h(context, 12)),
 
-          // ── Color picker ──
-          Text('Pick color',
+            SizedBox(height: Responsive.h(context, 24)),
+            const Divider(),
+            SizedBox(height: Responsive.h(context, 12)),
+
+            // ── Custom category ──
+            Text(
+              'Custom Category',
+              style: TextStyle(
+                fontWeight: FontWeight.w500,
+                fontSize: Responsive.sp(context, 14),
+                color: const Color(0xFF747875),
+              ),
+            ),
+            SizedBox(height: Responsive.h(context, 8)),
+            TextField(
+              controller: _customNameController,
+              decoration: InputDecoration(
+                hintText: 'e.g. Tuition, Repair...',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: Responsive.w(context, 16),
+                  vertical: Responsive.h(context, 12),
+                ),
+              ),
+            ),
+            SizedBox(height: Responsive.h(context, 12)),
+
+            // ── Icon picker ──
+            Text(
+              'Pick icon',
               style: TextStyle(
                 fontWeight: FontWeight.w500,
                 fontSize: Responsive.sp(context, 13),
                 color: const Color(0xFF747875),
-              )),
-          SizedBox(height: Responsive.h(context, 6)),
-          Wrap(
-            spacing: Responsive.w(context, 6),
-            runSpacing: Responsive.h(context, 6),
-            children: _customColors.map((clr) {
-              final isSelected = clr == _customColor;
-              return GestureDetector(
-                onTap: () => setState(() => _customColor = clr),
-                child: Container(
-                  width: Responsive.w(context, 28),
-                  height: Responsive.w(context, 28),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: clr,
-                    border: isSelected
-                        ? Border.all(color: Colors.black, width: 2.5)
+              ),
+            ),
+            SizedBox(height: Responsive.h(context, 6)),
+            SizedBox(
+              height: Responsive.h(context, 36),
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: _customIcons.map((icn) {
+                  final isSelected = icn == _customIcon;
+                  return GestureDetector(
+                    onTap: () => setState(() => _customIcon = icn),
+                    child: Container(
+                      width: Responsive.w(context, 36),
+                      height: Responsive.w(context, 36),
+                      margin: EdgeInsets.only(right: Responsive.w(context, 6)),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isSelected
+                            ? _customColor.withValues(alpha: 0.2)
+                            : const Color(0xFFF5F5F5),
+                        border: Border.all(
+                          color: isSelected
+                              ? _customColor
+                              : const Color(0xFFBFC9C3),
+                          width: 2,
+                        ),
+                      ),
+                      child: Icon(
+                        icn,
+                        size: Responsive.w(context, 18),
+                        color: isSelected
+                            ? _customColor
+                            : const Color(0xFF707974),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+            SizedBox(height: Responsive.h(context, 12)),
+
+            // ── Color picker ──
+            Text(
+              'Pick color',
+              style: TextStyle(
+                fontWeight: FontWeight.w500,
+                fontSize: Responsive.sp(context, 13),
+                color: const Color(0xFF747875),
+              ),
+            ),
+            SizedBox(height: Responsive.h(context, 6)),
+            Wrap(
+              spacing: Responsive.w(context, 6),
+              runSpacing: Responsive.h(context, 6),
+              children: _customColors.map((clr) {
+                final isSelected = clr == _customColor;
+                return GestureDetector(
+                  onTap: () => setState(() => _customColor = clr),
+                  child: Container(
+                    width: Responsive.w(context, 28),
+                    height: Responsive.w(context, 28),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: clr,
+                      border: isSelected
+                          ? Border.all(color: Colors.black, width: 2.5)
+                          : null,
+                    ),
+                    child: isSelected
+                        ? Icon(
+                            Icons.check,
+                            size: Responsive.w(context, 16),
+                            color: Colors.white,
+                          )
                         : null,
                   ),
-                  child: isSelected
-                      ? Icon(Icons.check, size: Responsive.w(context, 16), color: Colors.white)
-                      : null,
-                ),
-              );
-            }).toList(),
-          ),
-          SizedBox(height: Responsive.h(context, 16)),
-
-          // ── Save custom category ──
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () {
-                final name = _customNameController.text.trim();
-                if (name.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Please enter a category name')),
-                  );
-                  return;
-                }
-                // Store custom category
-                CustomCategoryStore.instance.add(
-                  CustomCategoryDef(name: name, iconData: _customIcon, color: _customColor),
                 );
-                Navigator.of(context).pop(name);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1CA380),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              child: Text('Save Category',
-                  style: TextStyle(fontWeight: FontWeight.w500, fontSize: Responsive.sp(context, 15))),
+              }).toList(),
             ),
-          ),
-          SizedBox(height: Responsive.h(context, 8)),
-        ],
-      ),
+            SizedBox(height: Responsive.h(context, 16)),
+
+            // ── Save custom category ──
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  final name = _customNameController.text.trim();
+                  if (name.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Please enter a category name'),
+                      ),
+                    );
+                    return;
+                  }
+                  // Store custom category
+                  CustomCategoryStore.instance.add(
+                    CustomCategoryDef(
+                      name: name,
+                      iconData: _customIcon,
+                      color: _customColor,
+                    ),
+                  );
+                  Navigator.of(context).pop(name);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1CA380),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: Text(
+                  'Save Category',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w500,
+                    fontSize: Responsive.sp(context, 15),
+                  ),
+                ),
+              ),
+            ),
+            SizedBox(height: Responsive.h(context, 8)),
+          ],
+        ),
       ),
     );
   }
@@ -904,10 +1046,20 @@ class _MoreCategorySheetState extends ConsumerState<_MoreCategorySheet> {
 // =============================================================================
 
 class _SegmentTab extends StatelessWidget {
-  const _SegmentTab({required this.label, required this.isSelected, required this.onTap});
+  const _SegmentTab({
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+    required this.selectedColor,
+    required this.selectedTextColor,
+    required this.unselectedTextColor,
+  });
   final String label;
   final bool isSelected;
   final VoidCallback onTap;
+  final Color selectedColor;
+  final Color selectedTextColor;
+  final Color unselectedTextColor;
 
   @override
   Widget build(BuildContext context) {
@@ -918,15 +1070,17 @@ class _SegmentTab extends StatelessWidget {
           alignment: Alignment.center,
           padding: EdgeInsets.symmetric(vertical: Responsive.h(context, 8)),
           decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFF006C52) : Colors.transparent,
+            color: isSelected ? selectedColor : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Text(label,
-              style: TextStyle(
-                fontWeight: isSelected ? FontWeight.w500 : FontWeight.w400,
-                fontSize: Responsive.sp(context, 16),
-                color: isSelected ? Colors.white : const Color(0xFF008768),
-              )),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontWeight: isSelected ? FontWeight.w500 : FontWeight.w400,
+              fontSize: Responsive.sp(context, 16),
+              color: isSelected ? selectedTextColor : unselectedTextColor,
+            ),
+          ),
         ),
       ),
     );
