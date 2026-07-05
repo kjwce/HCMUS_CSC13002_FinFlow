@@ -296,7 +296,7 @@ class TransactionService extends ChangeNotifier {
       case ChartPeriod.week:
         maxBuckets = 8;
       case ChartPeriod.month:
-        maxBuckets = 6;
+        maxBuckets = 12;
       case ChartPeriod.year:
         maxBuckets = 3;
     }
@@ -342,7 +342,7 @@ class TransactionService extends ChangeNotifier {
           'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
           'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
         ];
-        for (int i = 5; i >= 0; i--) {
+        for (int i = 11; i >= 0; i--) {
           int m = now.month - i;
           int y = now.year;
           while (m <= 0) {

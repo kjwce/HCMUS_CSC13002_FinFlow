@@ -144,6 +144,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     required Widget chart,
     Widget? trailing,
     double chartHeight = 200,
+    bool scrollable = false,
   }) {
     return Container(
       margin: EdgeInsets.symmetric(horizontal: Responsive.w(context, 20)),
@@ -190,11 +191,33 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           SizedBox(height: Responsive.h(context, 12)),
           SizedBox(
             height: Responsive.h(context, chartHeight),
-            child: chart,
+            child: scrollable
+                ? SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
+                    child: SizedBox(
+                      width: _chartWidth(context, period),
+                      child: chart,
+                    ),
+                  )
+                : chart,
           ),
         ],
       ),
     );
+  }
+
+  double _chartWidth(BuildContext context, ChartPeriod period) {
+    switch (period) {
+      case ChartPeriod.day:
+        return Responsive.w(context, 360);
+      case ChartPeriod.week:
+        return Responsive.w(context, 360);
+      case ChartPeriod.month:
+        return Responsive.w(context, 660);
+      case ChartPeriod.year:
+        return Responsive.w(context, 400);
+    }
   }
 
   Widget _emptyPlaceholder() {
@@ -274,6 +297,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
     return _buildChartCard(
       title: 'Income & Expense',
+      scrollable: true,
       period: _p1,
       onPeriodChanged: (v) => setState(() => _p1 = v),
       trailing: Row(
@@ -976,6 +1000,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
     return _buildChartCard(
       title: 'Income vs Expense',
+      scrollable: true,
       period: _p5,
       onPeriodChanged: (v) => setState(() => _p5 = v),
       chart: hasData ? _buildGroupedBarBody(buckets) : _emptyPlaceholder(),
