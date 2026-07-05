@@ -16,20 +16,51 @@ class TransactionModel {
       title: json['title'] as String,
       category: json['category'] as String,
       amount: json['amount'] as int,
-      date: DateTime.parse(json['date'] as String),
+      date: _parseStoredDate(json),
       walletId: json['wallet_id'] as String?,
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'user_id': userId,
-        'title': title,
-        'category': category,
-        'amount': amount,
-        'date': date.toIso8601String(),
-        if (walletId != null) 'wallet_id': walletId,
-      };
+    'id': id,
+    'user_id': userId,
+    'title': title,
+    'category': category,
+    'amount': amount,
+    'date': floatingLocalIso(date),
+    if (walletId != null) 'wallet_id': walletId,
+  };
+
+  static String floatingLocalIso(DateTime value) {
+    return DateTime(
+      value.year,
+      value.month,
+      value.day,
+      value.hour,
+      value.minute,
+      value.second,
+      value.millisecond,
+      value.microsecond,
+    ).toIso8601String();
+  }
+
+  static DateTime _parseStoredDate(Map<String, dynamic> json) {
+    final rawDate = DateTime.parse(json['date'] as String);
+    final createdAtRaw = json['created_at'];
+    if (createdAtRaw is String) {
+      final createdAt = DateTime.tryParse(createdAtRaw);
+      if (createdAt != null) {
+        final instantDelta = rawDate
+            .toUtc()
+            .difference(createdAt.toUtc())
+            .abs();
+        if (instantDelta <= const Duration(minutes: 5)) {
+          return rawDate.toLocal();
+        }
+      }
+    }
+    return rawDate;
+  }
 
   final String id;
   final String userId;

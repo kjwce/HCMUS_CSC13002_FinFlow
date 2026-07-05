@@ -1175,24 +1175,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   List<TransactionModel> _transactionsForSelectedTab(TransactionService ts) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final start = switch (_selectedTab) {
-      0 => today,
-      1 => today.subtract(Duration(days: today.weekday - DateTime.monday)),
-      _ => DateTime(today.year, today.month),
+    final period = switch (_selectedTab) {
+      0 => ChartPeriod.day,
+      1 => ChartPeriod.week,
+      _ => ChartPeriod.month,
     };
-    final end = switch (_selectedTab) {
-      0 => today.add(const Duration(days: 1)),
-      1 => start.add(const Duration(days: 7)),
-      _ => DateTime(today.year, today.month + 1),
-    };
-
-    final transactions = ts.currentUserTransactions
-        .where((t) => !t.date.isBefore(start) && t.date.isBefore(end))
-        .toList(growable: false);
-
-    return transactions;
+    return ts.transactionsForPeriod(period);
   }
 
   Widget _buildTransactionItem(

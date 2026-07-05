@@ -20,11 +20,15 @@ class PeriodBucket {
     required this.label,
     required this.income,
     required this.expense,
+    this.start,
+    this.balanceValue,
   });
   final String label;
   final int income;
   final int expense;
-  int get balance => income - expense;
+  final DateTime? start;
+  final int? balanceValue;
+  int get balance => balanceValue ?? income - expense;
 }
 
 /// Service handling all transaction CRUD operations via Supabase.
@@ -52,17 +56,21 @@ class TransactionService extends ChangeNotifier {
   int? _cachedMonthlyIncome;
   int? _cachedMonthlyExpense;
   int? _cachedTotalBalance;
-  Map<String, Map<String, int>> _cachedExpenseByCategory = {};
-  Map<String, Map<String, int>> _cachedIncomeByWalletType = {};
-  Map<String, List<PeriodBucket>> _cachedPeriodBuckets = {};
-  Map<String, Map<String, int>> _cachedIncomeByWallet = {};
+  final Map<String, Map<String, int>> _cachedExpenseByCategory = {};
+  final Map<String, Map<String, int>> _cachedIncomeByCategory = {};
+  final Map<String, Map<String, int>> _cachedIncomeByWalletType = {};
+  final Map<String, Map<String, int>> _cachedExpenseByWalletType = {};
+  final Map<String, List<PeriodBucket>> _cachedPeriodBuckets = {};
+  final Map<String, Map<String, int>> _cachedIncomeByWallet = {};
 
   void _clearCache() {
     _cachedMonthlyIncome = null;
     _cachedMonthlyExpense = null;
     _cachedTotalBalance = null;
     _cachedExpenseByCategory.clear();
+    _cachedIncomeByCategory.clear();
     _cachedIncomeByWalletType.clear();
+    _cachedExpenseByWalletType.clear();
     _cachedPeriodBuckets.clear();
     _cachedIncomeByWallet.clear();
   }
@@ -80,10 +88,8 @@ class TransactionService extends ChangeNotifier {
   }
 
   int _computeMonthlyIncome() {
-    final now = DateTime.now();
-    return currentUserTransactions
-        .where((t) => t.amount > 0 && _sameMonth(t.date, now))
-        .fold(0, (total, t) => total + t.amount);
+    final range = dateRangeForPeriod(ChartPeriod.month);
+    return incomeBetween(range.start, range.end);
   }
 
   /// Expense transactions across ALL time (cached).
@@ -93,10 +99,8 @@ class TransactionService extends ChangeNotifier {
   }
 
   int _computeMonthlyExpense() {
-    final now = DateTime.now();
-    return currentUserTransactions
-        .where((t) => t.amount < 0 && _sameMonth(t.date, now))
-        .fold(0, (total, t) => total + t.amount.abs());
+    final range = dateRangeForPeriod(ChartPeriod.month);
+    return expenseBetween(range.start, range.end);
   }
 
   /// Lifetime cumulative balance = initial balances of all wallets
@@ -161,22 +165,26 @@ class TransactionService extends ChangeNotifier {
 
   /// Income for a specific wallet this month.
   int monthlyIncomeByWallet(String walletId) {
-    final now = DateTime.now();
+    final range = dateRangeForPeriod(ChartPeriod.month);
     return currentUserTransactions
         .where(
           (t) =>
-              t.walletId == walletId && t.amount > 0 && _sameMonth(t.date, now),
+              t.walletId == walletId &&
+              t.amount > 0 &&
+              _isWithinRange(t.date, range.start, range.end),
         )
         .fold(0, (total, t) => total + t.amount);
   }
 
   /// Expense for a specific wallet this month.
   int monthlyExpenseByWallet(String walletId) {
-    final now = DateTime.now();
+    final range = dateRangeForPeriod(ChartPeriod.month);
     return currentUserTransactions
         .where(
           (t) =>
-              t.walletId == walletId && t.amount < 0 && _sameMonth(t.date, now),
+              t.walletId == walletId &&
+              t.amount < 0 &&
+              _isWithinRange(t.date, range.start, range.end),
         )
         .fold(0, (total, t) => total + t.amount.abs());
   }
@@ -185,7 +193,10 @@ class TransactionService extends ChangeNotifier {
   int balanceAtDate(DateTime date) {
     final walletService = WalletService.instance;
     final initialSum = walletService.totalInitialBalance;
-    final txs = currentUserTransactions.where((t) => !t.date.isAfter(date));
+    final end = date.add(const Duration(microseconds: 1));
+    final txs = currentUserTransactions.where(
+      (t) => _isWithinRange(t.date, DateTime(1900), end),
+    );
     int income = 0, expense = 0;
     for (final t in txs) {
       if (t.amount > 0) {
@@ -197,24 +208,62 @@ class TransactionService extends ChangeNotifier {
     return initialSum + income - expense;
   }
 
-  /// Income between two dates (inclusive).
+  int balanceBefore(DateTime end) {
+    final walletService = WalletService.instance;
+    final initialSum = walletService.totalInitialBalance;
+    int income = 0, expense = 0;
+    for (final t in currentUserTransactions) {
+      if (!_wallClockDate(t.date).isBefore(end)) continue;
+      if (t.amount > 0) {
+        income += t.amount;
+      } else {
+        expense += t.amount.abs();
+      }
+    }
+    return initialSum + income - expense;
+  }
+
+  bool _isWithinRange(DateTime date, DateTime start, DateTime end) {
+    final wallClock = _wallClockDate(date);
+    return !wallClock.isBefore(start) && wallClock.isBefore(end);
+  }
+
+  DateTime _wallClockDate(DateTime value) {
+    return DateTime(
+      value.year,
+      value.month,
+      value.day,
+      value.hour,
+      value.minute,
+      value.second,
+      value.millisecond,
+      value.microsecond,
+    );
+  }
+
+  /// Income between two dates. [end] is exclusive.
   int incomeBetween(DateTime start, DateTime end) {
     return currentUserTransactions
-        .where(
-          (t) =>
-              t.amount > 0 && !t.date.isBefore(start) && !t.date.isAfter(end),
-        )
+        .where((t) => t.amount > 0 && _isWithinRange(t.date, start, end))
         .fold(0, (sum, t) => sum + t.amount);
   }
 
-  /// Expense (absolute) between two dates (inclusive).
+  /// Expense (absolute) between two dates. [end] is exclusive.
   int expenseBetween(DateTime start, DateTime end) {
     return currentUserTransactions
-        .where(
-          (t) =>
-              t.amount < 0 && !t.date.isBefore(start) && !t.date.isAfter(end),
-        )
+        .where((t) => t.amount < 0 && _isWithinRange(t.date, start, end))
         .fold(0, (sum, t) => sum + t.amount.abs());
+  }
+
+  /// Transactions in a period using the same local date range as all charts.
+  List<TransactionModel> transactionsForPeriod(
+    ChartPeriod period, {
+    int offset = 0,
+  }) {
+    final range = dateRangeForPeriod(period, offset: offset);
+    return currentUserTransactions
+        .where((t) => _isWithinRange(t.date, range.start, range.end))
+        .toList(growable: false);
   }
 
   /// Expense breakdown by category between two dates.
@@ -222,7 +271,7 @@ class TransactionService extends ChangeNotifier {
   Map<String, int> expenseByCategoryBetween(DateTime start, DateTime end) {
     final map = <String, int>{};
     for (final t in currentUserTransactions.where(
-      (t) => t.amount < 0 && !t.date.isBefore(start) && !t.date.isAfter(end),
+      (t) => t.amount < 0 && _isWithinRange(t.date, start, end),
     )) {
       map.update(
         t.category,
@@ -233,11 +282,23 @@ class TransactionService extends ChangeNotifier {
     return map;
   }
 
+  /// Income breakdown by category between two dates.
+  /// Returns a map of categoryKey -> total income.
+  Map<String, int> incomeByCategoryBetween(DateTime start, DateTime end) {
+    final map = <String, int>{};
+    for (final t in currentUserTransactions.where(
+      (t) => t.amount > 0 && _isWithinRange(t.date, start, end),
+    )) {
+      map.update(t.category, (v) => v + t.amount, ifAbsent: () => t.amount);
+    }
+    return map;
+  }
+
   /// Income breakdown by walletId between two dates.
   Map<String, int> incomeByWalletBetween(DateTime start, DateTime end) {
     final map = <String, int>{};
     for (final t in currentUserTransactions.where(
-      (t) => t.amount > 0 && !t.date.isBefore(start) && !t.date.isAfter(end),
+      (t) => t.amount > 0 && _isWithinRange(t.date, start, end),
     )) {
       map.update(
         t.walletId ?? '',
@@ -248,16 +309,12 @@ class TransactionService extends ChangeNotifier {
     return map;
   }
 
-  static bool _sameMonth(DateTime a, DateTime b) =>
-      a.year == b.year && a.month == b.month;
-
   // --------------------------------------------------------------------------
   // Chart data helper methods
   // --------------------------------------------------------------------------
 
   /// Return an exclusive‑end date range for [period].
-  /// The [end] is midnight of the day *after* the last included day, so
-  /// `!t.date.isAfter(end)` correctly includes transactions on the last day.
+  /// The [end] is midnight of the day after the last included day.
   DateRange dateRangeForPeriod(ChartPeriod period, {int offset = 0}) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -301,25 +358,12 @@ class TransactionService extends ChangeNotifier {
       return _cachedPeriodBuckets[cacheKey]!;
     }
     final result = _computePeriodBuckets(period, offset: offset);
-    // ── Limit data points per period to prevent OOM ──
-    final int maxBuckets;
-    switch (period) {
-      case ChartPeriod.day:
-        maxBuckets = 7;
-      case ChartPeriod.week:
-        maxBuckets = 8;
-      case ChartPeriod.month:
-        maxBuckets = 6;
-      case ChartPeriod.year:
-        maxBuckets = 3;
-    }
-    final limited = result.take(maxBuckets).toList();
     // Keep only last 8 cache entries to avoid memory leak
     if (_cachedPeriodBuckets.length > 8) {
       _cachedPeriodBuckets.remove(_cachedPeriodBuckets.keys.first);
     }
-    _cachedPeriodBuckets[cacheKey] = limited;
-    return limited;
+    _cachedPeriodBuckets[cacheKey] = result;
+    return result;
   }
 
   String _snapshotDate() {
@@ -338,50 +382,34 @@ class TransactionService extends ChangeNotifier {
     switch (period) {
       case ChartPeriod.day:
         {
-          const names = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
-          final daysFromMonday = today.weekday - DateTime.monday;
-          final weekStart = today
-              .subtract(Duration(days: daysFromMonday))
-              .add(Duration(days: offset * 7));
-          for (int i = 0; i < 7; i++) {
-            final d = weekStart.add(Duration(days: i));
-            bucketDefs.add((d, names[d.weekday % 7]));
-          }
+          final targetDay = today.add(Duration(days: offset));
+          bucketDefs.add((targetDay, '${targetDay.day}'));
           break;
         }
       case ChartPeriod.week:
         {
           final daysFromMonday = today.weekday - DateTime.monday;
-          final thisMonday = today.subtract(Duration(days: daysFromMonday));
-          final startMonday = thisMonday.add(Duration(days: offset * 8 * 7));
-          for (int i = 7; i >= 0; i--) {
-            final ws = startMonday.subtract(Duration(days: i * 7));
-            bucketDefs.add((ws, 'W${8 - i}'));
+          final weekStart = today
+              .subtract(Duration(days: daysFromMonday))
+              .add(Duration(days: offset * 7));
+          const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+          for (int i = 0; i < 7; i++) {
+            final d = weekStart.add(Duration(days: i));
+            bucketDefs.add((d, names[i]));
           }
           break;
         }
       case ChartPeriod.month:
         {
-          const names = [
-            'Jan',
-            'Feb',
-            'Mar',
-            'Apr',
-            'May',
-            'Jun',
-            'Jul',
-            'Aug',
-            'Sep',
-            'Oct',
-            'Nov',
-            'Dec',
-          ];
-          final endMonth = DateTime(now.year, now.month + offset * 6, 1);
-          for (int i = 5; i >= 0; i--) {
-            final month = DateTime(endMonth.year, endMonth.month - i, 1);
-            final m = month.month;
-            final y = month.year;
-            bucketDefs.add((DateTime(y, m, 1), names[m - 1]));
+          final monthStart = DateTime(today.year, today.month + offset, 1);
+          final daysInMonth = DateTime(
+            monthStart.year,
+            monthStart.month + 1,
+            0,
+          ).day;
+          for (int i = 0; i < daysInMonth; i++) {
+            final d = monthStart.add(Duration(days: i));
+            bucketDefs.add((d, '${d.day}'));
           }
           break;
         }
@@ -396,6 +424,10 @@ class TransactionService extends ChangeNotifier {
         }
     }
 
+    var runningBalance = bucketDefs.isEmpty
+        ? 0
+        : balanceBefore(bucketDefs.first.$1);
+
     return bucketDefs.map((b) {
       final (start, label) = b;
       DateTime end;
@@ -404,10 +436,10 @@ class TransactionService extends ChangeNotifier {
           end = start.add(const Duration(days: 1));
           break;
         case ChartPeriod.week:
-          end = start.add(const Duration(days: 7));
+          end = start.add(const Duration(days: 1));
           break;
         case ChartPeriod.month:
-          end = DateTime(start.year, start.month + 1, 1);
+          end = start.add(const Duration(days: 1));
           break;
         case ChartPeriod.year:
           end = DateTime(start.year + 1, 1, 1);
@@ -416,15 +448,39 @@ class TransactionService extends ChangeNotifier {
 
       int income = 0, expense = 0;
       for (final t in currentUserTransactions) {
-        if (t.date.isBefore(start) || !t.date.isBefore(end)) continue;
+        if (!_isWithinRange(t.date, start, end)) continue;
         if (t.amount > 0) {
           income += t.amount;
         } else {
           expense += t.amount.abs();
         }
       }
-      return PeriodBucket(label: label, income: income, expense: expense);
+      runningBalance += income - expense;
+      return PeriodBucket(
+        label: label,
+        income: income,
+        expense: expense,
+        start: start,
+        balanceValue: runningBalance,
+      );
     }).toList();
+  }
+
+  /// Income breakdown by category for [period] (cached).
+  Map<String, int> incomeByCategoryForPeriod(
+    ChartPeriod period, {
+    int offset = 0,
+  }) {
+    final cacheKey = 'incCat_${period.name}_${offset}_${_snapshotDate()}';
+    final inner = _cachedIncomeByCategory;
+    if (inner.containsKey(cacheKey)) return inner[cacheKey]!;
+
+    final range = dateRangeForPeriod(period, offset: offset);
+    final result = incomeByCategoryBetween(range.start, range.end);
+
+    if (inner.length > 8) inner.remove(inner.keys.first);
+    inner[cacheKey] = result;
+    return result;
   }
 
   /// Expense breakdown by category for [period] (cached).
@@ -459,10 +515,36 @@ class TransactionService extends ChangeNotifier {
 
     for (final t in currentUserTransactions) {
       if (t.amount <= 0) continue;
-      if (t.date.isBefore(range.start) || !t.date.isBefore(range.end)) continue;
+      if (!_isWithinRange(t.date, range.start, range.end)) continue;
       final wallet = ws.byId(t.walletId);
       final type = wallet?.type.name ?? 'bank';
       map[type] = (map[type] ?? 0) + t.amount;
+    }
+
+    if (inner.length > 8) inner.remove(inner.keys.first);
+    inner[cacheKey] = map;
+    return map;
+  }
+
+  /// Expense breakdown by wallet type (bank / ewallet / cash) for [period] (cached).
+  Map<String, int> expenseByWalletTypeForPeriod(
+    ChartPeriod period, {
+    int offset = 0,
+  }) {
+    final cacheKey = 'expType_${period.name}_${offset}_${_snapshotDate()}';
+    final inner = _cachedExpenseByWalletType;
+    if (inner.containsKey(cacheKey)) return inner[cacheKey]!;
+
+    final range = dateRangeForPeriod(period, offset: offset);
+    final map = <String, int>{'bank': 0, 'ewallet': 0, 'cash': 0};
+    final ws = WalletService.instance;
+
+    for (final t in currentUserTransactions) {
+      if (t.amount >= 0) continue;
+      if (!_isWithinRange(t.date, range.start, range.end)) continue;
+      final wallet = ws.byId(t.walletId);
+      final type = wallet?.type.name ?? 'bank';
+      map[type] = (map[type] ?? 0) + t.amount.abs();
     }
 
     if (inner.length > 8) inner.remove(inner.keys.first);
@@ -515,7 +597,7 @@ class TransactionService extends ChangeNotifier {
       'title': transaction.title,
       'category': transaction.category,
       'amount': transaction.amount,
-      'date': transaction.date.toIso8601String(),
+      'date': TransactionModel.floatingLocalIso(transaction.date),
       if (transaction.walletId != null) 'wallet_id': transaction.walletId,
     });
     await fetchTransactions();
@@ -531,7 +613,7 @@ class TransactionService extends ChangeNotifier {
           'title': transaction.title,
           'category': transaction.category,
           'amount': transaction.amount,
-          'date': transaction.date.toIso8601String(),
+          'date': TransactionModel.floatingLocalIso(transaction.date),
           if (transaction.walletId != null) 'wallet_id': transaction.walletId,
         })
         .eq('id', transaction.id)
