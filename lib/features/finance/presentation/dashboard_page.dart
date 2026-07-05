@@ -31,9 +31,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   static const _onSurface = Color(0xFF1A1C1E);
   static const _onSurfaceVariant = Color(0xFF3C4A44);
   static const _primary = Color(0xFF00C49A);
-  static const _primaryDark = Color(0xFF006C53);
   static const _segmentBg = _surfaceContainer;
-  static const _segmentSelectedBg = Colors.white;
   static const _segmentBorder = _outlineVariant;
 
   bool _dataLoaded = false;
@@ -427,62 +425,79 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               borderRadius: BorderRadius.circular(18),
               border: Border.all(color: _segmentBorder.withValues(alpha: 0.55)),
             ),
-            child: Row(
-              children: ['Day', 'Week', 'Month'].asMap().entries.map((e) {
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final labels = ['Day', 'Week', 'Month'];
                 final periods = [
                   ChartPeriod.day,
                   ChartPeriod.week,
                   ChartPeriod.month,
                 ];
-                final isSelected = _period == periods[e.key];
-                return Expanded(
-                  child: GestureDetector(
-                    onTap: () {
-                      final nextPeriod = periods[e.key];
-                      if (_period == nextPeriod) return;
-                      setState(() {
-                        _period = nextPeriod;
-                        _offset = 0;
-                      });
-                      _runChartValueAnimation();
-                    },
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      curve: Curves.easeOutCubic,
-                      alignment: Alignment.center,
-                      padding: EdgeInsets.symmetric(
-                        vertical: Responsive.h(context, 10),
-                      ),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? _segmentSelectedBg
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(14),
-                        border: isSelected
-                            ? Border.all(color: _primary.withValues(alpha: 0.7))
-                            : null,
-                        boxShadow: isSelected
-                            ? [
-                                BoxShadow(
-                                  color: _primary.withValues(alpha: 0.12),
-                                  blurRadius: 12,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ]
-                            : null,
-                      ),
-                      child: Text(
-                        e.value,
-                        style: TextStyle(
-                          fontSize: Responsive.sp(context, 14),
-                          fontWeight: FontWeight.w600,
-                          color: isSelected ? _primaryDark : _onSurfaceVariant,
+                final selectedIndex = periods.indexOf(_period);
+                final tabWidth = constraints.maxWidth / labels.length;
+
+                return SizedBox(
+                  height: Responsive.h(context, 44),
+                  child: Stack(
+                    children: [
+                      AnimatedPositioned(
+                        duration: const Duration(milliseconds: 240),
+                        curve: Curves.easeOutCubic,
+                        left: tabWidth * selectedIndex,
+                        top: 0,
+                        bottom: 0,
+                        width: tabWidth,
+                        child: Container(
+                          margin: EdgeInsets.all(Responsive.w(context, 1)),
+                          decoration: BoxDecoration(
+                            color: _primary,
+                            borderRadius: BorderRadius.circular(15),
+                            boxShadow: [
+                              BoxShadow(
+                                color: _primary.withValues(alpha: 0.18),
+                                blurRadius: 14,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
+                      Row(
+                        children: labels.asMap().entries.map((entry) {
+                          final index = entry.key;
+                          final isSelected = selectedIndex == index;
+                          return Expanded(
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: () {
+                                final nextPeriod = periods[index];
+                                if (_period == nextPeriod) return;
+                                setState(() {
+                                  _period = nextPeriod;
+                                  _offset = 0;
+                                });
+                                _runChartValueAnimation();
+                              },
+                              child: Center(
+                                child: Text(
+                                  entry.value,
+                                  style: TextStyle(
+                                    fontSize: Responsive.sp(context, 14),
+                                    fontWeight: FontWeight.w600,
+                                    color: isSelected
+                                        ? Colors.white
+                                        : _onSurfaceVariant,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ],
                   ),
                 );
-              }).toList(),
+              },
             ),
           ),
         ],
