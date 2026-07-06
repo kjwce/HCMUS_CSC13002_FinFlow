@@ -57,13 +57,14 @@ class _MainShellState extends ConsumerState<MainShell> {
         child: IndexedStack(
           index: _index,
           children: [
-            HomeScreen(onAddTap: () => AddTransactionSheet.show(context)),
+            HomeScreen(
+              onAddTap: () => AddTransactionSheet.show(context),
+              onTabChanged: (i) => setState(() => _index = i),
+            ),
             const AiScreen(),
             const ScanScreen(),
             const CommunityScreen(),
-            ProfileScreen(
-              onTabChanged: (i) => setState(() => _index = i),
-            ),
+            ProfileScreen(onTabChanged: (i) => setState(() => _index = i)),
           ],
         ),
       ),

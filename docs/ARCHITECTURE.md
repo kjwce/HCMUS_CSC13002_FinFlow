@@ -60,6 +60,7 @@ Finance is the largest domain and includes:
 - Goal model/service/provider.
 - Transaction category definitions.
 - Add/edit transaction UI.
+- Transaction history UI with filters and quick insights.
 - Dashboard chart UI.
 - Wallet onboarding UI.
 
@@ -125,7 +126,7 @@ Responsibilities:
 - Track current user profile.
 - Sign in, sign up, verify OTP, reset password, update password.
 - Upload avatar to Supabase storage.
-- Update profile data.
+- Update profile data, including weekly budget and selected category.
 - Save selected category.
 - Sign out.
 

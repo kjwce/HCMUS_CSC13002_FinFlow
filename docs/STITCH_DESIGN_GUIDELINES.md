@@ -135,6 +135,13 @@ Home dashboard:
 - Goal summary card.
 - Period selector.
 - Recent transactions list.
+- Floating `View All` action centered above the bottom navigation bar.
+
+Transaction history:
+
+- Group transactions by day with clear section headers.
+- Provide quick insights for weekly spending and top category.
+- Show a clear empty state when filters remove all rows.
 
 Analytics dashboard:
 

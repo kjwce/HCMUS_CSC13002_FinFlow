@@ -8,7 +8,6 @@ import '../../../core/i18n/app_language.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/notification_bell.dart';
-import '../../auth/models/user_model.dart';
 import '../../auth/services/auth_service.dart';
 
 /// Edit Profile screen – shown when user taps "Edit Profile" from the profile tab.
@@ -20,7 +19,8 @@ import '../../auth/services/auth_service.dart';
 ///     rendered on top of the white card so it's never clipped
 ///   - Username and ID below avatar
 ///   - "account settings" section header
-///   - Form fields (Username, phone, email) with light-green bg, rounded 10px
+///   - Form fields (Username, phone, email, weekly budget) with light-green bg,
+///     rounded 10px
 ///   - Toggle switches: "Turn dark Theme", "push notifications"
 ///   - "Update Profile" button (green, rounded 30px)
 class EditProfileScreen extends StatefulWidget {
@@ -34,11 +34,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late TextEditingController _usernameController;
   late TextEditingController _phoneController;
   late TextEditingController _emailController;
+  late TextEditingController _weeklyBudgetController;
 
   bool _darkTheme = false;
   bool _pushNotifications = true;
   bool _isSaving = false;
   bool _isPicking = false;
+  bool _isFormattingWeeklyBudget = false;
   File? _avatarFile;
 
   @override
@@ -48,6 +50,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _usernameController = TextEditingController(text: u?.fullName ?? '');
     _phoneController = TextEditingController(text: u?.phone ?? '');
     _emailController = TextEditingController(text: u?.email ?? '');
+    final weeklyBudget = AuthService.instance.weeklyBudget;
+    _weeklyBudgetController = TextEditingController(
+      text: weeklyBudget > 0 ? _formatMoneyInput(weeklyBudget.toString()) : '',
+    );
+    _weeklyBudgetController.addListener(_formatWeeklyBudgetInput);
   }
 
   @override
@@ -55,6 +62,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _usernameController.dispose();
     _phoneController.dispose();
     _emailController.dispose();
+    _weeklyBudgetController.removeListener(_formatWeeklyBudgetInput);
+    _weeklyBudgetController.dispose();
     super.dispose();
   }
 
@@ -94,9 +103,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       children: [
                         GestureDetector(
                           onTap: () => Navigator.of(context).pop(),
-                          child: Icon(Icons.arrow_back,
-                              color: _profileText,
-                              size: Responsive.w(context, 24)),
+                          child: Icon(
+                            Icons.arrow_back,
+                            color: _profileText,
+                            size: Responsive.w(context, 24),
+                          ),
                         ),
                         const Spacer(),
                         Text(
@@ -168,6 +179,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           controller: _emailController,
                           hint: 'example@example.com',
                         ),
+                        SizedBox(height: Responsive.h(context, 20)),
+                        _buildFormField(
+                          label: 'Weekly Budget',
+                          controller: _weeklyBudgetController,
+                          hint: '500,000',
+                          keyboardType: TextInputType.number,
+                          suffixText: 'VND',
+                        ),
                         SizedBox(height: Responsive.h(context, 24)),
                         // push notifications toggle
                         _buildToggleRow(
@@ -181,8 +200,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         _buildToggleRow(
                           label: AppStrings.turnDarkTheme,
                           value: _darkTheme,
-                          onChanged: (v) =>
-                              setState(() => _darkTheme = v),
+                          onChanged: (v) => setState(() => _darkTheme = v),
                         ),
                         SizedBox(height: Responsive.h(context, 48)),
                         // Update Profile button
@@ -210,9 +228,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                 backgroundImage: _avatarFile != null
                                     ? FileImage(_avatarFile!)
                                     : (user?.avatarUrl != null
-                                        ? NetworkImage(user!.avatarUrl!)
-                                        : null),
-                                child: _avatarFile == null &&
+                                          ? NetworkImage(user!.avatarUrl!)
+                                          : null),
+                                child:
+                                    _avatarFile == null &&
                                         user?.avatarUrl == null
                                     ? Text(
                                         _firstLetter(displayName),
@@ -284,6 +303,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     required TextEditingController controller,
     required String hint,
     Color? textColor,
+    TextInputType? keyboardType,
+    String? suffixText,
   }) {
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 38)),
@@ -309,6 +330,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             ),
             child: TextField(
               controller: controller,
+              keyboardType: keyboardType,
               style: TextStyle(
                 fontFamily: 'Poppins',
                 fontWeight: FontWeight.w300,
@@ -317,6 +339,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               ),
               decoration: InputDecoration(
                 hintText: hint,
+                suffixText: suffixText,
+                suffixStyle: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontWeight: FontWeight.w500,
+                  fontSize: Responsive.sp(context, 11),
+                  color: AppColors.mutedGray,
+                ),
                 hintStyle: TextStyle(
                   fontFamily: 'Poppins',
                   fontWeight: FontWeight.w300,
@@ -401,9 +430,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   Future<void> _saveProfile() async {
     final name = _usernameController.text.trim();
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Username cannot be empty')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Username cannot be empty')));
       return;
     }
 
@@ -422,24 +451,53 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         email: _emailController.text.trim(),
         phone: _phoneController.text.trim(),
         avatarUrl: avatarUrl,
+        weeklyBudget: _parseMoneyInput(_weeklyBudgetController.text),
       );
       if (!mounted) return;
       setState(() => _isSaving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(AppStrings.saved)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(AppStrings.saved)));
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSaving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to save: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to save: $e')));
     }
   }
 
   static String _firstLetter(String name) {
     final t = name.trim();
     return t.isEmpty ? '?' : t.substring(0, 1).toUpperCase();
+  }
+
+  void _formatWeeklyBudgetInput() {
+    if (_isFormattingWeeklyBudget) return;
+    _isFormattingWeeklyBudget = true;
+    final digits = _weeklyBudgetController.text.replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) {
+      _weeklyBudgetController.text = '';
+    } else {
+      final formatted = _formatMoneyInput(digits);
+      _weeklyBudgetController.value = TextEditingValue(
+        text: formatted,
+        selection: TextSelection.collapsed(offset: formatted.length),
+      );
+    }
+    _isFormattingWeeklyBudget = false;
+  }
+
+  static int _parseMoneyInput(String value) {
+    final digits = value.replaceAll(RegExp(r'\D'), '');
+    return int.tryParse(digits) ?? 0;
+  }
+
+  static String _formatMoneyInput(String digits) {
+    return digits.replaceAllMapped(
+      RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+      (match) => '${match[1]},',
+    );
   }
 
   Future<void> _pickAvatar() async {
@@ -481,12 +539,13 @@ class _CustomToggle extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         width: Responsive.w(context, 31),
-        height: Responsive.w(context, 15), // using w() since this is a small value that should keep its aspect ratio
+        height: Responsive.w(
+          context,
+          15,
+        ), // using w() since this is a small value that should keep its aspect ratio
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(7.5),
-          color: value
-              ? AppColors.primaryGreen
-              : const Color(0xFFCCCCCC),
+          color: value ? AppColors.primaryGreen : const Color(0xFFCCCCCC),
         ),
         child: AnimatedAlign(
           duration: const Duration(milliseconds: 200),

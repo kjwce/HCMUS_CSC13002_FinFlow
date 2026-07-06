@@ -2,7 +2,7 @@
 
 ## Project Purpose
 
-FinFlow is a Flutter mobile app for personal finance tracking. It helps users record income and expenses, connect those transactions to wallets or bank accounts, monitor monthly spending against a budget limit, and view dashboard charts for financial insight.
+FinFlow is a Flutter mobile app for personal finance tracking. It helps users record income and expenses, connect those transactions to wallets or bank accounts, monitor monthly and weekly spending against budget limits, and view dashboard charts and transaction history for financial insight.
 
 The app is currently a mobile-first Flutter project backed by Supabase for authentication, database storage, and avatar storage.
 
@@ -18,20 +18,22 @@ The app is currently a mobile-first Flutter project backed by Supabase for authe
 - Supabase email/password authentication.
 - OTP verification for signup and password reset flows.
 - Wallet onboarding for banks, e-wallets, and cash.
-- Monthly budget setup.
+- Monthly budget setup and weekly budget setup/editing.
 - Home dashboard with:
   - Total balance.
   - Monthly expense.
   - Budget progress.
   - Saving goal summary.
   - Recent transactions.
+- Floating `View All` entry point to the Transaction History screen.
 - Add, edit, and delete transactions.
 - Wallet-aware transaction entry.
+- Transaction History screen with day grouping, filters, and quick insights.
 - Saving goal setup and progress display.
 - Analytics dashboard using charts.
 - Profile display and edit screen.
 - Avatar upload to Supabase storage.
-- Settings screen with budget editing and theme toggle.
+- Profile and settings screens with budget editing, weekly budget editing, and theme toggle.
 - Placeholder screens for AI assistant, chatbot, receipt scan, and community.
 
 ## Folder Structure
@@ -184,7 +186,9 @@ Bank and e-wallet presets reference these asset paths.
 - Avatar selection and upload.
 - Wallet onboarding.
 - Budget setup and budget editing.
+- Weekly budget editing from profile and transaction history.
 - Transaction CRUD.
+- Transaction History screen with daily grouping and quick insights.
 - Wallet-aware transaction entry.
 - Goal CRUD and progress display.
 - Home dashboard summary.
@@ -203,7 +207,7 @@ Bank and e-wallet presets reference these asset paths.
 
 ## Important Services
 
-- `AuthService`: Supabase init, auth, profile, avatar upload, selected category.
+- `AuthService`: Supabase init, auth, profile, avatar upload, selected category, weekly budget.
 - `TransactionService`: transaction CRUD and finance computations.
 - `WalletService`: wallet CRUD and initial balance totals.
 - `GoalService`: saving goal CRUD and progress.
@@ -215,7 +219,7 @@ Bank and e-wallet presets reference these asset paths.
 Main tables:
 
 - `profiles`: public user profile linked to `auth.users`.
-- `transactions`: user transactions with title, category, amount, date, optional wallet.
+- `transactions`: user transactions with name, category, amount, date, optional wallet.
 - `wallets`: user wallets/banks/e-wallets/cash with initial balance.
 - `goals`: saving goals.
 - `budgets`: per-category budget table currently present in schema but not the main app budget flow.

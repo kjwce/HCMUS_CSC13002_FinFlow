@@ -87,6 +87,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   final _amountController = TextEditingController();
   final _nameController = TextEditingController();
   var _isExpense = false;
+  var _isSavingTransaction = false;
   String? _selectedWalletId;
   String? _selectedWalletName;
   var _selectedCategory = 'Food';
@@ -321,55 +322,71 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
 
             // ── Confirm button ──
             ElevatedButton(
-              onPressed: () async {
-                final amountText = _amountController.text.trim();
-                final amount = int.tryParse(amountText.replaceAll(',', ''));
-                if (amount == null || amount <= 0) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(AppStrings.pleaseEnterValidAmount)),
-                  );
-                  return;
-                }
-                if (ref.read(authServiceProvider).currentUser == null) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(AppStrings.pleaseSignInFirst)),
-                  );
-                  return;
-                }
-
-                if (_selectedWalletId == null) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Please select an account')),
-                  );
-                  return;
-                }
-                try {
-                  final sign = _isExpense ? -1 : 1;
-                  final transactionName = _nameController.text.trim();
-                  await ref
-                      .read(transactionServiceProvider)
-                      .add(
-                        TransactionModel(
-                          id: 't_${DateTime.now().millisecondsSinceEpoch}',
-                          userId: ref.read(authServiceProvider).currentUser!.id,
-                          title: transactionName.isNotEmpty
-                              ? transactionName
-                              : _selectedCategory,
-                          category: _selectedCategory,
-                          amount: amount * sign,
-                          date: DateTime.now(),
-                          walletId: _selectedWalletId,
-                        ),
+              onPressed: _isSavingTransaction
+                  ? null
+                  : () async {
+                      final amountText = _amountController.text.trim();
+                      final amount = int.tryParse(
+                        amountText.replaceAll(',', ''),
                       );
-                  if (!context.mounted) return;
-                  Navigator.of(context).pop();
-                } catch (e) {
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(SnackBar(content: Text('$e')));
-                }
-              },
+                      if (amount == null || amount <= 0) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(AppStrings.pleaseEnterValidAmount),
+                          ),
+                        );
+                        return;
+                      }
+                      if (ref.read(authServiceProvider).currentUser == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(AppStrings.pleaseSignInFirst)),
+                        );
+                        return;
+                      }
+
+                      if (_selectedWalletId == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Please select an account'),
+                          ),
+                        );
+                        return;
+                      }
+                      try {
+                        setState(() => _isSavingTransaction = true);
+                        final sign = _isExpense ? -1 : 1;
+                        final transactionName = _nameController.text.trim();
+                        await ref
+                            .read(transactionServiceProvider)
+                            .add(
+                              TransactionModel(
+                                id: 't_${DateTime.now().millisecondsSinceEpoch}',
+                                userId: ref
+                                    .read(authServiceProvider)
+                                    .currentUser!
+                                    .id,
+                                name: transactionName.isNotEmpty
+                                    ? transactionName
+                                    : _selectedCategory,
+                                category: _selectedCategory,
+                                amount: amount * sign,
+                                date: DateTime.now(),
+                                walletId: _selectedWalletId,
+                              ),
+                            );
+                        if (!context.mounted) return;
+                        Navigator.of(context).pop();
+                      } catch (e) {
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(
+                          context,
+                        ).showSnackBar(SnackBar(content: Text('$e')));
+                      } finally {
+                        if (mounted) {
+                          setState(() => _isSavingTransaction = false);
+                        }
+                      }
+                    },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF1CA380),
                 foregroundColor: Colors.white,
@@ -378,13 +395,22 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                   borderRadius: BorderRadius.circular(8),
                 ),
               ),
-              child: Text(
-                'Confirm',
-                style: TextStyle(
-                  fontWeight: FontWeight.w500,
-                  fontSize: Responsive.sp(context, 16),
-                ),
-              ),
+              child: _isSavingTransaction
+                  ? SizedBox(
+                      width: Responsive.w(context, 20),
+                      height: Responsive.w(context, 20),
+                      child: const CircularProgressIndicator(
+                        strokeWidth: 2.2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : Text(
+                      'Confirm',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: Responsive.sp(context, 16),
+                      ),
+                    ),
             ),
             SizedBox(height: Responsive.h(context, 12)),
           ],

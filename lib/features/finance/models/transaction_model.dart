@@ -2,7 +2,7 @@ class TransactionModel {
   const TransactionModel({
     required this.id,
     required this.userId,
-    required this.title,
+    required this.name,
     required this.category,
     required this.amount,
     required this.date,
@@ -10,10 +10,13 @@ class TransactionModel {
   });
 
   factory TransactionModel.fromJson(Map<String, dynamic> json) {
+    final rawName = json['name'] ?? json['title'];
     return TransactionModel(
       id: json['id'] as String,
       userId: json['user_id'] as String,
-      title: json['title'] as String,
+      name: rawName is String && rawName.trim().isNotEmpty
+          ? rawName
+          : 'Transaction',
       category: json['category'] as String,
       amount: json['amount'] as int,
       date: _parseStoredDate(json),
@@ -24,7 +27,7 @@ class TransactionModel {
   Map<String, dynamic> toJson() => {
     'id': id,
     'user_id': userId,
-    'title': title,
+    'name': name,
     'category': category,
     'amount': amount,
     'date': floatingLocalIso(date),
@@ -64,7 +67,7 @@ class TransactionModel {
 
   final String id;
   final String userId;
-  final String title;
+  final String name;
   final String category;
   final int amount;
   final DateTime date;

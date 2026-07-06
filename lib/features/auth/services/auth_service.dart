@@ -21,12 +21,16 @@ class AuthService extends ChangeNotifier {
   /// In-memory fallback for selectedCategory when the DB column doesn't exist yet.
   /// Gets priority over [_currentUser.selectedCategory].
   String? _selectedCategoryOverride;
+  int? _weeklyBudgetOverride;
 
   UserModel? get currentUser => _currentUser;
 
   /// Effective selected category: local override wins, then DB value.
   String? get selectedCategory =>
       _selectedCategoryOverride ?? _currentUser?.selectedCategory;
+
+  int get weeklyBudget =>
+      _weeklyBudgetOverride ?? _currentUser?.weeklyBudget ?? 0;
 
   /// Initialize Supabase and start listening for auth state changes.
   /// Safe to call multiple times — subsequent calls are a no-op.
@@ -39,17 +43,17 @@ class AuthService extends ChangeNotifier {
       publishableKey: SupabaseConstants.anonKey,
     );
 
-    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen(
-      (authState) {
-        if (authState.session != null) {
-          // Session is present — signIn() / completeRegistration() already
-          // fetched the profile synchronously, so there is nothing to do.
-        } else {
-          _currentUser = null;
-          notifyListeners();
-        }
-      },
-    );
+    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((
+      authState,
+    ) {
+      if (authState.session != null) {
+        // Session is present — signIn() / completeRegistration() already
+        // fetched the profile synchronously, so there is nothing to do.
+      } else {
+        _currentUser = null;
+        notifyListeners();
+      }
+    });
 
     // Handle existing session (app restored from background)
     final session = Supabase.instance.client.auth.currentSession;
@@ -79,10 +83,7 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  Future<bool> signIn({
-    required String email,
-    required String password,
-  }) async {
+  Future<bool> signIn({required String email, required String password}) async {
     try {
       final response = await Supabase.instance.client.auth.signInWithPassword(
         email: email.trim().toLowerCase(),
@@ -156,10 +157,7 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  Future<bool> verifyOtp({
-    required String email,
-    required String token,
-  }) async {
+  Future<bool> verifyOtp({required String email, required String token}) async {
     try {
       final response = await Supabase.instance.client.auth.verifyOTP(
         email: email.trim().toLowerCase(),
@@ -198,14 +196,13 @@ class AuthService extends ChangeNotifier {
     final ext = file.path.split('.').last;
     final path = 'avatars/$userId.$ext';
 
-    await Supabase.instance.client.storage.from('avatars').upload(
-          path,
-          file,
-          fileOptions: FileOptions(upsert: true),
-        );
+    await Supabase.instance.client.storage
+        .from('avatars')
+        .upload(path, file, fileOptions: FileOptions(upsert: true));
 
-    final url =
-        Supabase.instance.client.storage.from('avatars').getPublicUrl(path);
+    final url = Supabase.instance.client.storage
+        .from('avatars')
+        .getPublicUrl(path);
     return '$url?t=${DateTime.now().millisecondsSinceEpoch}';
   }
 
@@ -216,38 +213,63 @@ class AuthService extends ChangeNotifier {
     int? budgetLimit,
     String? avatarUrl,
     String? selectedCategory,
+    int? weeklyBudget,
   }) async {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) throw Exception('No authenticated user');
     if (selectedCategory != null) {
       _selectedCategoryOverride = selectedCategory;
     }
+    if (weeklyBudget != null) {
+      _weeklyBudgetOverride = weeklyBudget;
+    }
 
     // 1. Update public.profiles — ensure non-nullable fields are always sent
-    final currentEmail = _currentUser?.email ??
-        Supabase.instance.client.auth.currentUser?.email;
-    try {
-      await Supabase.instance.client.from('profiles').upsert({
-        'id': userId,
-        'full_name': fullName,
-        'email': email ?? currentEmail,
-        if (phone != null) 'phone': phone,
-        if (budgetLimit != null) 'budget_limit': budgetLimit,
-        if (avatarUrl != null) 'avatar_url': avatarUrl,
-        if (selectedCategory != null) 'selected_category': selectedCategory,
-      });
-    } catch (e) {
-      debugPrint('updateProfile: column selected_category not available yet: $e');
+    final currentEmail =
+        _currentUser?.email ?? Supabase.instance.client.auth.currentUser?.email;
+    await Supabase.instance.client.from('profiles').upsert({
+      'id': userId,
+      'full_name': fullName,
+      'email': email ?? currentEmail,
+      if (phone != null) 'phone': phone,
+      if (budgetLimit != null) 'budget_limit': budgetLimit,
+      if (avatarUrl != null) 'avatar_url': avatarUrl,
+    });
+
+    if (selectedCategory != null) {
+      try {
+        await Supabase.instance.client
+            .from('profiles')
+            .update({'selected_category': selectedCategory})
+            .eq('id', userId);
+      } catch (e) {
+        debugPrint(
+          'updateProfile: column selected_category not available yet: $e',
+        );
+      }
+    }
+
+    if (weeklyBudget != null) {
+      try {
+        await Supabase.instance.client
+            .from('profiles')
+            .update({'weekly_budget': weeklyBudget})
+            .eq('id', userId);
+      } catch (e) {
+        debugPrint('updateProfile: column weekly_budget not available yet: $e');
+      }
     }
 
     // 2. Also update user_metadata in auth.users
     await Supabase.instance.client.auth.updateUser(
-      UserAttributes(
-        data: {'full_name': fullName},
-      ),
+      UserAttributes(data: {'full_name': fullName}),
     );
 
-    await _fetchCurrentUserProfile();
+    try {
+      await _fetchCurrentUserProfile();
+    } catch (e) {
+      debugPrint('updateProfile: profile refresh failed: $e');
+    }
     notifyListeners();
   }
 
@@ -261,7 +283,8 @@ class AuthService extends ChangeNotifier {
     try {
       await Supabase.instance.client
           .from('profiles')
-          .update({'selected_category': category}).eq('id', userId);
+          .update({'selected_category': category})
+          .eq('id', userId);
       await _fetchCurrentUserProfile();
       notifyListeners();
     } catch (e) {

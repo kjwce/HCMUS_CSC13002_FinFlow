@@ -17,6 +17,7 @@ class BudgetSetupScreen extends ConsumerStatefulWidget {
 
 class _BudgetSetupScreenState extends ConsumerState<BudgetSetupScreen> {
   final _controller = TextEditingController();
+  final _weeklyController = TextEditingController();
   bool _isSaving = false;
   var _isFormatting = false;
 
@@ -24,18 +25,27 @@ class _BudgetSetupScreenState extends ConsumerState<BudgetSetupScreen> {
   void initState() {
     super.initState();
     _controller.addListener(_formatAmount);
+    _weeklyController.addListener(_formatWeeklyAmount);
   }
 
   void _formatAmount() {
+    _formatController(_controller);
+  }
+
+  void _formatWeeklyAmount() {
+    _formatController(_weeklyController);
+  }
+
+  void _formatController(TextEditingController controller) {
     if (_isFormatting) return;
     _isFormatting = true;
-    final text = _controller.text.replaceAll(',', '');
+    final text = controller.text.replaceAll(',', '');
     final digits = text.replaceAll(RegExp(r'\D'), '');
     if (digits.isEmpty) {
-      _controller.text = '';
+      controller.text = '';
     } else {
       final formatted = _addCommas(digits);
-      _controller.value = TextEditingValue(
+      controller.value = TextEditingValue(
         text: formatted,
         selection: TextSelection.collapsed(offset: formatted.length),
       );
@@ -57,7 +67,9 @@ class _BudgetSetupScreenState extends ConsumerState<BudgetSetupScreen> {
   @override
   void dispose() {
     _controller.removeListener(_formatAmount);
+    _weeklyController.removeListener(_formatWeeklyAmount);
     _controller.dispose();
+    _weeklyController.dispose();
     super.dispose();
   }
 
@@ -68,7 +80,9 @@ class _BudgetSetupScreenState extends ConsumerState<BudgetSetupScreen> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 28)),
+            padding: EdgeInsets.symmetric(
+              horizontal: Responsive.w(context, 28),
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -138,7 +152,7 @@ class _BudgetSetupScreenState extends ConsumerState<BudgetSetupScreen> {
                       ),
                       SizedBox(height: Responsive.h(context, 28)),
 
-                      // Amount input
+                      // Monthly amount input
                       Container(
                         width: double.infinity,
                         height: Responsive.h(context, 56),
@@ -163,14 +177,55 @@ class _BudgetSetupScreenState extends ConsumerState<BudgetSetupScreen> {
                               color: AppColors.mutedGray.withValues(alpha: 0.4),
                             ),
                             border: InputBorder.none,
-                            contentPadding:
-                                EdgeInsets.symmetric(vertical: Responsive.h(context, 14)),
+                            contentPadding: EdgeInsets.symmetric(
+                              vertical: Responsive.h(context, 14),
+                            ),
                           ),
                         ),
                       ),
                       SizedBox(height: Responsive.h(context, 8)),
                       Text(
                         'VND / month',
+                        style: TextStyle(
+                          fontSize: Responsive.sp(context, 13),
+                          color: AppColors.mutedGray,
+                        ),
+                      ),
+                      SizedBox(height: Responsive.h(context, 18)),
+
+                      Container(
+                        width: double.infinity,
+                        height: Responsive.h(context, 52),
+                        decoration: BoxDecoration(
+                          color: AppColors.lightGreen.withValues(alpha: 0.65),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: TextField(
+                          controller: _weeklyController,
+                          keyboardType: TextInputType.number,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: Responsive.sp(context, 20),
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.darkText,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: '1,250,000',
+                            hintStyle: TextStyle(
+                              fontSize: Responsive.sp(context, 20),
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.mutedGray.withValues(alpha: 0.4),
+                            ),
+                            border: InputBorder.none,
+                            contentPadding: EdgeInsets.symmetric(
+                              vertical: Responsive.h(context, 13),
+                            ),
+                          ),
+                        ),
+                      ),
+                      SizedBox(height: Responsive.h(context, 8)),
+                      Text(
+                        'VND / week (optional)',
                         style: TextStyle(
                           fontSize: Responsive.sp(context, 13),
                           color: AppColors.mutedGray,
@@ -213,9 +268,7 @@ class _BudgetSetupScreenState extends ConsumerState<BudgetSetupScreen> {
 
                       // Skip link
                       TextButton(
-                        onPressed: _isSaving
-                            ? null
-                            : () => _goToDashboard(),
+                        onPressed: _isSaving ? null : () => _goToDashboard(),
                         child: Text(
                           'Skip for now',
                           style: TextStyle(
@@ -238,10 +291,12 @@ class _BudgetSetupScreenState extends ConsumerState<BudgetSetupScreen> {
   Future<void> _saveBudget() async {
     final raw = _controller.text.trim().replaceAll(',', '');
     final amount = int.tryParse(raw);
+    final weeklyRaw = _weeklyController.text.trim().replaceAll(',', '');
+    final weeklyAmount = weeklyRaw.isEmpty ? null : int.tryParse(weeklyRaw);
     if (amount == null || amount <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Please enter a valid amount')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Please enter a valid amount')));
       return;
     }
 
@@ -252,22 +307,24 @@ class _BudgetSetupScreenState extends ConsumerState<BudgetSetupScreen> {
       await AuthService.instance.updateProfile(
         fullName: user?.fullName ?? 'New FinFlow User',
         budgetLimit: amount,
+        weeklyBudget: weeklyAmount != null && weeklyAmount > 0
+            ? weeklyAmount
+            : null,
       );
       if (!mounted) return;
       _goToDashboard();
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSaving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to save: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to save: $e')));
     }
   }
 
   void _goToDashboard() {
-    Navigator.of(context).pushNamedAndRemoveUntil(
-      AppRoutes.dashboard,
-      (route) => false,
-    );
+    Navigator.of(
+      context,
+    ).pushNamedAndRemoveUntil(AppRoutes.dashboard, (route) => false);
   }
 }

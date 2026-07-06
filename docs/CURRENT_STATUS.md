@@ -15,9 +15,11 @@
 - Wallet onboarding for banks, e-wallets, and cash.
 - Budget setup after onboarding.
 - Budget limit editing in settings.
+- Weekly budget editing from both profile settings and transaction history.
 - Transaction add/edit/delete.
 - Wallet-aware transaction creation.
 - Home screen with balance, expense, budget progress, goal summary, and recent transactions.
+- Transaction History screen with daily grouping, filters, and weekly spending progress.
 - Saving goal creation, deletion, and progress display.
 - Analytics dashboard with multiple `fl_chart` charts.
 - Profile screen.
@@ -53,7 +55,6 @@
 
 ## Known Bugs
 
-- Editing a transaction currently creates the updated `TransactionModel` without preserving `walletId`.
 - Custom categories disappear after app restart because `CustomCategoryStore` is in-memory only.
 - Existing-session startup still routes to the login/signup option screen because `LaunchScreen` always goes to onboarding.
 - Finance services are `ChangeNotifier`s but exposed through plain `Provider`, so `ref.watch` alone may not rebuild consumers.

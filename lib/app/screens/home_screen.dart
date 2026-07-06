@@ -12,6 +12,7 @@ import '../../features/finance/models/transaction_model.dart';
 import '../../features/finance/presentation/dashboard_page.dart';
 import '../../features/finance/presentation/edit_transaction_screen.dart';
 import '../../features/finance/presentation/goal_setup_sheet.dart';
+import '../../features/finance/presentation/transaction_history_screen.dart';
 import '../../features/finance/providers/goal_provider.dart';
 import '../../features/finance/providers/transaction_provider.dart';
 import '../../features/finance/providers/wallet_provider.dart';
@@ -19,9 +20,10 @@ import '../../features/finance/services/goal_service.dart';
 import '../../features/finance/services/transaction_service.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
-  const HomeScreen({super.key, this.onAddTap});
+  const HomeScreen({super.key, this.onAddTap, this.onTabChanged});
 
   final VoidCallback? onAddTap;
+  final ValueChanged<int>? onTabChanged;
 
   @override
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
@@ -76,41 +78,54 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final ts = ref.watch(transactionServiceProvider);
-    return SingleChildScrollView(
-      child: Column(
-        children: [
-          _buildHeaderAndBalance(ts),
-          Transform.translate(
-            offset: Offset(0, -Responsive.h(context, 18)),
-            child: Container(
-              width: double.infinity,
-              clipBehavior: Clip.antiAlias,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(
-                  top: Radius.circular(Responsive.w(context, 42)),
+    final showViewAll = _transactionsForSelectedTab(ts).isNotEmpty;
+
+    return Stack(
+      children: [
+        SingleChildScrollView(
+          child: Column(
+            children: [
+              _buildHeaderAndBalance(ts),
+              Transform.translate(
+                offset: Offset(0, -Responsive.h(context, 18)),
+                child: Container(
+                  width: double.infinity,
+                  clipBehavior: Clip.antiAlias,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(Responsive.w(context, 42)),
+                    ),
+                  ),
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: Responsive.w(context, 20),
+                    ),
+                    child: Column(
+                      children: [
+                        SizedBox(height: Responsive.h(context, 14)),
+                        _buildGoalSummaryCard(),
+                        SizedBox(height: Responsive.h(context, 25)),
+                        _buildPeriodTabs(),
+                        SizedBox(height: Responsive.h(context, 25)),
+                        _buildTransactionList(ts),
+                        SizedBox(height: Responsive.h(context, 150)),
+                      ],
+                    ),
+                  ),
                 ),
               ),
-              child: Padding(
-                padding: EdgeInsets.symmetric(
-                  horizontal: Responsive.w(context, 20),
-                ),
-                child: Column(
-                  children: [
-                    SizedBox(height: Responsive.h(context, 14)),
-                    _buildGoalSummaryCard(),
-                    SizedBox(height: Responsive.h(context, 25)),
-                    _buildPeriodTabs(),
-                    SizedBox(height: Responsive.h(context, 25)),
-                    _buildTransactionList(ts),
-                    SizedBox(height: Responsive.h(context, 100)),
-                  ],
-                ),
-              ),
-            ),
+            ],
           ),
-        ],
-      ),
+        ),
+        if (showViewAll)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: Responsive.h(context, 18),
+            child: Center(child: _buildViewAllButton()),
+          ),
+      ],
     );
   }
 
@@ -1147,30 +1162,72 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           )
         else
-          ...(visibleTransactions.map(
-            (t) => Padding(
-              padding: EdgeInsets.only(bottom: Responsive.h(context, 15)),
-              child: _PressableScale(
-                pressedOverlayColor: const Color(0x33000000),
-                borderRadius: BorderRadius.circular(16),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => EditTransactionScreen(transaction: t),
+          Column(
+            children: visibleTransactions.map((t) {
+              return Padding(
+                padding: EdgeInsets.only(bottom: Responsive.h(context, 15)),
+                child: _PressableScale(
+                  pressedOverlayColor: const Color(0x33000000),
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => EditTransactionScreen(transaction: t),
+                    ),
+                  ),
+                  child: _buildTransactionItem(
+                    _iconForCategory(t.category),
+                    t.name,
+                    _formatTransactionTime(t.date),
+                    t.category,
+                    _formatSignedMoney(t.amount),
+                    _iconColorForCategory(t.category),
+                    t.amount > 0,
                   ),
                 ),
-                child: _buildTransactionItem(
-                  _iconForCategory(t.category),
-                  t.title,
-                  _formatTransactionTime(t.date),
-                  t.category,
-                  _formatSignedMoney(t.amount),
-                  _iconColorForCategory(t.category),
-                  t.amount > 0,
+              );
+            }).toList(),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildViewAllButton() {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: _navigateToTransactionHistory,
+        child: Ink(
+          padding: EdgeInsets.symmetric(
+            horizontal: Responsive.w(context, 16),
+            vertical: Responsive.h(context, 9),
+          ),
+          decoration: BoxDecoration(
+            color: const Color(0xFF00C49A).withValues(alpha: 0.86),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'View All',
+                style: TextStyle(
+                  fontFamily: _bodyFont,
+                  fontSize: Responsive.sp(context, 12),
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
                 ),
               ),
-            ),
-          )),
-      ],
+              SizedBox(width: Responsive.w(context, 5)),
+              Icon(
+                Icons.arrow_forward_rounded,
+                size: Responsive.w(context, 15),
+                color: Colors.white,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -1340,6 +1397,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         transitionDuration: const Duration(milliseconds: 300),
       ),
     );
+  }
+
+  Future<void> _navigateToTransactionHistory() async {
+    final tabIndex = await Navigator.of(context).push<int>(
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            const TransactionHistoryScreen(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return SlideTransition(
+            position:
+                Tween<Offset>(
+                  begin: const Offset(1.0, 0.0),
+                  end: Offset.zero,
+                ).animate(
+                  CurvedAnimation(
+                    parent: animation,
+                    curve: Curves.easeInOutCubic,
+                  ),
+                ),
+            child: child,
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 300),
+      ),
+    );
+    if (!mounted || tabIndex == null) return;
+    widget.onTabChanged?.call(tabIndex);
   }
 }
 

@@ -549,6 +549,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     final adjMin = (dataMin - pad).clamp(0.0, double.infinity);
     final adjMax = _safeMax(dataMax + pad, adjMin);
     if (adjMin == 0 && adjMax == 0) return _emptyPlaceholder();
+    final yAxisInterval = _niceAxisInterval(adjMax - adjMin, 4);
 
     return LineChart(
       LineChartData(
@@ -569,7 +570,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         gridData: FlGridData(
           show: true,
           drawVerticalLine: false,
-          horizontalInterval: _niceAxisInterval(adjMax - adjMin, 4),
+          horizontalInterval: yAxisInterval,
           getDrawingHorizontalLine: (_) => FlLine(
             color: Colors.grey.withValues(alpha: 0.18),
             strokeWidth: 1,
@@ -586,9 +587,13 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           leftTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
+              interval: yAxisInterval,
               reservedSize: 44,
               getTitlesWidget: (v, _) {
                 if (v == 0) return const SizedBox();
+                if (v >= adjMax - yAxisInterval * 0.35) {
+                  return const SizedBox();
+                }
                 return Padding(
                   padding: EdgeInsets.only(right: Responsive.w(context, 4)),
                   child: Text(
@@ -632,6 +637,9 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           touchTooltipData: LineTouchTooltipData(
             getTooltipColor: (_) => AppColors.darkGray.withValues(alpha: 0.92),
             tooltipRoundedRadius: 8,
+            tooltipMargin: 8,
+            fitInsideHorizontally: true,
+            fitInsideVertically: true,
             tooltipPadding: const EdgeInsets.symmetric(
               horizontal: 12,
               vertical: 8,
@@ -754,6 +762,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
     return _buildChartCard(
       title: 'Income by Category',
+      chartHeight: _donutChartHeight(catIncome, totalIncome),
       chart: totalIncome > 0
           ? _buildDonutBody(
               catIncome,
@@ -777,6 +786,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
     return _buildChartCard(
       title: 'Expense by Category',
+      chartHeight: _donutChartHeight(catExpense, totalExpense),
       chart: totalExpense > 0
           ? _buildDonutBody(catExpense, totalExpense, _touchedPieIndex, (i) {
               setState(() => _touchedPieIndex = i);
@@ -797,24 +807,12 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   }) {
     if (data.isEmpty) return _emptyPlaceholder();
 
-    // Sort descending
-    final entries = data.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-
-    // Merge small slices < 5% into "Khác"
-    final threshold = total * 0.05;
-    final mainEntries = <MapEntry<String, int>>[];
-    int otherSum = 0;
-    for (final e in entries) {
-      if (e.value < threshold && mainEntries.length >= 6) {
-        otherSum += e.value;
-      } else {
-        mainEntries.add(e);
-      }
-    }
-    if (otherSum > 0) {
-      mainEntries.add(MapEntry('Other', otherSum));
-    }
+    final mainEntries = _donutEntries(data, total);
+    final donutRadius = Responsive.w(context, 48);
+    final touchedDonutRadius = Responsive.w(context, 54);
+    final centerSpaceRadius = Responsive.w(context, 40);
+    final legendRows = _donutLegendRows(mainEntries.length);
+    final legendHeight = _donutLegendHeight(legendRows);
 
     final sections = mainEntries.asMap().entries.map((entry) {
       final i = entry.key;
@@ -834,7 +832,9 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       return PieChartSectionData(
         value: _chartValuesVisible ? e.value.toDouble() : e.value * 0.001,
         color: color,
-        radius: _chartValuesVisible ? (isTouched ? 65 : 55) : 0,
+        radius: _chartValuesVisible
+            ? (isTouched ? touchedDonutRadius : donutRadius)
+            : 0,
         title: _chartValuesVisible && isTouched
             ? '${pct.toStringAsFixed(1)}%'
             : '',
@@ -852,14 +852,15 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
     return Column(
       children: [
-        Expanded(
+        SizedBox(
+          height: Responsive.h(context, 210),
           child: Stack(
             alignment: Alignment.center,
             children: [
               PieChart(
                 PieChartData(
                   sections: sections,
-                  centerSpaceRadius: Responsive.w(context, 50),
+                  centerSpaceRadius: centerSpaceRadius,
                   sectionsSpace: 2,
                   startDegreeOffset: _chartValuesVisible ? -90 : -450,
                   pieTouchData: PieTouchData(
@@ -902,53 +903,102 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             ],
           ),
         ),
-        // Legend
-        Padding(
-          padding: EdgeInsets.only(top: Responsive.h(context, 8)),
-          child: Wrap(
-            alignment: WrapAlignment.center,
-            spacing: Responsive.w(context, 12),
-            runSpacing: Responsive.h(context, 4),
-            children: mainEntries.map((e) {
-              Color color;
-              if (useCategoryColors) {
-                color = e.key == 'Other'
-                    ? Colors.grey
-                    : TransactionCategory.fromKey(e.key).color;
-              } else {
-                color = _walletTypeColor(e.key);
-              }
-              final pct = (e.value / total * 100);
-              return Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: Responsive.w(context, 8),
-                    height: Responsive.w(context, 8),
-                    decoration: BoxDecoration(
-                      color: color,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  SizedBox(width: Responsive.w(context, 4)),
-                  Flexible(
-                    child: Text(
-                      '${e.key} ${pct.toStringAsFixed(1)}%',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: Responsive.sp(context, 10),
-                        color: AppColors.mutedGray,
-                      ),
-                    ),
-                  ),
-                ],
+        SizedBox(height: Responsive.h(context, 10)),
+        SizedBox(
+          height: Responsive.h(context, legendHeight),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final spacing = Responsive.w(context, 10);
+              final itemWidth = math.max(
+                (constraints.maxWidth - spacing) / 2,
+                Responsive.w(context, 120),
               );
-            }).toList(),
+
+              return SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                child: Wrap(
+                  spacing: spacing,
+                  runSpacing: Responsive.h(context, 8),
+                  children: mainEntries.map((e) {
+                    Color color;
+                    if (useCategoryColors) {
+                      color = e.key == 'Other'
+                          ? Colors.grey
+                          : TransactionCategory.fromKey(e.key).color;
+                    } else {
+                      color = _walletTypeColor(e.key);
+                    }
+                    final pct = (e.value / total * 100);
+                    return SizedBox(
+                      width: itemWidth,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: Responsive.w(context, 8),
+                            height: Responsive.w(context, 8),
+                            decoration: BoxDecoration(
+                              color: color,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          SizedBox(width: Responsive.w(context, 6)),
+                          Expanded(
+                            child: Text(
+                              '${e.key} ${pct.toStringAsFixed(1)}%',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: Responsive.sp(context, 10),
+                                color: AppColors.mutedGray,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+              );
+            },
           ),
         ),
       ],
     );
+  }
+
+  List<MapEntry<String, int>> _donutEntries(Map<String, int> data, int total) {
+    final entries = data.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final threshold = total * 0.05;
+    final mainEntries = <MapEntry<String, int>>[];
+    int otherSum = 0;
+
+    for (final e in entries) {
+      if (e.value < threshold && mainEntries.length >= 6) {
+        otherSum += e.value;
+      } else {
+        mainEntries.add(e);
+      }
+    }
+    if (otherSum > 0) {
+      mainEntries.add(MapEntry('Other', otherSum));
+    }
+    return mainEntries;
+  }
+
+  int _donutLegendRows(int itemCount) => math.max(1, (itemCount / 2).ceil());
+
+  double _donutLegendHeight(int rows) {
+    const rowHeight = 18.0;
+    const rowGap = 8.0;
+    return rows * rowHeight + math.max(0, rows - 1) * rowGap;
+  }
+
+  double _donutChartHeight(Map<String, int> data, int total) {
+    if (total <= 0 || data.isEmpty) return 200;
+    final rows = _donutLegendRows(_donutEntries(data, total).length);
+    return 210 + 10 + _donutLegendHeight(rows);
   }
 
   Color _walletTypeColor(String type) {
@@ -1102,6 +1152,9 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           touchTooltipData: BarTouchTooltipData(
             getTooltipColor: (_) => AppColors.darkGray.withValues(alpha: 0.92),
             tooltipRoundedRadius: 8,
+            tooltipMargin: 8,
+            fitInsideHorizontally: true,
+            fitInsideVertically: true,
             tooltipPadding: const EdgeInsets.symmetric(
               horizontal: 12,
               vertical: 8,
@@ -1277,6 +1330,9 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                   getTooltipColor: (_) =>
                       AppColors.darkGray.withValues(alpha: 0.92),
                   tooltipRoundedRadius: 8,
+                  tooltipMargin: 8,
+                  fitInsideHorizontally: true,
+                  fitInsideVertically: true,
                   tooltipPadding: const EdgeInsets.symmetric(
                     horizontal: 12,
                     vertical: 8,

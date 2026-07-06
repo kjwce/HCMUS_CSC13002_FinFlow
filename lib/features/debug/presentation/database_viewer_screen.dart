@@ -10,7 +10,8 @@ class DatabaseViewerScreen extends ConsumerStatefulWidget {
   const DatabaseViewerScreen({super.key});
 
   @override
-  ConsumerState<DatabaseViewerScreen> createState() => _DatabaseViewerScreenState();
+  ConsumerState<DatabaseViewerScreen> createState() =>
+      _DatabaseViewerScreenState();
 }
 
 class _DatabaseViewerScreenState extends ConsumerState<DatabaseViewerScreen> {
@@ -54,15 +55,15 @@ class _DatabaseViewerScreenState extends ConsumerState<DatabaseViewerScreen> {
       await ref.read(transactionServiceProvider).clearAll();
       if (!mounted) return;
       setState(() => _isClearing = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(AppStrings.dataCleared)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(AppStrings.dataCleared)));
     } catch (e) {
       if (!mounted) return;
       setState(() => _isClearing = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to clear: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to clear: $e')));
     }
   }
 
@@ -137,7 +138,7 @@ class _DatabaseViewerScreenState extends ConsumerState<DatabaseViewerScreen> {
             Card(
               child: ListTile(
                 leading: const Icon(Icons.receipt_long),
-                title: Text(transaction.title),
+                title: Text(transaction.name),
                 subtitle: Text(
                   '${transaction.id} | user=${transaction.userId} | ${transaction.category}',
                 ),

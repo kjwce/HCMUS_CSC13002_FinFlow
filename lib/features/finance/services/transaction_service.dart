@@ -594,7 +594,7 @@ class TransactionService extends ChangeNotifier {
     await Supabase.instance.client.from('transactions').insert({
       'id': transaction.id,
       'user_id': userId,
-      'title': transaction.title,
+      'name': transaction.name,
       'category': transaction.category,
       'amount': transaction.amount,
       'date': TransactionModel.floatingLocalIso(transaction.date),
@@ -610,7 +610,7 @@ class TransactionService extends ChangeNotifier {
     await Supabase.instance.client
         .from('transactions')
         .update({
-          'title': transaction.title,
+          'name': transaction.name,
           'category': transaction.category,
           'amount': transaction.amount,
           'date': TransactionModel.floatingLocalIso(transaction.date),
