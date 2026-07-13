@@ -7,18 +7,18 @@ class DecoratedPhoneScaffold extends StatelessWidget {
   const DecoratedPhoneScaffold({
     super.key,
     required this.child,
-    this.backgroundColor = AppColors.mintSoft,
+    this.backgroundColor,
     this.showCorners = true,
   });
 
   final Widget child;
-  final Color backgroundColor;
+  final Color? backgroundColor;
   final bool showCorners;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: backgroundColor,
+      backgroundColor: backgroundColor ?? context.finFlowColors.pageBackground,
       body: SafeArea(
         child: Stack(children: [if (showCorners) const _CornerBlobs(), child]),
       ),

@@ -4,6 +4,7 @@
         <item name="android:windowBackground">#0D8F5A</item>
     </style>
     <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
-        <item name="android:windowBackground">?android:colorBackground</item>
+        <item name="android:windowBackground">#F3FBF6</item>
+        <item name="android:forceDarkAllowed">false</item>
     </style>
 </resources>

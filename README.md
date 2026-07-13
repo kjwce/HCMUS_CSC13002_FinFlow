@@ -1,17 +1,51 @@
 # FinFlow
 
-FinFlow is a Flutter mobile base project for a personal finance assistant app.
+FinFlow is a Flutter mobile app for personal finance tracking. It helps users record income and expenses, connect transactions to wallets/bank accounts, monitor spending against budget limits, and view dashboard charts for financial insight.
+
+The app features **AI-powered natural language and voice transaction input** via Supabase Edge Functions (Google Gemini + Deepgram).
 
 ## Features
 
-- Launch and onboarding screens
-- Sign in, sign up, forgot password flow
-- Dashboard shell with 5-tab bottom navigation (Home, AI Analysis, Scan, Community, Profile)
-- Edit profile screen with form fields and toggles
-- Chatbot screen
-- Community screen with articles grid
-- Receipt scanning (placeholder)
-- SVG icons from Figma design
+### Core Finance
+- Transaction add/edit/delete with wallet awareness
+- Wallet onboarding: 27 banks, 9 e-wallets, and cash
+- Monthly and weekly budget tracking
+- Saving goals with progress display
+- Transaction history with daily grouping and filters
+
+### Quick Add (Text)
+- Type natural language like `"Ăn trưa 50k bằng MoMo hôm qua"`
+- AI parses amount, type, category, wallet, and date
+- Review before saving; missing fields sent to edit form
+- Supports Vietnamese, English, and mixed input
+
+### Quick Add (Voice)
+- Tap microphone to record transaction descriptions
+- Speech recognition via Deepgram Nova-3
+- 30-second recording limit
+- Transcript auto-submitted for parsing
+
+### Dashboard & Charts
+- 5 chart types using `fl_chart`:
+  - Income, Expense & Balance Line Chart
+  - Income/Expense by Category Donuts
+  - Income & Expense by Source (bank/ewallet/cash)
+  - Total Income vs Expense comparison
+- Period selector (Day / Week / Month) with offset navigation
+- Touch tooltips, animated transitions
+
+### Home Screen
+- Balance and expense summary with budget progress bar
+- Configurable goal summary metric (revenue/expense by period)
+- Category expense tracker
+- Quick Add card integrated in home
+- Recent transactions filtered by period (Daily / Weekly / Monthly)
+
+### Authentication
+- Email/password sign in and sign up
+- OTP verification for signup and password reset
+- OAuth stubs for Google, Facebook, Apple
+- Profile management with avatar upload
 
 ## Requirements
 
@@ -88,31 +122,108 @@ flutter build apk --debug
 
 The APK will be at `build\app\outputs\flutter-apk\app-debug.apk`.
 
+### 5. Supabase Edge Functions
+
+The app uses two Edge Functions for AI features:
+
+1. **`parse-natural-language-transaction`** — requires `GEMINI_API_KEY` secret
+2. **`speech-to-text`** — requires `DEEPGRAM_API_KEY` secret
+
+Deploy:
+```bash
+supabase functions deploy parse-natural-language-transaction
+supabase functions deploy speech-to-text
+supabase secrets set GEMINI_API_KEY=your_key
+supabase secrets set DEEPGRAM_API_KEY=your_key
+```
+
 ## Project Structure
 
 ```
 lib/
 ├── app/
-│   ├── screens/            # Main screens (Home, Profile, AI, Community)
-│   └── shell/              # App shell (MainShell, BottomNavBar)
+│   ├── screens/            # Main screens (Home, AI, Community, Profile)
+│   └── shell/              # App shell (MainShell, FinFlowApp, BottomNavBar)
 ├── core/
-│   ├── data/               # Local database
-│   ├── i18n/               # Internationalization strings
-│   └── theme/              # App colors & theme
+│   ├── config/             # Environment configuration
+│   ├── constants/          # Supabase URL/keys
+│   ├── i18n/               # AppLanguage, AppStrings (bilingual)
+│   ├── services/           # App init notifier
+│   ├── theme/              # AppColors, AppTheme, AppThemeManager
+│   ├── utils/              # Responsive helper
+│   └── widgets/            # NotificationBell, FinFlowLogo, etc.
 ├── features/
-│   ├── auth/               # Sign in, sign up, forgot password
-│   ├── chatbot/            # Chat screen
-│   ├── community/          # Community screen
+│   ├── auth/               # Sign in, sign up, OTP, password reset
+│   ├── budget/             # Budget setup screen
+│   ├── chatbot/            # Chat screen (placeholder)
+│   ├── community/          # Community screen (placeholder)
 │   ├── debug/              # Database viewer
-│   ├── finance/            # Transactions & budgets
+│   ├── finance/            # TRANSACTIONS, WALLETS, GOALS, QUICK ADD, DASHBOARD
+│   │   ├── models/         # TransactionModel, QuickAddDraft, WalletModel, etc.
+│   │   ├── presentation/   # Screens, sheets, widgets (QuickAddCard, etc.)
+│   │   ├── providers/      # Riverpod providers
+│   │   └── services/       # Services (incl. QuickAddService, QuickAddVoiceService)
+│   ├── launch/             # Launch and onboarding screens
 │   ├── profile/            # Edit profile screen
-│   ├── scan/               # Receipt scanning
+│   ├── scan/               # Receipt scanning (placeholder)
 │   └── settings/           # Settings screen
 assets/
-├── icons/                  # SVG icons from Figma
-├── *.png                   # Background cover images
-pubspec.yaml                # Project configuration
+├── icons/                  # SVG icons
+├── icons/home/             # Home-specific SVG icons
+├── logos/banks/            # 27 bank logos
+├── logos/ewallets/         # 9 e-wallet + cash + other logos
+├── fonts/                  # Manrope, Hanken Grotesk
+├── *.png                   # Cover/background images
+supabase/
+├── functions/
+│   ├── parse-natural-language-transaction/  # Gemini NL parser (TypeScript)
+│   └── speech-to-text/                      # Deepgram STT (TypeScript)
+└── migrations/             # SQL migrations
+scripts/                    # Test scripts for Edge Functions
+test/
+└── features/finance/       # Quick Add unit and widget tests
 ```
+
+## Packages Used
+
+| Package | Purpose |
+|---------|---------|
+| `flutter_riverpod` | State management / providers |
+| `supabase_flutter` | Auth, database, storage, Edge Functions |
+| `fl_chart` | Dashboard charts |
+| `flutter_svg` | SVG icon rendering |
+| `image_picker` | Avatar image selection |
+| `record` | Audio recording for voice Quick Add |
+| `visibility_detector` | Screen visibility tracking |
+| `sqflite` / `path` | Present but unused (cloud storage) |
+
+## Edge Functions
+
+### `parse-natural-language-transaction`
+- **Runtime:** Deno (TypeScript)
+- **AI:** Google Gemini 2.5 Flash
+- **Input:** Text + categories + wallets + locale
+- **Output:** Structured transaction data (type, amount, name, category, wallet, date, confidence, warnings)
+- **Auth:** Bearer token (Supabase JWT)
+
+### `speech-to-text`
+- **Runtime:** Deno (TypeScript)
+- **AI:** Deepgram Nova-3 (Vietnamese)
+- **Input:** Raw audio bytes (max 5MB)
+- **Output:** Text transcript
+- **Supported formats:** MP4, MPEG, WAV, AAC, OGG, WEBM, FLAC
+- **Auth:** Bearer token (Supabase JWT)
+
+## Testing
+
+```powershell
+flutter test
+```
+
+The test suite includes 40+ tests covering:
+- Quick Add service: response validation, wallet resolution, transfer detection, draft conversion
+- Quick Add voice service: recording lifecycle, permissions, transcription handling, file cleanup
+- Quick Add widget flow: review sheet, confirm/edit actions, voice controls, AddTransactionSheet prefill
 
 ## Troubleshooting
 
@@ -140,8 +251,15 @@ adb start-server
 ```
 - Or cold-boot the emulator from Android Studio's Device Manager
 
+### Edge Function errors
+- Check that `GEMINI_API_KEY` and `DEEPGRAM_API_KEY` are set in Supabase secrets
+- Verify the Edge Functions are deployed with `supabase functions list`
+- Check function logs in Supabase dashboard
+
 ## Notes
 
 - This project uses `flutter_svg` for rendering SVG icons from the Figma design.
 - The app uses `flutter_riverpod` for state management.
 - Icons are stored as SVG in `assets/icons/` and referenced via `SvgPicture.asset()`.
+- Custom categories are currently in-memory only (lost after app restart).
+- Supabase project URL and anon key are in `lib/core/constants/supabase_constants.dart`.

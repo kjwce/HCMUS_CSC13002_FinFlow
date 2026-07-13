@@ -13,6 +13,7 @@ import '../models/transaction_model.dart';
 import '../models/wallet_model.dart';
 import '../providers/transaction_provider.dart';
 import '../services/wallet_service.dart';
+import 'transaction_saved_screen.dart';
 
 /// Available icons for custom categories.
 const _customIcons = <IconData>[
@@ -63,16 +64,50 @@ const _customColors = <Color>[
 // =============================================================================
 
 class AddTransactionSheet extends ConsumerStatefulWidget {
-  const AddTransactionSheet({super.key});
+  const AddTransactionSheet({
+    super.key,
+    this.initialIsExpense,
+    this.initialAmount,
+    this.initialName,
+    this.initialCategoryKey,
+    this.initialWalletId,
+    this.initialDate,
+    this.fromQuickAdd = false,
+  });
 
-  static Future<void> show(BuildContext context) {
+  final bool? initialIsExpense;
+  final int? initialAmount;
+  final String? initialName;
+  final String? initialCategoryKey;
+  final String? initialWalletId;
+  final DateTime? initialDate;
+  final bool fromQuickAdd;
+
+  static Future<bool?> show(
+    BuildContext context, {
+    bool? initialIsExpense,
+    int? initialAmount,
+    String? initialName,
+    String? initialCategoryKey,
+    String? initialWalletId,
+    DateTime? initialDate,
+    bool fromQuickAdd = false,
+  }) {
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (_) => const AddTransactionSheet(),
+      builder: (_) => AddTransactionSheet(
+        initialIsExpense: initialIsExpense,
+        initialAmount: initialAmount,
+        initialName: initialName,
+        initialCategoryKey: initialCategoryKey,
+        initialWalletId: initialWalletId,
+        initialDate: initialDate,
+        fromQuickAdd: fromQuickAdd,
+      ),
     );
   }
 
@@ -93,10 +128,30 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   var _selectedCategory = 'Food';
   var _isFormatting = false;
   _AccountCategory? _selectedAcctCategory;
+  DateTime? _transactionDate;
 
   @override
   void initState() {
     super.initState();
+    _isExpense = widget.initialIsExpense ?? false;
+    _selectedCategory = widget.initialCategoryKey ?? 'Food';
+    _selectedWalletId = widget.initialWalletId;
+    _transactionDate = widget.initialDate;
+    _nameController.text = widget.initialName ?? '';
+    if (widget.initialAmount != null) {
+      _amountController.text = _addCommas(
+        widget.initialAmount!.abs().toString(),
+      );
+    }
+    final initialWallet = WalletService.instance.byId(widget.initialWalletId);
+    if (initialWallet != null && initialWallet.isActive) {
+      _selectedWalletName = initialWallet.name;
+      _selectedAcctCategory = switch (initialWallet.type) {
+        WalletType.bank => _AccountCategory.bank,
+        WalletType.ewallet => _AccountCategory.ewallet,
+        WalletType.cash => _AccountCategory.cash,
+      };
+    }
     _amountController.addListener(_formatAmount);
   }
 
@@ -370,12 +425,31 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                                     : _selectedCategory,
                                 category: _selectedCategory,
                                 amount: amount * sign,
-                                date: DateTime.now(),
+                                date: _transactionDate ?? DateTime.now(),
                                 walletId: _selectedWalletId,
                               ),
                             );
                         if (!context.mounted) return;
-                        Navigator.of(context).pop();
+                        Navigator.of(context).pushReplacement(
+                          MaterialPageRoute(
+                            builder: (_) => TransactionSavedScreen(
+                              transaction: TransactionModel(
+                                id: 't_${DateTime.now().millisecondsSinceEpoch}',
+                                userId: ref
+                                    .read(authServiceProvider)
+                                    .currentUser!
+                                    .id,
+                                name: transactionName.isNotEmpty
+                                    ? transactionName
+                                    : _selectedCategory,
+                                category: _selectedCategory,
+                                amount: amount * sign,
+                                date: _transactionDate ?? DateTime.now(),
+                                walletId: _selectedWalletId,
+                              ),
+                            ),
+                          ),
+                        );
                       } catch (e) {
                         if (!context.mounted) return;
                         ScaffoldMessenger.of(
@@ -595,7 +669,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                             p.logoAssetPath,
                             width: Responsive.w(context, 130),
                             height: Responsive.w(context, 130),
-                            errorBuilder: (_, __, ___) => Container(
+                            errorBuilder: (_, _, _) => Container(
                               width: Responsive.w(context, 130),
                               height: Responsive.w(context, 130),
                               decoration: BoxDecoration(

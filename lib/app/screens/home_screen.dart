@@ -1,22 +1,32 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../core/i18n/app_language.dart';
+import '../../core/theme/app_colors.dart';
 import '../../core/utils/responsive.dart';
 import '../../core/widgets/notification_bell.dart';
 import '../../features/auth/providers/auth_provider.dart';
 import '../../features/auth/services/auth_service.dart';
 import '../../features/finance/models/transaction_category.dart';
 import '../../features/finance/models/transaction_model.dart';
+import '../../features/finance/models/quick_add_draft_model.dart';
+import '../../features/finance/presentation/add_transaction_sheet.dart';
 import '../../features/finance/presentation/dashboard_page.dart';
 import '../../features/finance/presentation/edit_transaction_screen.dart';
 import '../../features/finance/presentation/goal_setup_sheet.dart';
+import '../../features/finance/presentation/quick_add_review_sheet.dart';
+import '../../features/finance/presentation/transaction_saved_screen.dart';
+import '../../features/finance/presentation/widgets/quick_add_card.dart';
 import '../../features/finance/presentation/transaction_history_screen.dart';
 import '../../features/finance/providers/goal_provider.dart';
 import '../../features/finance/providers/transaction_provider.dart';
 import '../../features/finance/providers/wallet_provider.dart';
 import '../../features/finance/services/goal_service.dart';
+import '../../features/finance/services/quick_add_service.dart';
+import '../../features/finance/services/quick_add_speech_recognition_service.dart';
 import '../../features/finance/services/transaction_service.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -38,6 +48,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _selectedTab = 2; // Monthly
   var _summaryMetric = _SummaryMetric.revenue;
   var _summaryPeriod = _SummaryPeriod.week;
+  final _quickAddController = TextEditingController();
+  var _isQuickAddParsing = false;
+  var _isQuickAddReviewOpen = false;
+  var _voiceState = _QuickAddVoiceState.idle;
+  var _voiceSession = 0;
+  var _voiceFinalHandled = false;
+  var _latestVoiceTranscript = '';
+  Timer? _voiceTimeout;
+
+  bool get _isVoiceRecording => _voiceState == _QuickAddVoiceState.listening;
+  bool get _isVoiceProcessing =>
+      _voiceState == _QuickAddVoiceState.initializing ||
+      _voiceState == _QuickAddVoiceState.processingFinal;
 
   @override
   void initState() {
@@ -70,6 +93,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void dispose() {
     TransactionService.instance.removeListener(_onTransactionsChanged);
     GoalService.instance.removeListener(_onTransactionsChanged);
+    _voiceTimeout?.cancel();
+    if (_voiceState != _QuickAddVoiceState.idle) {
+      unawaited(QuickAddSpeechRecognitionService.instance.cancelListening());
+    }
+    _quickAddController.dispose();
     super.dispose();
   }
 
@@ -92,7 +120,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   width: double.infinity,
                   clipBehavior: Clip.antiAlias,
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: context.finFlowColors.pageBackground,
                     borderRadius: BorderRadius.vertical(
                       top: Radius.circular(Responsive.w(context, 42)),
                     ),
@@ -107,6 +135,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         _buildGoalSummaryCard(),
                         SizedBox(height: Responsive.h(context, 25)),
                         _buildPeriodTabs(),
+                        SizedBox(height: Responsive.h(context, 25)),
+                        _buildQuickAddCard(),
                         SizedBox(height: Responsive.h(context, 25)),
                         _buildTransactionList(ts),
                         SizedBox(height: Responsive.h(context, 150)),
@@ -156,30 +186,37 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          AppStrings.welcomeBack,
-                          style: TextStyle(
-                            fontFamily: _headlineFont,
-                            fontSize: Responsive.sp(context, 20),
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF052224),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            AppStrings.welcomeBack,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontFamily: _headlineFont,
+                              fontSize: Responsive.sp(context, 20),
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF052224),
+                            ),
                           ),
-                        ),
-                        SizedBox(height: Responsive.h(context, 4)),
-                        Text(
-                          _greeting(),
-                          style: TextStyle(
-                            fontFamily: _bodyFont,
-                            fontSize: Responsive.sp(context, 14),
-                            fontWeight: FontWeight.w400,
-                            color: const Color(0xFF052224),
+                          SizedBox(height: Responsive.h(context, 4)),
+                          Text(
+                            _greeting(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontFamily: _bodyFont,
+                              fontSize: Responsive.sp(context, 14),
+                              fontWeight: FontWeight.w400,
+                              color: const Color(0xFF052224),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
+                    SizedBox(width: Responsive.w(context, 8)),
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -438,13 +475,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 color: Colors.black54,
               ),
               SizedBox(width: Responsive.w(context, 4)),
-              Text(
-                title,
-                style: TextStyle(
-                  fontFamily: _bodyFont,
-                  fontSize: Responsive.sp(context, 12),
-                  fontWeight: FontWeight.w400,
-                  color: const Color(0xFF093030),
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.center,
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    softWrap: false,
+                    style: TextStyle(
+                      fontFamily: _bodyFont,
+                      fontSize: Responsive.sp(context, 12),
+                      fontWeight: FontWeight.w400,
+                      color: const Color(0xFF093030),
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -1082,6 +1127,303 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
+  Widget _buildQuickAddCard() => QuickAddCard(
+    controller: _quickAddController,
+    isLoading: _isQuickAddParsing,
+    isRecording: _isVoiceRecording,
+    isVoiceProcessing: _isVoiceProcessing,
+    onSubmit: _submitQuickAdd,
+    onVoiceTap: _handleVoiceTap,
+  );
+
+  Future<void> _handleVoiceTap() async {
+    if (_isQuickAddParsing || _isQuickAddReviewOpen || _isVoiceProcessing) {
+      return;
+    }
+    if (_isVoiceRecording) {
+      await _stopVoiceListening();
+      return;
+    }
+
+    final session = ++_voiceSession;
+    _voiceFinalHandled = false;
+    _latestVoiceTranscript = '';
+    setState(() => _voiceState = _QuickAddVoiceState.initializing);
+    try {
+      final speech = QuickAddSpeechRecognitionService.instance;
+      final available = await speech.initialize(
+        onStatus: (status) => _handleVoiceStatus(session, status),
+        onError: (error) => _handleVoiceError(session, error),
+      );
+      if (!mounted || session != _voiceSession) return;
+      if (!available) {
+        throw const QuickAddSpeechException(
+          'RECOGNIZER_UNAVAILABLE',
+          'Speech recognition is unavailable.',
+        );
+      }
+      if (!speech.usesVietnameseLocale) {
+        _showQuickAddMessage(
+          AppLanguage.instance.locale == AppLocale.vietnamese
+              ? 'Không có nhận diện tiếng Việt; đang dùng ngôn ngữ hệ thống.'
+              : 'Vietnamese recognition is unavailable; using system locale.',
+        );
+      }
+      await speech.startListening(
+        onResult: (result) => _handleVoiceResult(session, result),
+      );
+      if (!mounted || session != _voiceSession) {
+        await speech.cancelListening();
+        return;
+      }
+      setState(() => _voiceState = _QuickAddVoiceState.listening);
+      _voiceTimeout?.cancel();
+      _voiceTimeout = Timer(
+        const Duration(seconds: 30),
+        () => _finishVoiceAfterStop(session, timedOut: true),
+      );
+    } on QuickAddSpeechException catch (error) {
+      _showVoiceErrorIfCurrent(session, error.code);
+    } catch (_) {
+      _showVoiceErrorIfCurrent(session, 'RECOGNIZER_UNAVAILABLE');
+    }
+  }
+
+  void _handleVoiceResult(int session, QuickAddSpeechResult result) {
+    if (!mounted || session != _voiceSession || _voiceFinalHandled) return;
+    final transcript = result.text.trim();
+    if (transcript.isNotEmpty) {
+      _latestVoiceTranscript = transcript;
+      _quickAddController.value = TextEditingValue(
+        text: transcript,
+        selection: TextSelection.collapsed(offset: transcript.length),
+      );
+    }
+    if (result.isFinal) {
+      unawaited(_submitFinalVoiceTranscript(session, transcript));
+    }
+  }
+
+  void _handleVoiceStatus(int session, String status) {
+    if (!mounted || session != _voiceSession || _voiceFinalHandled) return;
+    final normalized = status.toLowerCase();
+    if (normalized == 'done' || normalized == 'notlistening') {
+      _voiceTimeout?.cancel();
+      _voiceTimeout = Timer(
+        const Duration(milliseconds: 300),
+        () => _submitFinalVoiceTranscript(session, _latestVoiceTranscript),
+      );
+    }
+  }
+
+  void _handleVoiceError(int session, QuickAddSpeechException error) {
+    _showVoiceErrorIfCurrent(session, error.code);
+  }
+
+  Future<void> _stopVoiceListening() async {
+    if (!_isVoiceRecording || _isVoiceProcessing) return;
+    final session = _voiceSession;
+    _voiceTimeout?.cancel();
+    setState(() => _voiceState = _QuickAddVoiceState.processingFinal);
+    try {
+      await QuickAddSpeechRecognitionService.instance.stopListening();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      await _submitFinalVoiceTranscript(session, _latestVoiceTranscript);
+    } on QuickAddSpeechException catch (error) {
+      _showVoiceErrorIfCurrent(session, error.code);
+    } catch (_) {
+      _showVoiceErrorIfCurrent(session, 'RECOGNIZER_ERROR');
+    }
+  }
+
+  Future<void> _finishVoiceAfterStop(
+    int session, {
+    required bool timedOut,
+  }) async {
+    if (!mounted || session != _voiceSession || _voiceFinalHandled) return;
+    setState(() => _voiceState = _QuickAddVoiceState.processingFinal);
+    try {
+      await QuickAddSpeechRecognitionService.instance.stopListening();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      if (_latestVoiceTranscript.trim().isEmpty && timedOut) {
+        _showVoiceErrorIfCurrent(session, 'RECOGNITION_TIMEOUT');
+        return;
+      }
+      await _submitFinalVoiceTranscript(session, _latestVoiceTranscript);
+    } catch (_) {
+      _showVoiceErrorIfCurrent(session, 'RECOGNIZER_ERROR');
+    }
+  }
+
+  Future<void> _submitFinalVoiceTranscript(int session, String value) async {
+    if (!mounted || session != _voiceSession || _voiceFinalHandled) return;
+    final transcript = value.trim();
+    if (transcript.isEmpty) {
+      _showVoiceErrorIfCurrent(session, 'EMPTY_TRANSCRIPT');
+      return;
+    }
+    _voiceFinalHandled = true;
+    _voiceTimeout?.cancel();
+    _quickAddController.value = TextEditingValue(
+      text: transcript,
+      selection: TextSelection.collapsed(offset: transcript.length),
+    );
+    setState(() => _voiceState = _QuickAddVoiceState.processingFinal);
+    await Future<void>.delayed(Duration.zero);
+    if (!mounted || session != _voiceSession) return;
+    setState(() => _voiceState = _QuickAddVoiceState.parsing);
+    await _submitQuickAdd(transcript);
+  }
+
+  void _showVoiceErrorIfCurrent(int session, String code) {
+    if (!mounted || session != _voiceSession || _voiceFinalHandled) return;
+    _voiceFinalHandled = true;
+    _voiceTimeout?.cancel();
+    setState(() => _voiceState = _QuickAddVoiceState.error);
+    _showQuickAddMessage(_localizedVoiceError(code));
+    if (mounted && session == _voiceSession) {
+      setState(() => _voiceState = _QuickAddVoiceState.idle);
+    }
+  }
+
+  String _localizedVoiceError(String code) {
+    final vi = AppLanguage.instance.locale == AppLocale.vietnamese;
+    return switch (code) {
+      'MICROPHONE_PERMISSION_DENIED' || 'error_permission' =>
+        vi
+            ? 'Cần quyền microphone để nhập giao dịch bằng giọng nói.'
+            : 'Microphone permission is required for voice Quick Add.',
+      'EMPTY_TRANSCRIPT' || 'error_no_match' =>
+        vi
+            ? 'Không nhận diện được nội dung giọng nói.'
+            : 'No speech could be recognized.',
+      'RECOGNITION_TIMEOUT' || 'error_speech_timeout' =>
+        vi
+            ? 'Không nhận diện được giọng nói trong thời gian cho phép.'
+            : 'No speech was recognized before the timeout.',
+      'RECOGNIZER_UNAVAILABLE' =>
+        vi
+            ? 'Thiết bị không có dịch vụ nhận diện giọng nói khả dụng.'
+            : 'Speech recognition is unavailable on this device.',
+      _ =>
+        vi
+            ? 'Nhận diện giọng nói hiện không khả dụng. Vui lòng thử lại.'
+            : 'Speech recognition is unavailable. Please try again.',
+    };
+  }
+
+  Future<void> _submitQuickAdd(String input) async {
+    if (_isQuickAddParsing ||
+        _isQuickAddReviewOpen ||
+        _isVoiceRecording ||
+        _isVoiceProcessing) {
+      return;
+    }
+    final text = input.trim();
+    if (text.isEmpty) {
+      _showQuickAddMessage(
+        AppLanguage.instance.locale == AppLocale.vietnamese
+            ? 'Vui lòng nhập nội dung giao dịch.'
+            : 'Please enter a transaction.',
+      );
+      return;
+    }
+
+    setState(() => _isQuickAddParsing = true);
+    try {
+      final draft = await QuickAddService.instance.parse(text);
+      if (!mounted) return;
+      setState(() {
+        _isQuickAddParsing = false;
+        _isQuickAddReviewOpen = true;
+        if (_voiceState == _QuickAddVoiceState.parsing) {
+          _voiceState = _QuickAddVoiceState.idle;
+        }
+      });
+      final action = await QuickAddReviewSheet.show(
+        context,
+        draft: draft,
+        onConfirm: () => _confirmQuickAdd(draft),
+      );
+      if (!mounted) return;
+      _isQuickAddReviewOpen = false;
+
+      if (action == QuickAddReviewAction.confirmed) {
+        _quickAddController.clear();
+        if (!mounted) return;
+        // Reconstruct from draft for the saved screen (already saved by _confirmQuickAdd)
+        final userId = ref.read(authServiceProvider).currentUser?.id;
+        final savedTx = draft.toTransactionModel(
+          id: 't_${DateTime.now().millisecondsSinceEpoch}',
+          userId: userId ?? '',
+        );
+        if (!mounted) return;
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => TransactionSavedScreen(transaction: savedTx),
+          ),
+        );
+      } else if (action == QuickAddReviewAction.editDetails) {
+        final saved = await _openQuickAddDetails(draft);
+        if (!mounted) return;
+        if (saved == true) {
+          _quickAddController.clear();
+        }
+      }
+    } on QuickAddException catch (error) {
+      if (!mounted) return;
+      _showQuickAddMessage(error.message);
+    } catch (_) {
+      if (!mounted) return;
+      _showQuickAddMessage(
+        AppLanguage.instance.locale == AppLocale.vietnamese
+            ? 'Không thể phân tích giao dịch lúc này.'
+            : 'Unable to parse the transaction right now.',
+      );
+    } finally {
+      if (mounted &&
+          (_isQuickAddParsing || _voiceState == _QuickAddVoiceState.parsing)) {
+        setState(() {
+          _isQuickAddParsing = false;
+          if (_voiceState == _QuickAddVoiceState.parsing) {
+            _voiceState = _QuickAddVoiceState.idle;
+          }
+        });
+      }
+    }
+  }
+
+  Future<void> _confirmQuickAdd(QuickAddDraft draft) async {
+    final userId = ref.read(authServiceProvider).currentUser?.id;
+    if (userId == null) {
+      throw StateError('Not authenticated');
+    }
+    final transaction = draft.toTransactionModel(
+      id: 't_${DateTime.now().millisecondsSinceEpoch}',
+      userId: userId,
+    );
+    await ref.read(transactionServiceProvider).add(transaction);
+  }
+
+  Future<bool?> _openQuickAddDetails(QuickAddDraft draft) {
+    return AddTransactionSheet.show(
+      context,
+      initialIsExpense: draft.type == QuickAddTransactionType.expense,
+      initialAmount: draft.amount,
+      initialName: draft.name,
+      initialCategoryKey: draft.categoryKey,
+      initialWalletId: draft.walletId,
+      initialDate: draft.date,
+      fromQuickAdd: true,
+    );
+  }
+
+  void _showQuickAddMessage(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
   static const _months = [
     'Jan',
     'Feb',
@@ -1592,6 +1934,15 @@ enum _SummaryMetric {
 
   const _SummaryMetric(this.label);
   final String label;
+}
+
+enum _QuickAddVoiceState {
+  idle,
+  initializing,
+  listening,
+  processingFinal,
+  parsing,
+  error,
 }
 
 enum _SummaryPeriod {

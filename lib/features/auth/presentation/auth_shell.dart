@@ -47,10 +47,11 @@ class AuthShell extends StatelessWidget {
                       children: [
                         Text(
                           title,
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            color: AppColors.ink,
-                            fontWeight: FontWeight.w800,
-                          ),
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(
+                                color: context.finFlowColors.primaryText,
+                                fontWeight: FontWeight.w800,
+                              ),
                         ),
                         SizedBox(height: Responsive.h(context, 18)),
                         ...children,

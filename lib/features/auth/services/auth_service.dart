@@ -92,6 +92,7 @@ class AuthService extends ChangeNotifier {
       if (response.user == null) return false;
       await _fetchCurrentUserProfile();
       notifyListeners();
+
       return true;
     } on AuthException {
       return false;

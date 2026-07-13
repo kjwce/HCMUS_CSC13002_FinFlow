@@ -1,19 +1,35 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 
+import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/responsive.dart';
 import '../../auth/services/auth_service.dart';
+import '../models/community_post_model.dart';
 import '../providers/community_provider.dart';
+import '../utils/rich_text_formatter.dart';
 
-const _kComposerCategories = ['Budgeting', 'Saving', 'Debt-free', 'Investing', 'General'];
+const _kComposerCategories = [
+  'Budgeting',
+  'Saving',
+  'Debt-free',
+  'Investing',
+  'General',
+];
 
 /// Full-screen "New post" composer — mirrors the Threads-style layout:
 /// close button, author row with a community/category picker, a large
 /// text field, and a bottom formatting toolbar (bold/italic/underline/
 /// bullets/spoiler).
+///
+/// Pass [editPost] to enter edit mode for an existing post.
 class CommunityComposerScreen extends ConsumerStatefulWidget {
-  const CommunityComposerScreen({super.key});
+  const CommunityComposerScreen({super.key, this.editPost});
+
+  final CommunityPostModel? editPost;
 
   @override
   ConsumerState<CommunityComposerScreen> createState() =>
@@ -22,26 +38,27 @@ class CommunityComposerScreen extends ConsumerStatefulWidget {
 
 class _CommunityComposerScreenState
     extends ConsumerState<CommunityComposerScreen> {
-  final _controller = TextEditingController();
+  final _controller = MarkdownEditingController();
   final _focusNode = FocusNode();
+  XFile? _selectedImage;
 
-  String _category = _kComposerCategories.first;
+  late String _category;
   bool _anonymous = false;
   bool _isPosting = false;
 
-  static const _bgColor = Color(0xFFF9FBF8);
-  static const _headerBg = Color(0xFFD4F4E4);
-  static const _primaryGreen = Color(0xFF44BF99);
-  static const _textDark = Color(0xFF002117);
-  static const _textMuted = Color(0xFF8E918F);
-  static const _white = Color(0xFFFFFFFF);
+  bool get _isEditing => widget.editPost != null;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _focusNode.requestFocus();
-    });
+    final post = widget.editPost;
+    if (post != null) {
+      _category = post.category;
+      _anonymous = post.isAnonymous;
+      _controller.text = post.content;
+    } else {
+      _category = _kComposerCategories.first;
+    }
     _controller.addListener(() => setState(() {}));
   }
 
@@ -87,10 +104,24 @@ class _CommunityComposerScreenState
     _focusNode.requestFocus();
   }
 
+  Set<String> get _activeFormats => _controller.activeFormatsAt(
+    _controller.selection.isValid ? _controller.selection.start : 0,
+  );
+
+  Future<void> _pickImage() async {
+    final image = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+      maxWidth: 1800,
+    );
+    if (image != null && mounted) setState(() => _selectedImage = image);
+  }
+
   Future<void> _pickCategory() async {
+    final colors = context.finFlowColors;
     final picked = await showModalBottomSheet<String>(
       context: context,
-      backgroundColor: _white,
+      backgroundColor: colors.bottomSheetBackground,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -99,23 +130,39 @@ class _CommunityComposerScreenState
           mainAxisSize: MainAxisSize.min,
           children: [
             SizedBox(height: Responsive.h(context, 12)),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: colors.divider,
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            SizedBox(height: Responsive.h(context, 16)),
             Text(
-              'Community or topic',
+              'Choose a topic',
               style: TextStyle(
                 fontWeight: FontWeight.w700,
                 fontSize: Responsive.sp(context, 15),
-                color: _textDark,
+                color: colors.primaryText,
               ),
             ),
             SizedBox(height: Responsive.h(context, 8)),
-            for (final category in _kComposerCategories)
+            for (var i = 0; i < _kComposerCategories.length; i++) ...[
               ListTile(
-                title: Text(category),
-                trailing: category == _category
-                    ? const Icon(Icons.check, color: _primaryGreen)
+                leading: Icon(
+                  _categoryIcon(_kComposerCategories[i]),
+                  color: AppColors.accentTeal,
+                ),
+                title: Text(_kComposerCategories[i]),
+                trailing: _kComposerCategories[i] == _category
+                    ? const Icon(Icons.check, color: AppColors.primaryGreen)
                     : null,
-                onTap: () => Navigator.of(context).pop(category),
+                onTap: () => Navigator.of(context).pop(_kComposerCategories[i]),
               ),
+              if (i != _kComposerCategories.length - 1)
+                Divider(height: 1, indent: 56, color: colors.divider),
+            ],
             SizedBox(height: Responsive.h(context, 8)),
           ],
         ),
@@ -124,21 +171,48 @@ class _CommunityComposerScreenState
     if (picked != null) setState(() => _category = picked);
   }
 
+  IconData _categoryIcon(String category) => switch (category) {
+    'Budgeting' => Icons.savings_outlined,
+    'Saving' => Icons.account_balance_outlined,
+    'Debt-free' => Icons.money_off_outlined,
+    'Investing' => Icons.trending_up,
+    _ => Icons.forum_outlined,
+  };
+
   Future<void> _submit() async {
     final text = _controller.text.trim();
     if (text.isEmpty || _isPosting) return;
     setState(() => _isPosting = true);
     try {
-      await ref.read(communityServiceProvider).createPost(
-            content: text,
-            isAnonymous: _anonymous,
-            category: _category,
-          );
+      final service = ref.read(communityServiceProvider);
+      if (_isEditing) {
+        await service.editPost(
+          postId: widget.editPost!.id,
+          content: text,
+          category: _category,
+          isSpoiler: widget.editPost!.isSpoiler,
+        );
+      } else {
+        final postId = await service.createPost(
+          content: text,
+          isAnonymous: _anonymous,
+          category: _category,
+        );
+        if (_selectedImage != null) {
+          await service.addPostImage(postId: postId, image: _selectedImage!);
+        }
+        await service.fetchPosts();
+      }
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not post: $e')),
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            content: Text(
+              '${_isEditing ? "Could not edit" : "Could not post"}: $e',
+            ),
+          ),
         );
       }
     } finally {
@@ -149,105 +223,221 @@ class _CommunityComposerScreenState
   @override
   Widget build(BuildContext context) {
     final user = AuthService.instance.currentUser;
+    final colors = context.finFlowColors;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final canPost = _controller.text.trim().isNotEmpty && !_isPosting;
     final displayName = _anonymous ? 'Anonymous' : (user?.fullName ?? 'You');
 
     return Scaffold(
-      backgroundColor: _bgColor,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(canPost),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.all(Responsive.w(context, 16)),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildAuthorRow(displayName),
-                    SizedBox(height: Responsive.h(context, 12)),
-                    TextField(
-                      controller: _controller,
-                      focusNode: _focusNode,
-                      maxLines: null,
-                      minLines: 4,
-                      style: TextStyle(
-                        fontSize: Responsive.sp(context, 15),
-                        color: _textDark,
-                        height: 1.4,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: "What's new?",
-                        hintStyle: TextStyle(
-                          color: _textMuted,
-                          fontSize: Responsive.sp(context, 15),
-                        ),
-                        border: InputBorder.none,
-                      ),
-                    ),
+      backgroundColor: isDark ? colors.pageBackground : AppColors.mintSoft,
+      body: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: isDark
+              ? null
+              : RadialGradient(
+                  center: const Alignment(0.45, -0.72),
+                  radius: 0.42,
+                  colors: [
+                    AppColors.primaryGreen.withValues(alpha: 0.42),
+                    AppColors.dashboardHeaderBg.withValues(alpha: 0.9),
+                    AppColors.mint,
                   ],
+                  stops: const [0, 0.35, 1],
+                ),
+          color: isDark ? colors.pageBackground : null,
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(canPost),
+              Expanded(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    Responsive.w(context, 28),
+                    Responsive.h(context, 18),
+                    Responsive.w(context, 28),
+                    Responsive.h(context, 14),
+                  ),
+                  child: Column(
+                    children: [
+                      _buildAuthorRow(displayName, user?.avatarUrl),
+                      SizedBox(height: Responsive.h(context, 18)),
+                      AspectRatio(
+                        aspectRatio: 0.92,
+                        child: Container(
+                          clipBehavior: Clip.antiAlias,
+                          decoration: BoxDecoration(
+                            color: colors.surface,
+                            borderRadius: BorderRadius.circular(22),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Theme.of(
+                                  context,
+                                ).shadowColor.withValues(alpha: 0.12),
+                                blurRadius: 18,
+                                offset: const Offset(0, 7),
+                              ),
+                              BoxShadow(
+                                color: AppColors.accentTeal.withValues(
+                                  alpha: 0.08,
+                                ),
+                                blurRadius: 30,
+                                spreadRadius: 3,
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _controller,
+                                  focusNode: _focusNode,
+                                  expands: true,
+                                  maxLines: null,
+                                  minLines: null,
+                                  textAlignVertical: TextAlignVertical.top,
+                                  style: TextStyle(
+                                    fontSize: Responsive.sp(context, 15),
+                                    color: colors.primaryText,
+                                    height: 1.45,
+                                  ),
+                                  decoration: InputDecoration(
+                                    filled: true,
+                                    fillColor: Colors.transparent,
+                                    hintText: "What's on your mind?",
+                                    hintStyle: TextStyle(
+                                      color: colors.secondaryText,
+                                      fontSize: Responsive.sp(context, 16),
+                                    ),
+                                    border: InputBorder.none,
+                                    enabledBorder: InputBorder.none,
+                                    focusedBorder: InputBorder.none,
+                                    disabledBorder: InputBorder.none,
+                                    errorBorder: InputBorder.none,
+                                    focusedErrorBorder: InputBorder.none,
+                                    contentPadding: EdgeInsets.all(
+                                      Responsive.w(context, 20),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              if (_selectedImage != null)
+                                Padding(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: Responsive.w(context, 14),
+                                  ),
+                                  child: Stack(
+                                    alignment: Alignment.topRight,
+                                    children: [
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(12),
+                                        child: Image.file(
+                                          File(_selectedImage!.path),
+                                          height: Responsive.h(context, 120),
+                                          width: double.infinity,
+                                          fit: BoxFit.cover,
+                                        ),
+                                      ),
+                                      IconButton.filled(
+                                        onPressed: () => setState(
+                                          () => _selectedImage = null,
+                                        ),
+                                        icon: const Icon(Icons.close, size: 18),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const Spacer(),
+                      SizedBox(height: Responsive.h(context, 18)),
+                      _buildToolbar(),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            _buildToolbar(),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildHeader(bool canPost) {
+    final colors = context.finFlowColors;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      color: _headerBg,
+      decoration: BoxDecoration(
+        color: isDark ? colors.surface : AppColors.dashboardHeaderBg,
+        border: Border(bottom: BorderSide(color: colors.divider)),
+        boxShadow: [
+          BoxShadow(
+            color: Theme.of(context).shadowColor.withValues(alpha: 0.05),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       padding: EdgeInsets.symmetric(
         vertical: Responsive.h(context, 14),
         horizontal: Responsive.w(context, 16),
       ),
       child: Row(
         children: [
-          GestureDetector(
-            onTap: () => Navigator.of(context).pop(),
-            child: Icon(Icons.close, size: Responsive.w(context, 22), color: _textDark),
+          IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            tooltip: 'Close',
+            icon: Icon(
+              Icons.close,
+              size: Responsive.w(context, 22),
+              color: colors.primaryText,
+            ),
           ),
           Expanded(
             child: Text(
-              'New post',
+              _isEditing ? 'Edit post' : 'New post',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontWeight: FontWeight.w700,
                 fontSize: Responsive.sp(context, 16),
-                color: _textDark,
+                color: colors.primaryText,
               ),
             ),
           ),
-          GestureDetector(
-            onTap: canPost ? _submit : null,
-            child: Container(
-              padding: EdgeInsets.symmetric(
-                horizontal: Responsive.w(context, 16),
-                vertical: Responsive.h(context, 8),
-              ),
-              decoration: BoxDecoration(
-                color: canPost ? _primaryGreen : _textMuted.withValues(alpha: 0.35),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: _isPosting
-                  ? SizedBox(
-                      width: Responsive.w(context, 14),
-                      height: Responsive.w(context, 14),
-                      child: const CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: _white,
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: canPost ? _submit : null,
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: Responsive.w(context, 16),
+                  vertical: Responsive.h(context, 8),
+                ),
+                decoration: BoxDecoration(
+                  color: canPost ? AppColors.deepEmerald : colors.disabled,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: _isPosting
+                    ? SizedBox(
+                        width: Responsive.w(context, 14),
+                        height: Responsive.w(context, 14),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Theme.of(context).colorScheme.onPrimary,
+                        ),
+                      )
+                    : Text(
+                        _isEditing ? 'Save' : 'Post',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onPrimary,
+                          fontWeight: FontWeight.w700,
+                          fontSize: Responsive.sp(context, 13),
+                        ),
                       ),
-                    )
-                  : Text(
-                      'Post',
-                      style: TextStyle(
-                        color: _white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: Responsive.sp(context, 13),
-                      ),
-                    ),
+              ),
             ),
           ),
         ],
@@ -255,102 +445,143 @@ class _CommunityComposerScreenState
     );
   }
 
-  Widget _buildAuthorRow(String displayName) {
+  Widget _buildAuthorRow(String displayName, String? avatarUrl) {
+    final colors = context.finFlowColors;
+    final initial = displayName.trim().isEmpty
+        ? '?'
+        : displayName.trim()[0].toUpperCase();
     return Row(
       children: [
-        GestureDetector(
-          onTap: () => setState(() => _anonymous = !_anonymous),
-          child: CircleAvatar(
-            radius: Responsive.w(context, 20),
-            backgroundColor: _anonymous ? _textMuted : _primaryGreen,
-            child: Icon(
-              _anonymous ? Icons.visibility_off : Icons.person,
-              color: _white,
-              size: Responsive.w(context, 18),
-            ),
-          ),
+        CircleAvatar(
+          radius: Responsive.w(context, 20),
+          backgroundColor: _anonymous
+              ? AppColors.mutedGray
+              : AppColors.primaryGreen,
+          backgroundImage: !_anonymous && avatarUrl?.isNotEmpty == true
+              ? NetworkImage(avatarUrl!)
+              : null,
+          child: _anonymous
+              ? const Icon(Icons.visibility_off, color: Colors.white)
+              : avatarUrl?.isNotEmpty == true
+              ? null
+              : Text(
+                  initial,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
         ),
         SizedBox(width: Responsive.w(context, 10)),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              displayName,
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: Responsive.sp(context, 14),
-                color: _textDark,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                displayName,
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: Responsive.sp(context, 14),
+                  color: colors.primaryText,
+                ),
               ),
-            ),
-            SizedBox(height: Responsive.h(context, 2)),
-            GestureDetector(
-              onTap: _pickCategory,
-              child: Row(
-                children: [
-                  Text(
-                    _category,
-                    style: TextStyle(
-                      fontSize: Responsive.sp(context, 12.5),
-                      color: _textMuted,
-                    ),
+              SizedBox(height: Responsive.h(context, 2)),
+              InkWell(
+                onTap: _pickCategory,
+                borderRadius: BorderRadius.circular(999),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  child: Row(
+                    children: [
+                      Text(
+                        _category,
+                        style: TextStyle(
+                          fontSize: Responsive.sp(context, 12.5),
+                          color: AppColors.mutedGray,
+                        ),
+                      ),
+                      Icon(
+                        Icons.expand_more,
+                        size: Responsive.w(context, 16),
+                        color: AppColors.mutedGray,
+                      ),
+                    ],
                   ),
-                  Icon(Icons.chevron_right, size: Responsive.w(context, 16), color: _textMuted),
-                ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ],
     );
   }
 
   Widget _buildToolbar() {
-    return SafeArea(
-      top: false,
-      child: Container(
-        padding: EdgeInsets.symmetric(
-          horizontal: Responsive.w(context, 12),
-          vertical: Responsive.h(context, 8),
-        ),
-        decoration: BoxDecoration(
-          color: _white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 8,
-              offset: const Offset(0, -2),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            _ToolbarButton(
-              label: 'B',
-              bold: true,
-              onTap: () => _wrapSelection('**', '**'),
-            ),
-            _ToolbarButton(
-              label: 'I',
-              italic: true,
-              onTap: () => _wrapSelection('_', '_'),
-            ),
-            _ToolbarButton(
-              label: 'U',
-              underline: true,
-              onTap: () => _wrapSelection('~', '~'),
-            ),
-            _ToolbarIconButton(
-              icon: Icons.format_list_bulleted,
-              onTap: _insertBullet,
-            ),
-            const Spacer(),
-            _ToolbarIconButton(
-              icon: Icons.visibility_off_outlined,
-              tooltip: 'Mark as spoiler',
-              onTap: () => _wrapSelection('||', '||'),
-            ),
-          ],
-        ),
+    final colors = context.finFlowColors;
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: Responsive.w(context, 14),
+        vertical: Responsive.h(context, 8),
+      ),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(999),
+        boxShadow: [
+          BoxShadow(
+            color: Theme.of(context).shadowColor.withValues(alpha: 0.12),
+            blurRadius: 16,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          _ToolbarButton(
+            label: 'B',
+            bold: true,
+            active: _activeFormats.contains('bold'),
+            onTap: () => _wrapSelection('**', '**'),
+          ),
+          _ToolbarButton(
+            label: 'I',
+            italic: true,
+            active: _activeFormats.contains('italic'),
+            onTap: () => _wrapSelection('*', '*'),
+          ),
+          _ToolbarButton(
+            label: 'U',
+            underline: true,
+            active: _activeFormats.contains('underline'),
+            onTap: () => _wrapSelection('~', '~'),
+          ),
+          Container(
+            width: 1,
+            height: Responsive.h(context, 24),
+            margin: EdgeInsets.symmetric(horizontal: Responsive.w(context, 6)),
+            color: colors.divider,
+          ),
+          _ToolbarIconButton(
+            icon: Icons.format_list_bulleted,
+            onTap: _insertBullet,
+          ),
+          _ToolbarIconButton(
+            icon: Icons.image_outlined,
+            tooltip: 'Add image',
+            accent: true,
+            onTap: _pickImage,
+          ),
+          SizedBox(width: Responsive.w(context, 6)),
+          _ToolbarIconButton(
+            icon: _anonymous
+                ? Icons.visibility_off_outlined
+                : Icons.visibility_outlined,
+            tooltip: _anonymous ? 'Post with your profile' : 'Post anonymously',
+            accent: true,
+            onTap: _isEditing
+                ? () {}
+                : () => setState(() => _anonymous = !_anonymous),
+          ),
+        ],
       ),
     );
   }
@@ -363,6 +594,7 @@ class _ToolbarButton extends StatelessWidget {
     this.bold = false,
     this.italic = false,
     this.underline = false,
+    this.active = false,
   });
 
   final String label;
@@ -370,8 +602,7 @@ class _ToolbarButton extends StatelessWidget {
   final bool bold;
   final bool italic;
   final bool underline;
-
-  static const _textDark = Color(0xFF002117);
+  final bool active;
 
   @override
   Widget build(BuildContext context) {
@@ -381,17 +612,29 @@ class _ToolbarButton extends StatelessWidget {
         onTap();
       },
       radius: 22,
-      child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 10)),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: Responsive.sp(context, 17),
-            fontWeight: bold ? FontWeight.w800 : FontWeight.w600,
-            fontStyle: italic ? FontStyle.italic : FontStyle.normal,
-            decoration: underline ? TextDecoration.underline : null,
-            color: _textDark,
-          ),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        padding: EdgeInsets.symmetric(
+          horizontal: Responsive.w(context, 10),
+          vertical: Responsive.h(context, 7),
+        ),
+        decoration: BoxDecoration(
+          color: active
+              ? AppColors.primaryGreen.withValues(alpha: 0.18)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(
+          bold
+              ? Icons.format_bold
+              : italic
+              ? Icons.format_italic
+              : Icons.format_underlined,
+          size: Responsive.w(context, 23),
+          semanticLabel: label,
+          color: active
+              ? AppColors.deepEmerald
+              : context.finFlowColors.primaryText,
         ),
       ),
     );
@@ -403,13 +646,13 @@ class _ToolbarIconButton extends StatelessWidget {
     required this.icon,
     required this.onTap,
     this.tooltip,
+    this.accent = false,
   });
 
   final IconData icon;
   final VoidCallback onTap;
   final String? tooltip;
-
-  static const _textDark = Color(0xFF002117);
+  final bool accent;
 
   @override
   Widget build(BuildContext context) {
@@ -418,10 +661,25 @@ class _ToolbarIconButton extends StatelessWidget {
         HapticFeedback.selectionClick();
         onTap();
       },
-      radius: 22,
-      child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 10)),
-        child: Icon(icon, size: Responsive.w(context, 20), color: _textDark),
+      radius: 26,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        width: accent ? Responsive.w(context, 44) : Responsive.w(context, 38),
+        height: Responsive.w(context, 44),
+        decoration: BoxDecoration(
+          color: accent
+              ? AppColors.primaryGreen.withValues(alpha: 0.13)
+              : Colors.transparent,
+          shape: BoxShape.circle,
+        ),
+        alignment: Alignment.center,
+        child: Icon(
+          icon,
+          size: Responsive.w(context, accent ? 23 : 22),
+          color: accent
+              ? AppColors.mediumGreen
+              : context.finFlowColors.primaryText,
+        ),
       ),
     );
     if (tooltip == null) return button;

@@ -17,8 +17,9 @@ class SettingsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final themeColors = context.finFlowColors;
     return Scaffold(
-      backgroundColor: AppColors.dashboardBg,
+      backgroundColor: themeColors.pageBackground,
       bottomNavigationBar: const AppBottomNavBar(selectedIndex: 4),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -41,16 +42,15 @@ class SettingsScreen extends ConsumerWidget {
                 left: Responsive.w(context, 20),
                 child: GestureDetector(
                   onTap: () => Navigator.of(context).pop(),
-                  child: const Icon(Icons.arrow_back,
-                      color: _settingsText, size: 24),
+                  child: const Icon(
+                    Icons.arrow_back,
+                    color: _settingsText,
+                    size: 24,
+                  ),
                 ),
               ),
               // ── Notification bell (phải) ──
-              const Positioned(
-                top: 12,
-                right: 20,
-                child: NotificationBell(),
-              ),
+              const Positioned(top: 12, right: 20, child: NotificationBell()),
               // ── Title "Settings" ở giữa cover ──
               Positioned(
                 top: Responsive.h(context, 80),
@@ -71,9 +71,9 @@ class SettingsScreen extends ConsumerWidget {
               // ── White card ──
               Container(
                 margin: EdgeInsets.only(top: Responsive.h(context, 180)),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.only(
+                decoration: BoxDecoration(
+                  color: themeColors.surface,
+                  borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(40),
                     topRight: Radius.circular(40),
                   ),
@@ -141,7 +141,8 @@ class _DarkModeToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isDark = AppThemeManager.instance.isDark;
+    final colors = context.finFlowColors;
     return GestureDetector(
       onTap: () => AppThemeManager.instance.toggle(),
       behavior: HitTestBehavior.opaque,
@@ -152,7 +153,7 @@ class _DarkModeToggle extends StatelessWidget {
             height: Responsive.w(context, 31),
             child: Icon(
               isDark ? Icons.dark_mode : Icons.light_mode,
-              color: const Color(0xFF093030),
+              color: colors.primaryText,
               size: Responsive.w(context, 22),
             ),
           ),
@@ -164,13 +165,13 @@ class _DarkModeToggle extends StatelessWidget {
                 fontFamily: 'Poppins',
                 fontWeight: FontWeight.w500,
                 fontSize: Responsive.sp(context, 15),
-                color: const Color(0xFF363130),
+                color: colors.primaryText,
               ),
             ),
           ),
           Icon(
             isDark ? Icons.toggle_on : Icons.toggle_off_outlined,
-            color: const Color(0xFF093030),
+            color: colors.primaryText,
             size: Responsive.w(context, 28),
           ),
         ],
@@ -216,7 +217,11 @@ class _SettingsMenuRow extends StatelessWidget {
           SizedBox(
             width: Responsive.w(context, 31),
             height: Responsive.w(context, 31),
-            child: Icon(icon, color: effectiveColor, size: Responsive.w(context, 22)),
+            child: Icon(
+              icon,
+              color: effectiveColor,
+              size: Responsive.w(context, 22),
+            ),
           ),
           SizedBox(width: Responsive.w(context, 16)),
           Expanded(
@@ -230,7 +235,11 @@ class _SettingsMenuRow extends StatelessWidget {
               ),
             ),
           ),
-          Icon(Icons.chevron_right, color: const Color(0xFF093030), size: Responsive.w(context, 24)),
+          Icon(
+            Icons.chevron_right,
+            color: const Color(0xFF093030),
+            size: Responsive.w(context, 24),
+          ),
         ],
       ),
     );
@@ -311,13 +320,12 @@ class _SettingsMenuRow extends StatelessWidget {
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
               ),
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-              ),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
             ),
           ],
         ),
@@ -353,9 +361,9 @@ class _SettingsMenuRow extends StatelessWidget {
                 );
               } catch (e) {
                 if (!ctx.mounted) return;
-                ScaffoldMessenger.of(ctx).showSnackBar(
-                  SnackBar(content: Text('Failed: $e')),
-                );
+                ScaffoldMessenger.of(
+                  ctx,
+                ).showSnackBar(SnackBar(content: Text('Failed: $e')));
               }
             },
             child: const Text('Save'),

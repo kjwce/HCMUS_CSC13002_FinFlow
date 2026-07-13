@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme/app_colors.dart';
 import '../../core/utils/responsive.dart';
 import '../../features/auth/services/auth_service.dart';
 import '../../features/community/models/community_post_model.dart';
 import '../../features/community/presentation/community_composer_screen.dart';
 import '../../features/community/presentation/widgets/post_card.dart';
 import '../../features/community/providers/community_provider.dart';
+import '../../features/community/services/community_service.dart';
 import 'community_post_detail_screen.dart';
 
 // =============================================================================
-// COMMUNITY SCREEN — matches Figma node 1:1313 ("Financial advices")
+// COMMUNITY SCREEN — Deeper Mint Theme
+// Matches Stitch screen "Community Feed - Deeper Mint Theme"
 // =============================================================================
 
 class CommunityScreen extends ConsumerStatefulWidget {
@@ -23,21 +26,34 @@ class CommunityScreen extends ConsumerStatefulWidget {
 class _CommunityScreenState extends ConsumerState<CommunityScreen> {
   int _selectedTab = 0; // 0 = post, 1 = like, 2 = save
   bool _loaded = false;
+  late final CommunityService _communityService;
 
-  static const _bgColor = Color(0xFFF9FBF8);
-  static const _headerBg = Color(0xFFD4F4E4);
-  static const _primaryGreen = Color(0xFF44BF99);
-  static const _textDark = Color(0xFF002117);
+  // ── Deeper Mint Theme Palette ──
+  static const _headerBg = Color(0xFFF0F9F4);
+  static const _headerText = Color(0xFF006B52);
+  static const _primaryGreen = Color(0xFF00C49A);
   static const _textMuted = Color(0xFF8E918F);
   static const _white = Color(0xFFFFFFFF);
+  static const _tabActiveBg = Color(0xFF00C49A);
+  static const _tabActiveText = _white;
+  static const _cardShadow = Color(0xFF006C53);
 
   @override
   void initState() {
     super.initState();
+    _communityService = ref.read(communityServiceProvider);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await ref.read(communityServiceProvider).fetchPosts();
+      final service = _communityService;
+      service.subscribeToRealtime();
+      await service.fetchPosts();
       if (mounted) setState(() => _loaded = true);
     });
+  }
+
+  @override
+  void dispose() {
+    _communityService.disposeRealtime();
+    super.dispose();
   }
 
   Future<void> _refresh() async {
@@ -50,7 +66,12 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
       await ref.read(communityServiceProvider).toggleLike(post.id);
       if (mounted) setState(() {});
     } catch (_) {
-      if (mounted) setState(() {});
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not update this like.')),
+        );
+        setState(() {});
+      }
     }
   }
 
@@ -63,6 +84,48 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
     }
   }
 
+  Future<void> _deletePost(CommunityPostModel post) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete post'),
+        content: const Text('Are you sure you want to delete this post?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true && mounted) {
+      try {
+        await ref.read(communityServiceProvider).deletePost(post.id);
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Could not delete: $e')));
+        }
+      }
+    }
+  }
+
+  Future<void> _editPost(CommunityPostModel post) async {
+    if (AuthService.instance.currentUser == null) return;
+    final edited = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => CommunityComposerScreen(editPost: post),
+        fullscreenDialog: true,
+      ),
+    );
+    if (edited == true && mounted) setState(() {});
+  }
+
   void _openPost(CommunityPostModel post) {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -73,9 +136,9 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
 
   Future<void> _openComposer() async {
     if (AuthService.instance.currentUser == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Sign in to post.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Sign in to post.')));
       return;
     }
     final posted = await Navigator.of(context).push<bool>(
@@ -92,21 +155,21 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
   @override
   Widget build(BuildContext context) {
     final service = ref.watch(communityServiceProvider);
+    final colors = context.finFlowColors;
     final posts = switch (_selectedTab) {
       1 => service.likedPosts,
       2 => service.savedPosts,
       _ => service.posts,
     };
 
-    return Container(
-      color: _bgColor,
+    return ColoredBox(
+      color: colors.pageBackground,
       child: SafeArea(
         child: Column(
           children: [
             _buildHeader(),
-            SizedBox(height: Responsive.h(context, 16)),
             _buildSegmentedTabs(),
-            SizedBox(height: Responsive.h(context, 16)),
+            SizedBox(height: Responsive.h(context, 4)),
             Expanded(
               child: !_loaded && service.isLoading
                   ? const Center(child: CircularProgressIndicator())
@@ -115,17 +178,24 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
                       child: posts.isEmpty
                           ? _buildEmptyState()
                           : ListView.builder(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: Responsive.w(context, 16),
+                              padding: EdgeInsets.only(
+                                left: Responsive.w(context, 16),
+                                right: Responsive.w(context, 16),
+                                top: Responsive.h(context, 8),
+                                bottom: Responsive.h(context, 80),
                               ),
                               itemCount: posts.length,
                               itemBuilder: (_, i) {
                                 final post = posts[i];
                                 return CommunityPostCard(
                                   post: post,
+                                  currentUserId:
+                                      AuthService.instance.currentUser?.id,
                                   onTap: () => _openPost(post),
                                   onLikeTap: () => _toggleLike(post),
                                   onSaveTap: () => _toggleSave(post),
+                                  onEditTap: () => _editPost(post),
+                                  onDeleteTap: () => _deletePost(post),
                                 );
                               },
                             ),
@@ -138,35 +208,12 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
     );
   }
 
-  Widget _buildEmptyState() {
-    final message = switch (_selectedTab) {
-      1 => 'No liked posts yet.\nTap the heart on a post to save it here.',
-      2 => 'No saved posts yet.\nTap the bookmark on a post to save it here.',
-      _ => 'No posts yet.\nBe the first to share a money tip!',
-    };
-    return ListView(
-      children: [
-        SizedBox(height: Responsive.h(context, 80)),
-        Icon(Icons.forum_outlined,
-            size: Responsive.w(context, 40), color: _textMuted),
-        SizedBox(height: Responsive.h(context, 12)),
-        Text(
-          message,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: _textMuted,
-            fontSize: Responsive.sp(context, 13),
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildHeader() {
+    final colors = context.finFlowColors;
     return Container(
       color: _headerBg,
       padding: EdgeInsets.symmetric(
-        vertical: Responsive.h(context, 16),
+        vertical: Responsive.h(context, 14),
         horizontal: Responsive.w(context, 20),
       ),
       width: double.infinity,
@@ -174,27 +221,36 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
-            'Financial advices',
+            'Financial Advices',
             style: TextStyle(
-              fontFamily: 'Roboto',
-              fontWeight: FontWeight.w500,
+              fontFamily: 'Manrope',
+              fontWeight: FontWeight.w700,
               fontSize: Responsive.sp(context, 20),
-              color: _textDark,
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? colors.primaryText
+                  : _headerText,
             ),
           ),
           GestureDetector(
             onTap: _openComposer,
             child: Container(
-              width: Responsive.w(context, 36),
-              height: Responsive.h(context, 36),
-              decoration: const BoxDecoration(
-                color: _white,
+              width: Responsive.w(context, 40),
+              height: Responsive.w(context, 40),
+              decoration: BoxDecoration(
+                color: _primaryGreen,
                 shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: _cardShadow.withValues(alpha: 0.2),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
               child: Icon(
-                Icons.chat_bubble_outline,
-                size: Responsive.w(context, 18),
-                color: _primaryGreen,
+                Icons.chat_outlined,
+                size: Responsive.w(context, 20),
+                color: _headerText,
               ),
             ),
           ),
@@ -204,98 +260,186 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
   }
 
   Widget _buildSegmentedTabs() {
-    final tabs = ['post', 'like', 'save'];
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 20)),
+    final tabs = ['Post', 'Like', 'Save'];
+    final colors = context.finFlowColors;
+    return Container(
+      color: colors.pageBackground,
+      padding: EdgeInsets.symmetric(
+        horizontal: Responsive.w(context, 16),
+        vertical: Responsive.h(context, 10),
+      ),
       child: Container(
+        padding: EdgeInsets.all(Responsive.w(context, 3)),
         decoration: BoxDecoration(
-          color: _white,
-          borderRadius: BorderRadius.circular(2),
-          border: Border.all(color: _primaryGreen, width: 1),
+          color: colors.surface,
+          borderRadius: BorderRadius.circular(Responsive.w(context, 12)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.1),
-              blurRadius: 4,
+              color: _cardShadow.withValues(alpha: 0.08),
+              blurRadius: 6,
               offset: const Offset(0, 2),
             ),
           ],
         ),
-        child: Row(
-          children: List.generate(tabs.length, (i) {
-            final isActive = _selectedTab == i;
-            return Expanded(
-              child: GestureDetector(
-                onTap: () => setState(() => _selectedTab = i),
-                child: Container(
-                  padding:
-                      EdgeInsets.symmetric(vertical: Responsive.h(context, 10)),
-                  decoration: BoxDecoration(
-                    color: isActive ? _primaryGreen : _white,
-                    border: i < tabs.length - 1
-                        ? Border(
-                            right: BorderSide(color: _primaryGreen, width: 1),
-                          )
-                        : null,
-                  ),
-                  child: Text(
-                    tabs[i],
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontFamily: 'Roboto',
-                      fontWeight: FontWeight.w500,
-                      fontSize: Responsive.sp(context, 14),
-                      color: isActive ? _white : _primaryGreen,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final tabWidth = constraints.maxWidth / tabs.length;
+
+            return SizedBox(
+              height: Responsive.h(context, 40),
+              child: Stack(
+                children: [
+                  AnimatedPositioned(
+                    duration: const Duration(milliseconds: 240),
+                    curve: Curves.easeOutCubic,
+                    left: tabWidth * _selectedTab,
+                    top: 0,
+                    bottom: 0,
+                    width: tabWidth,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: _tabActiveBg,
+                        borderRadius: BorderRadius.circular(
+                          Responsive.w(context, 10),
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                  Row(
+                    children: List.generate(tabs.length, (i) {
+                      final isActive = _selectedTab == i;
+                      return Expanded(
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () => setState(() => _selectedTab = i),
+                            borderRadius: BorderRadius.circular(
+                              Responsive.w(context, 10),
+                            ),
+                            child: Center(
+                              child: AnimatedDefaultTextStyle(
+                                duration: const Duration(milliseconds: 180),
+                                curve: Curves.easeOut,
+                                style: TextStyle(
+                                  fontFamily: 'Hanken Grotesk',
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: Responsive.sp(context, 14),
+                                  color: isActive
+                                      ? _tabActiveText
+                                      : colors.primaryText,
+                                ),
+                                child: Text(tabs[i]),
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
+                  ),
+                ],
               ),
             );
-          }),
+          },
         ),
       ),
     );
   }
 
-  /// Tappable pill that opens the full-screen composer (bold/italic/
-  /// underline/bullet toolbar + spoiler blur), instead of an inline field.
+  Widget _buildEmptyState() {
+    final message = switch (_selectedTab) {
+      1 => 'No liked posts yet.\nTap the heart on a post to save it here.',
+      2 => 'No saved posts yet.\nTap the bookmark on a post to save it here.',
+      _ => 'No posts yet.\nBe the first to share a money tip!',
+    };
+    return ListView(
+      padding: EdgeInsets.only(top: Responsive.h(context, 40)),
+      children: [
+        Icon(
+          Icons.forum_outlined,
+          size: Responsive.w(context, 56),
+          color: _textMuted.withValues(alpha: 0.5),
+        ),
+        SizedBox(height: Responsive.h(context, 16)),
+        Text(
+          message,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontFamily: 'Hanken Grotesk',
+            fontSize: Responsive.sp(context, 14),
+            color: _textMuted,
+            height: 1.5,
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildComposeEntry() {
     final isSignedIn = AuthService.instance.currentUser != null;
-    return SafeArea(
-      top: false,
-      child: GestureDetector(
-        onTap: _openComposer,
-        child: Container(
-          margin: EdgeInsets.symmetric(
-            horizontal: Responsive.w(context, 16),
-            vertical: Responsive.h(context, 10),
-          ),
-          padding: EdgeInsets.symmetric(
-            horizontal: Responsive.w(context, 16),
-            vertical: Responsive.h(context, 12),
-          ),
-          decoration: BoxDecoration(
-            color: _headerBg.withValues(alpha: 0.6),
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: Responsive.w(context, 14),
-                backgroundColor: _primaryGreen,
-                child: Icon(Icons.person, size: Responsive.w(context, 15), color: _white),
-              ),
-              SizedBox(width: Responsive.w(context, 10)),
-              Expanded(
-                child: Text(
-                  isSignedIn ? 'Share a money tip...' : 'Sign in to post',
-                  style: TextStyle(
-                    color: _textMuted,
-                    fontSize: Responsive.sp(context, 13.5),
+    final colors = context.finFlowColors;
+    return Container(
+      color: colors.pageBackground,
+      padding: EdgeInsets.fromLTRB(
+        Responsive.w(context, 16),
+        Responsive.h(context, 4),
+        Responsive.w(context, 16),
+        Responsive.h(context, 10),
+      ),
+      child: Material(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(999),
+        child: InkWell(
+          onTap: _openComposer,
+          borderRadius: BorderRadius.circular(999),
+          child: Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: Responsive.w(context, 16),
+              vertical: Responsive.h(context, 12),
+            ),
+            decoration: BoxDecoration(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(Responsive.w(context, 24)),
+              boxShadow: [
+                BoxShadow(
+                  color: _cardShadow.withValues(alpha: 0.06),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: Responsive.w(context, 32),
+                  height: Responsive.w(context, 32),
+                  decoration: BoxDecoration(
+                    color: _primaryGreen,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.person,
+                    size: Responsive.w(context, 16),
+                    color: _white,
                   ),
                 ),
-              ),
-              Icon(Icons.edit_outlined, size: Responsive.w(context, 18), color: _primaryGreen),
-            ],
+                SizedBox(width: Responsive.w(context, 10)),
+                Expanded(
+                  child: Text(
+                    isSignedIn ? "What's on your mind?" : 'Sign in to post',
+                    style: TextStyle(
+                      fontFamily: 'Hanken Grotesk',
+                      fontSize: Responsive.sp(context, 14),
+                      color: colors.secondaryText,
+                    ),
+                  ),
+                ),
+                Icon(
+                  Icons.edit_outlined,
+                  size: Responsive.w(context, 18),
+                  color: _primaryGreen,
+                ),
+              ],
+            ),
           ),
         ),
       ),

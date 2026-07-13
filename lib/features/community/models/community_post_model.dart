@@ -13,6 +13,7 @@ class CommunityPostModel {
     this.authorAvatarUrl,
     this.isLikedByMe = false,
     this.isSavedByMe = false,
+    this.mediaUrls = const [],
   });
 
   factory CommunityPostModel.fromJson(Map<String, dynamic> json) {
@@ -30,16 +31,16 @@ class CommunityPostModel {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'user_id': userId,
-        'content': content,
-        'is_anonymous': isAnonymous,
-        'category': category,
-        'likes_count': likesCount,
-        'comments_count': commentsCount,
-        'created_at': createdAt.toIso8601String(),
-        'is_spoiler': isSpoiler,
-      };
+    'id': id,
+    'user_id': userId,
+    'content': content,
+    'is_anonymous': isAnonymous,
+    'category': category,
+    'likes_count': likesCount,
+    'comments_count': commentsCount,
+    'created_at': createdAt.toIso8601String(),
+    'is_spoiler': isSpoiler,
+  };
 
   final String id;
   final String userId;
@@ -58,31 +59,38 @@ class CommunityPostModel {
   /// Populated client-side from the current user's likes/saves.
   final bool isLikedByMe;
   final bool isSavedByMe;
+  final List<String> mediaUrls;
 
   String get displayName =>
       isAnonymous ? 'Anonymous' : (authorName ?? 'FinFlow user');
 
   CommunityPostModel copyWith({
+    String? content,
+    String? category,
+    bool? isSpoiler,
     String? authorName,
     String? authorAvatarUrl,
     int? likesCount,
     int? commentsCount,
     bool? isLikedByMe,
     bool? isSavedByMe,
+    List<String>? mediaUrls,
   }) {
     return CommunityPostModel(
       id: id,
       userId: userId,
-      content: content,
+      content: content ?? this.content,
       isAnonymous: isAnonymous,
-      category: category,
+      category: category ?? this.category,
       likesCount: likesCount ?? this.likesCount,
       commentsCount: commentsCount ?? this.commentsCount,
       createdAt: createdAt,
+      isSpoiler: isSpoiler ?? this.isSpoiler,
       authorName: authorName ?? this.authorName,
       authorAvatarUrl: authorAvatarUrl ?? this.authorAvatarUrl,
       isLikedByMe: isLikedByMe ?? this.isLikedByMe,
       isSavedByMe: isSavedByMe ?? this.isSavedByMe,
+      mediaUrls: mediaUrls ?? this.mediaUrls,
     );
   }
 }

@@ -27,8 +27,9 @@ class AppLanguage extends ChangeNotifier {
   }
 
   void toggle() {
-    _locale =
-        _locale == AppLocale.english ? AppLocale.vietnamese : AppLocale.english;
+    _locale = _locale == AppLocale.english
+        ? AppLocale.vietnamese
+        : AppLocale.english;
     notifyListeners();
   }
 }
@@ -45,16 +46,16 @@ class AppStrings {
 
   // -- General --
   static String get appName => 'FinFlow';
-  static String get appTagline => _isEn
-      ? 'Your personal finance assistant'
-      : 'Trợ lý tài chính cá nhân';
+  static String get appTagline =>
+      _isEn ? 'Your personal finance assistant' : 'Trợ lý tài chính cá nhân';
 
   // -- Auth screens --
   static String get signIn => _isEn ? 'Sign In' : 'Đăng nhập';
   static String get signUp => _isEn ? 'Sign Up' : 'Đăng ký';
   static String get signingIn => _isEn ? 'Signing In...' : 'Đang đăng nhập...';
   static String get creating => _isEn ? 'Creating...' : 'Đang tạo...';
-  static String get forgotPassword => _isEn ? 'Forgot password?' : 'Quên mật khẩu?';
+  static String get forgotPassword =>
+      _isEn ? 'Forgot password?' : 'Quên mật khẩu?';
   static String get resetPassword =>
       _isEn ? 'Reset password' : 'Đặt lại mật khẩu';
   static String get backToSignIn =>
@@ -76,33 +77,30 @@ class AppStrings {
       _isEn ? 'Email already registered' : 'Email đã được đăng ký';
   static String get emailNotFound =>
       _isEn ? 'Email not found' : 'Email không tồn tại';
-  static String get passwordTooShort =>
-      _isEn ? 'Password must be at least 6 characters'
-          : 'Mật khẩu phải có ít nhất 6 ký tự';
+  static String get passwordTooShort => _isEn
+      ? 'Password must be at least 6 characters'
+      : 'Mật khẩu phải có ít nhất 6 ký tự';
   static String get passwordsDoNotMatch =>
       _isEn ? 'Passwords do not match' : 'Mật khẩu không khớp';
   static String get registrationFailed =>
       _isEn ? 'Registration failed' : 'Đăng ký thất bại';
-  static String get createAccount =>
-      _isEn ? 'Create account' : 'Tạo tài khoản';
-  static String get checkEmailConfirmation =>
-      _isEn ? 'Please check your email to confirm your account'
-          : 'Vui lòng kiểm tra email để xác nhận tài khoản';
-  static String get signOut =>
-      _isEn ? 'Sign Out' : 'Đăng xuất';
+  static String get createAccount => _isEn ? 'Create account' : 'Tạo tài khoản';
+  static String get checkEmailConfirmation => _isEn
+      ? 'Please check your email to confirm your account'
+      : 'Vui lòng kiểm tra email để xác nhận tài khoản';
+  static String get signOut => _isEn ? 'Sign Out' : 'Đăng xuất';
 
   // -- Forgot password screen --
   static String get forgotPasswordTitle =>
       _isEn ? 'Forgot password' : 'Quên mật khẩu';
-  static String get enterEmailToReset =>
-      _isEn ? 'Enter your email to reset your password'
-          : 'Nhập email để đặt lại mật khẩu';
+  static String get enterEmailToReset => _isEn
+      ? 'Enter your email to reset your password'
+      : 'Nhập email để đặt lại mật khẩu';
 
   // -- Home --
   static String get monthlyBalance =>
       _isEn ? 'Monthly balance' : 'Số dư tháng này';
-  static String get totalBalance =>
-      _isEn ? 'Total Balance' : 'Tổng số dư';
+  static String get totalBalance => _isEn ? 'Total Balance' : 'Tổng số dư';
   static String get totalExpenseLabel =>
       _isEn ? 'Total Expense' : 'Tổng chi tiêu';
   static String get income => _isEn ? 'Income' : 'Thu nhập';
@@ -113,13 +111,19 @@ class AppStrings {
   static String get noTransactionsYet => _isEn
       ? 'No transactions yet.\nTap "Add" to record your first one.'
       : 'Chưa có giao dịch nào.\nNhấn "Thêm" để ghi lại giao dịch đầu tiên.';
-  static String get welcomeBack => _isEn ? 'Hi, Welcome Back' : 'Chào mừng trở lại';
-  static String get greetingMorning => _isEn ? 'Good Morning' : 'Chào buổi sáng';
-  static String get greetingAfternoon => _isEn ? 'Good Afternoon' : 'Chào buổi chiều';
+  static String get welcomeBack =>
+      _isEn ? 'Hi, Welcome Back' : 'Chào mừng trở lại';
+  static String get greetingMorning =>
+      _isEn ? 'Good Morning' : 'Chào buổi sáng';
+  static String get greetingAfternoon =>
+      _isEn ? 'Good Afternoon' : 'Chào buổi chiều';
   static String get greetingEvening => _isEn ? 'Good Evening' : 'Chào buổi tối';
-  static String get savingsOnGoals => _isEn ? 'Savings\nOn Goals' : 'Tiết kiệm\nMục tiêu';
-  static String get revenueLastWeek => _isEn ? 'Revenue Last Week' : 'Thu nhập tuần trước';
-  static String get foodLastWeek => _isEn ? 'Food Last Week' : 'Ăn uống tuần trước';
+  static String get savingsOnGoals =>
+      _isEn ? 'Savings\nOn Goals' : 'Tiết kiệm\nMục tiêu';
+  static String get revenueLastWeek =>
+      _isEn ? 'Revenue Last Week' : 'Thu nhập tuần trước';
+  static String get foodLastWeek =>
+      _isEn ? 'Food Last Week' : 'Ăn uống tuần trước';
   static String get daily => _isEn ? 'Daily' : 'Hàng ngày';
   static String get weekly => _isEn ? 'Weekly' : 'Hàng tuần';
   static String get monthly => _isEn ? 'Monthly' : 'Hàng tháng';
@@ -135,22 +139,20 @@ class AppStrings {
   static String get addTransaction =>
       _isEn ? 'Add Transaction' : 'Thêm giao dịch';
   static String get title => _isEn ? 'Title' : 'Tiêu đề';
-  static String get titleHint => _isEn ? 'e.g. Pho, Gas, Salary'
-      : 'VD: Ăn phở, Đổ xăng, Lương';
+  static String get titleHint =>
+      _isEn ? 'e.g. Pho, Gas, Salary' : 'VD: Ăn phở, Đổ xăng, Lương';
   static String get amountVND => _isEn ? 'Amount (VND)' : 'Số tiền (VND)';
   static String get amountHint => _isEn ? 'e.g. 50000' : 'VD: 50000';
   static String get category => _isEn ? 'Category' : 'Danh mục';
-  static String get addExpense =>
-      _isEn ? 'Add Expense' : 'Thêm chi tiêu';
+  static String get addExpense => _isEn ? 'Add Expense' : 'Thêm chi tiêu';
   static String get addIncome => _isEn ? 'Add Income' : 'Thêm thu nhập';
   static String get pleaseEnterTitle =>
       _isEn ? 'Please enter a title' : 'Vui lòng nhập tiêu đề';
   static String get pleaseEnterValidAmount =>
-      _isEn ? 'Please enter a valid amount'
-          : 'Vui lòng nhập số tiền hợp lệ';
-  static String get pleaseSignInFirst =>
-      _isEn ? 'Please sign in first to add a transaction'
-          : 'Vui lòng đăng nhập trước để thêm giao dịch';
+      _isEn ? 'Please enter a valid amount' : 'Vui lòng nhập số tiền hợp lệ';
+  static String get pleaseSignInFirst => _isEn
+      ? 'Please sign in first to add a transaction'
+      : 'Vui lòng đăng nhập trước để thêm giao dịch';
 
   // -- Bottom nav --
   static String get navHome => _isEn ? 'Home' : 'Trang chủ';
@@ -186,10 +188,8 @@ class AppStrings {
       _isEn ? 'Account settings' : 'Cài đặt tài khoản';
   static String get username => _isEn ? 'Username' : 'Tên người dùng';
   static String get phone => _isEn ? 'Phone' : 'Số điện thoại';
-  static String get emailAddress =>
-      _isEn ? 'Email address' : 'Địa chỉ email';
-  static String get turnDarkTheme =>
-      _isEn ? 'Turn dark Theme' : 'Chế độ tối';
+  static String get emailAddress => _isEn ? 'Email address' : 'Địa chỉ email';
+  static String get turnDarkTheme => _isEn ? 'Turn dark Theme' : 'Chế độ tối';
   static String get pushNotifications =>
       _isEn ? 'Push notifications' : 'thông báo đẩy';
   static String get updateProfile =>
@@ -204,18 +204,16 @@ class AppStrings {
       : 'Phân tích văn bản chi tiêu thành giao dịch.';
   static String get receiptScanning =>
       _isEn ? 'Receipt scanning' : 'Quét hoá đơn';
-  static String get receiptScanningDesc => _isEn
-      ? 'OCR bills and categorize items.'
-      : 'OCR hoá đơn và phân loại.';
+  static String get receiptScanningDesc =>
+      _isEn ? 'OCR bills and categorize items.' : 'OCR hoá đơn và phân loại.';
   static String get aiCoach => _isEn ? 'AI coach' : 'Huấn luyện viên AI';
   static String get aiCoachDesc => _isEn
       ? 'Budget warnings and spending suggestions.'
       : 'Cảnh báo ngân sách và gợi ý chi tiêu.';
   static String get chatAssistant =>
       _isEn ? 'Chat assistant' : 'Trợ lý trò chuyện';
-  static String get chatAssistantDesc => _isEn
-      ? 'Ask questions about your money.'
-      : 'Hỏi về tài chính của bạn.';
+  static String get chatAssistantDesc =>
+      _isEn ? 'Ask questions about your money.' : 'Hỏi về tài chính của bạn.';
 
   // -- Community --
   static String get community => _isEn ? 'Community' : 'Cộng đồng';
@@ -237,44 +235,39 @@ class AppStrings {
   static String get clear => _isEn ? 'Clear' : 'Xoá';
   static String get dataCleared =>
       _isEn ? 'All data cleared!' : 'Đã xoá toàn bộ dữ liệu!';
-  static String get exportedTo =>
-      _isEn ? 'Exported to:' : 'Đã xuất ra:';
-  static String get exportFailed =>
-      _isEn ? 'Export failed:' : 'Xuất thất bại:';
+  static String get exportedTo => _isEn ? 'Exported to:' : 'Đã xuất ra:';
+  static String get exportFailed => _isEn ? 'Export failed:' : 'Xuất thất bại:';
   static String get records => _isEn ? 'records' : 'bản ghi';
 
   // -- Verification screen --
-  static String get verifyEmail =>
-      _isEn ? 'Verify Email' : 'Xác thực Email';
+  static String get verifyEmail => _isEn ? 'Verify Email' : 'Xác thực Email';
   static String get verifyEmailDesc => _isEn
       ? 'Please enter the 4-digit code sent to your email'
       : 'Vui lòng nhập mã 4 chữ số đã gửi đến email của bạn';
   static String get verify => _isEn ? 'Verify' : 'Xác thực';
-  static String get resendCode =>
-      _isEn ? 'Resend code' : 'Gửi lại mã';
-  static String get otpSent =>
-      _isEn ? 'OTP code sent to your email!' : 'Mã OTP đã gửi đến email của bạn!';
+  static String get resendCode => _isEn ? 'Resend code' : 'Gửi lại mã';
+  static String get otpSent => _isEn
+      ? 'OTP code sent to your email!'
+      : 'Mã OTP đã gửi đến email của bạn!';
   static String get otpVerified =>
       _isEn ? 'Email verified successfully!' : 'Xác thực email thành công!';
   static String get invalidOtp =>
       _isEn ? 'Invalid verification code' : 'Mã xác thực không đúng';
 
   // -- New password screen --
-  static String get newPassword =>
-      _isEn ? 'New Password' : 'Mật khẩu mới';
-  static String get newPasswordDesc => _isEn
-      ? 'Enter your new password'
-      : 'Nhập mật khẩu mới của bạn';
-  static String get newPasswordLabel =>
-      _isEn ? 'New Password' : 'Mật khẩu mới';
+  static String get newPassword => _isEn ? 'New Password' : 'Mật khẩu mới';
+  static String get newPasswordDesc =>
+      _isEn ? 'Enter your new password' : 'Nhập mật khẩu mới của bạn';
+  static String get newPasswordLabel => _isEn ? 'New Password' : 'Mật khẩu mới';
   static String get confirmNewPasswordLabel =>
       _isEn ? 'Confirm Password' : 'Xác nhận mật khẩu';
   static String get reset => _isEn ? 'Reset' : 'Đặt lại';
-  static String get passwordResetSuccess =>
-      _isEn ? 'Password has been reset successfully!' : 'Mật khẩu đã được đặt lại thành công!';
-  static String get checkEmailToReset =>
-      _isEn ? 'Check your email for the password reset link'
-          : 'Kiểm tra email để nhận link đặt lại mật khẩu';
+  static String get passwordResetSuccess => _isEn
+      ? 'Password has been reset successfully!'
+      : 'Mật khẩu đã được đặt lại thành công!';
+  static String get checkEmailToReset => _isEn
+      ? 'Check your email for the password reset link'
+      : 'Kiểm tra email để nhận link đặt lại mật khẩu';
 
   // -- Edit transaction --
   static String get editTransaction =>
@@ -283,8 +276,7 @@ class AppStrings {
 
   // -- Settings --
   static String get settings => _isEn ? 'Settings' : 'Cài đặt';
-  static String get budgetLimit =>
-      _isEn ? 'Budget Limit' : 'Hạn mức ngân sách';
+  static String get budgetLimit => _isEn ? 'Budget Limit' : 'Hạn mức ngân sách';
   static String get language => _isEn ? 'Language' : 'Ngôn ngữ';
   static String get about => _isEn ? 'About' : 'Thông tin';
   static String get saved => _isEn ? 'Saved!' : 'Đã lưu!';
@@ -297,13 +289,22 @@ class AppStrings {
       : 'Xin chào! Tôi là trợ lý AI. Tôi có thể giúp gì cho bạn?';
 
   // -- Scan --
-  static String get scanReceipt =>
-      _isEn ? 'Scan Receipt' : 'Quét hoá đơn';
+  static String get scanReceipt => _isEn ? 'Scan Receipt' : 'Quét hoá đơn';
   static String get scanDesc => _isEn
       ? 'Take a photo of your receipt to automatically add it as a transaction.'
       : 'Chụp ảnh hoá đơn để tự động thêm giao dịch.';
-  static String get openCamera =>
-      _isEn ? 'Open Camera' : 'Mở Camera';
+  static String get openCamera => _isEn ? 'Open Camera' : 'Mở Camera';
+
+  // -- Transaction Saved screen --
+  static String get transactionSaved =>
+      _isEn ? 'Transaction Saved' : 'Đã lưu giao dịch';
+  static String get transactionSavedSubtitle => _isEn
+      ? 'Your transaction has been recorded successfully.'
+      : 'Giao dịch của bạn đã được ghi lại thành công.';
+  static String get currentBalance =>
+      _isEn ? 'Current Balance' : 'Số dư hiện tại';
+  static String get addAnother => _isEn ? 'Add Another' : 'Thêm giao dịch khác';
+  static String get done => _isEn ? 'Done' : 'Xong';
 
   // -- Category names --
   static String categoryName(String cat) {

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../features/auth/services/auth_service.dart';
+import '../../features/community/services/notification_service.dart';
 import '../../features/finance/presentation/add_transaction_sheet.dart';
 import '../../features/scan/presentation/scan_screen.dart';
 import '../screens/ai_screen.dart';
@@ -46,13 +47,23 @@ class _MainShellState extends ConsumerState<MainShell> {
           Navigator.of(context).pushReplacementNamed(AppRoutes.budgetSetup);
         });
       }
+      // Init notification service for community features
+      if (user != null) {
+        NotificationService.instance.startForUser(user.id);
+      }
     }
+  }
+
+  @override
+  void dispose() {
+    NotificationService.instance.unsubscribe();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.dashboardBg,
+      backgroundColor: context.finFlowColors.pageBackground,
       body: SafeArea(
         child: IndexedStack(
           index: _index,

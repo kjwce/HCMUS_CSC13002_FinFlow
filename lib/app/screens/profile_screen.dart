@@ -33,7 +33,7 @@ class ProfileScreen extends ConsumerWidget {
     final userId = user?.id ?? '-';
 
     return Scaffold(
-      backgroundColor: AppColors.dashboardBg,
+      backgroundColor: context.finFlowColors.pageBackground,
       body: SafeArea(
         child: SingleChildScrollView(
           child: Stack(
@@ -45,16 +45,18 @@ class ProfileScreen extends ConsumerWidget {
               // ── White card ────────────────────────────
               Container(
                 margin: EdgeInsets.only(top: Responsive.h(context, 160)),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.only(
+                decoration: BoxDecoration(
+                  color: context.finFlowColors.surface,
+                  borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(40),
                     topRight: Radius.circular(40),
                   ),
                 ),
                 child: Column(
                   children: [
-                    SizedBox(height: Responsive.h(context, 76)), // chỗ cho avatar
+                    SizedBox(
+                      height: Responsive.h(context, 76),
+                    ), // chỗ cho avatar
                     Text(
                       displayName,
                       style: TextStyle(
@@ -97,7 +99,10 @@ class ProfileScreen extends ConsumerWidget {
                         ? Text(
                             displayName.trim().isEmpty
                                 ? '?'
-                                : displayName.trim().substring(0, 1).toUpperCase(),
+                                : displayName
+                                      .trim()
+                                      .substring(0, 1)
+                                      .toUpperCase(),
                             style: TextStyle(
                               color: AppColors.primaryGreen,
                               fontSize: Responsive.sp(context, 40),
@@ -286,7 +291,8 @@ class _MenuItems extends ConsumerWidget {
         return Column(
           children: [
             _MenuRow(data: item),
-            if (i < items.length - 1) SizedBox(height: Responsive.h(context, 34)),
+            if (i < items.length - 1)
+              SizedBox(height: Responsive.h(context, 34)),
           ],
         );
       }),

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme_manager.dart';
 import '../../features/auth/presentation/forgot_password_screen.dart';
 import '../../features/auth/presentation/new_password_screen.dart';
@@ -9,9 +11,10 @@ import '../../features/auth/presentation/sign_up_screen.dart';
 import '../../features/auth/presentation/verification_screen.dart';
 import '../../features/budget/presentation/budget_setup_screen.dart';
 import '../../features/chatbot/presentation/chat_screen.dart';
-import '../../features/community/presentation/community_screen.dart';
+import '../screens/community_screen.dart';
 import '../../features/finance/presentation/wallet_onboarding_screen.dart';
 import '../../features/profile/presentation/edit_profile_screen.dart';
+import '../../features/community/presentation/notification_screen.dart';
 import '../../features/debug/presentation/database_viewer_screen.dart';
 import '../../features/launch/presentation/launch_screen.dart';
 import '../../features/launch/presentation/onboarding_screen.dart';
@@ -37,6 +40,8 @@ class AppRoutes {
   static const editProfile = '/edit-profile';
   static const budgetSetup = '/budget-setup';
   static const walletOnboarding = '/wallet-onboarding';
+  static const notifications = '/notifications';
+  static const communityPostDetail = '/community-post-detail';
 }
 
 class FinFlowApp extends StatelessWidget {
@@ -49,9 +54,9 @@ class FinFlowApp extends StatelessWidget {
       builder: (context, _) {
         return MediaQuery(
           // Prevent the device's system font-size setting from breaking the layout.
-          data: MediaQuery.of(context).copyWith(
-            textScaler: TextScaler.noScaling,
-          ),
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: TextScaler.noScaling),
           child: MaterialApp(
             title: 'FinFlow',
             debugShowCheckedModeBanner: false,
@@ -59,6 +64,26 @@ class FinFlowApp extends StatelessWidget {
             theme: AppTheme.light,
             darkTheme: AppTheme.dark,
             themeMode: AppThemeManager.instance.mode,
+            builder: (context, child) {
+              final isDark = AppThemeManager.instance.isDark;
+              return AnnotatedRegion<SystemUiOverlayStyle>(
+                value: SystemUiOverlayStyle(
+                  statusBarColor: Colors.transparent,
+                  statusBarIconBrightness: isDark
+                      ? Brightness.light
+                      : Brightness.dark,
+                  statusBarBrightness: isDark
+                      ? Brightness.dark
+                      : Brightness.light,
+                  systemNavigationBarColor:
+                      context.finFlowColors.navigationBackground,
+                  systemNavigationBarIconBrightness: isDark
+                      ? Brightness.light
+                      : Brightness.dark,
+                ),
+                child: child!,
+              );
+            },
             initialRoute: AppRoutes.launch,
             routes: {
               AppRoutes.launch: (_) => const LaunchScreen(),
@@ -77,6 +102,7 @@ class FinFlowApp extends StatelessWidget {
               AppRoutes.editProfile: (_) => const EditProfileScreen(),
               AppRoutes.budgetSetup: (_) => const BudgetSetupScreen(),
               AppRoutes.walletOnboarding: (_) => const WalletOnboardingScreen(),
+              AppRoutes.notifications: (_) => const NotificationScreen(),
             },
           ),
         );

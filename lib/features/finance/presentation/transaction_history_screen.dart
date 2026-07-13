@@ -70,7 +70,7 @@ class _TransactionHistoryScreenState
     final grouped = _groupByDay(visibleTransactions);
 
     return Scaffold(
-      backgroundColor: AppColors.dashboardBg,
+      backgroundColor: context.finFlowColors.pageBackground,
       body: SafeArea(
         bottom: false,
         child: Column(
@@ -692,6 +692,8 @@ class _TransactionHistoryScreenState
             colorScheme: Theme.of(context).colorScheme.copyWith(
               primary: AppColors.primaryGreen,
               onPrimary: Colors.white,
+              surface: context.finFlowColors.dialogBackground,
+              onSurface: context.finFlowColors.primaryText,
             ),
           ),
           child: child!,

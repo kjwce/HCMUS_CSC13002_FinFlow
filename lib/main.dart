@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app/shell/finflow_app.dart';
 import 'core/services/app_init_notifier.dart';
+import 'core/theme/app_theme_manager.dart';
 import 'features/auth/services/auth_service.dart';
 import 'features/finance/services/goal_service.dart';
 import 'features/finance/services/transaction_service.dart';
@@ -17,28 +18,28 @@ final navigatorKey = GlobalKey<NavigatorState>();
 /// crashing the process.  All application errors are already caught at
 /// their source, so anything reaching this handler is non-fatal.
 void main() {
-  runZonedGuarded(() async {
-    WidgetsFlutterBinding.ensureInitialized();
+  runZonedGuarded(
+    () async {
+      WidgetsFlutterBinding.ensureInitialized();
+      await AppThemeManager.instance.init();
 
-    // Render the FinFlow UI immediately — no waiting for network.
-    runApp(
-      const ProviderScope(
-        child: FinFlowApp(),
-      ),
-    );
+      // Render the FinFlow UI immediately — no waiting for network.
+      runApp(const ProviderScope(child: FinFlowApp()));
 
-    // Signal LaunchScreen to navigate right away (animation delay only).
-    authInitNotifier.value = true;
+      // Signal LaunchScreen to navigate right away (animation delay only).
+      authInitNotifier.value = true;
 
-    // Initialise Supabase + auth in the background. If it fails
-    // (e.g. project deleted, no internet) the app still works; auth
-    // operations will surface the error to the user gracefully.
-    _initServices();
-  }, (Object error, StackTrace stack) {
-    // Every error is already caught at source; this is a safety net for
-    // Supabase SDK internal microtask errors. Log and continue.
-    debugPrint('⚠️ [zone] $error');
-  });
+      // Initialise Supabase + auth in the background. If it fails
+      // (e.g. project deleted, no internet) the app still works; auth
+      // operations will surface the error to the user gracefully.
+      _initServices();
+    },
+    (Object error, StackTrace stack) {
+      // Every error is already caught at source; this is a safety net for
+      // Supabase SDK internal microtask errors. Log and continue.
+      debugPrint('⚠️ [zone] $error');
+    },
+  );
 }
 
 Future<void> _initServices() async {

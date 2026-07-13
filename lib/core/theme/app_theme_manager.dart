@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Singleton manager that controls the app's ThemeMode.
 /// Follows the same pattern as AppLanguage.
@@ -7,30 +10,38 @@ class AppThemeManager extends ChangeNotifier {
 
   static final AppThemeManager instance = AppThemeManager._();
 
-  ThemeMode _mode = ThemeMode.system;
+  static const _preferenceKey = 'finflow_theme_mode';
+  final SharedPreferencesAsync _preferences = SharedPreferencesAsync();
+
+  ThemeMode _mode = ThemeMode.light;
   ThemeMode get mode => _mode;
 
+  Future<void> init() async {
+    try {
+      final saved = await _preferences.getString(_preferenceKey);
+      _mode = saved == 'dark' ? ThemeMode.dark : ThemeMode.light;
+    } catch (_) {
+      _mode = ThemeMode.light;
+    }
+  }
+
   void setMode(ThemeMode mode) {
+    if (mode == ThemeMode.system) return;
     if (_mode == mode) return;
     _mode = mode;
     notifyListeners();
+    unawaited(
+      _preferences.setString(
+        _preferenceKey,
+        mode == ThemeMode.dark ? 'dark' : 'light',
+      ),
+    );
   }
 
-  void toggle() {
-    switch (_mode) {
-      case ThemeMode.system:
-        _mode = ThemeMode.dark;
-      case ThemeMode.light:
-        _mode = ThemeMode.system;
-      case ThemeMode.dark:
-        _mode = ThemeMode.light;
-    }
-    notifyListeners();
-  }
+  void toggle() =>
+      setMode(_mode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark);
 
   bool get isDark {
-    // This returns the *intended* state, not the actual system brightness.
-    // Widgets should use Theme.of(context).brightness instead.
     return _mode == ThemeMode.dark;
   }
 }

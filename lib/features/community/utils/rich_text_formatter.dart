@@ -9,7 +9,7 @@ import 'package:flutter/material.dart';
 // into styled spans:
 //
 //   **bold**       -> bold
-//   _italic_       -> italic
+//   *italic*       -> italic
 //   ~underline~    -> underline
 //   • at line start -> bullet point
 //   ||spoiler||    -> blurred "tap to reveal" text
@@ -24,7 +24,10 @@ String stripFormattingForPreview(String raw) {
     (_) => '🙈 spoiler',
   );
   text = text.replaceAllMapped(RegExp(r'\*\*(.+?)\*\*'), (m) => m.group(1)!);
-  text = text.replaceAllMapped(RegExp(r'_(.+?)_'), (m) => m.group(1)!);
+  text = text.replaceAllMapped(
+    RegExp(r'\*([^*]+?)\*', dotAll: true),
+    (m) => m.group(1)!,
+  );
   text = text.replaceAllMapped(RegExp(r'~(.+?)~'), (m) => m.group(1)!);
   text = text.replaceAll(RegExp(r'^•\s?', multiLine: true), '');
   return text.replaceAll('\n', ' ').trim();
@@ -63,9 +66,7 @@ class RichPostContent extends StatelessWidget {
     final lines = content.split('\n');
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (final line in lines) _buildLine(line),
-      ],
+      children: [for (final line in lines) _buildLine(line)],
     );
   }
 
@@ -92,7 +93,10 @@ class RichPostContent extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.only(top: 1, right: 8),
-            child: Text('•', style: style.copyWith(fontWeight: FontWeight.w800)),
+            child: Text(
+              '•',
+              style: style.copyWith(fontWeight: FontWeight.w800),
+            ),
           ),
           Expanded(child: Text.rich(TextSpan(children: spans))),
         ],
@@ -102,9 +106,90 @@ class RichPostContent extends StatelessWidget {
 }
 
 final _spoilerRegex = RegExp(r'\|\|(.+?)\|\|', dotAll: true);
-final _inlineRegex = RegExp(r'\*\*(.+?)\*\*|_(.+?)_|~(.+?)~');
+final _inlineRegex = RegExp(
+  r'\*\*(.*?)\*\*|\*([^*]*?)\*|~(.*?)~',
+  dotAll: true,
+);
 
-List<InlineSpan> _parseSpoilers(String text, TextStyle base, Color spoilerColor) {
+/// Text controller that previews the community's lightweight Markdown while
+/// preserving the raw marker text used for storage and cursor offsets.
+class MarkdownEditingController extends TextEditingController {
+  MarkdownEditingController({super.text});
+
+  Set<String> activeFormatsAt(int offset) {
+    var bold = false;
+    var italic = false;
+    var underline = false;
+    var i = 0;
+    final limit = offset.clamp(0, text.length);
+    while (i < limit) {
+      if (text[i] == '*') {
+        var count = 0;
+        while (i + count < limit && text[i + count] == '*') {
+          count++;
+        }
+        final triples = count ~/ 3;
+        if (triples.isOdd) {
+          bold = !bold;
+          italic = !italic;
+        }
+        final remainder = count % 3;
+        if (remainder == 2) bold = !bold;
+        if (remainder == 1) italic = !italic;
+        i += count;
+        continue;
+      }
+      if (text[i] == '~') {
+        underline = !underline;
+      }
+      i++;
+    }
+    return {if (bold) 'bold', if (italic) 'italic', if (underline) 'underline'};
+  }
+
+  @override
+  TextSpan buildTextSpan({
+    required BuildContext context,
+    TextStyle? style,
+    required bool withComposing,
+  }) {
+    final base = style ?? DefaultTextStyle.of(context).style;
+    final spans = <InlineSpan>[];
+    final hidden = base.copyWith(color: Colors.transparent, fontSize: 0);
+    var i = 0;
+    while (i < text.length) {
+      if (text[i] == '*' || text[i] == '~') {
+        spans.add(TextSpan(text: text[i], style: hidden));
+        i++;
+        continue;
+      }
+      final start = i;
+      while (i < text.length && text[i] != '*' && text[i] != '~') {
+        i++;
+      }
+      final formats = activeFormatsAt(start);
+      spans.add(
+        TextSpan(
+          text: text.substring(start, i),
+          style: base.copyWith(
+            fontWeight: formats.contains('bold') ? FontWeight.w800 : null,
+            fontStyle: formats.contains('italic') ? FontStyle.italic : null,
+            decoration: formats.contains('underline')
+                ? TextDecoration.underline
+                : null,
+          ),
+        ),
+      );
+    }
+    return TextSpan(style: base, children: spans);
+  }
+}
+
+List<InlineSpan> _parseSpoilers(
+  String text,
+  TextStyle base,
+  Color spoilerColor,
+) {
   final spans = <InlineSpan>[];
   var lastEnd = 0;
   for (final match in _spoilerRegex.allMatches(text)) {
@@ -135,23 +220,31 @@ List<InlineSpan> _parseInline(String text, TextStyle base) {
   var lastEnd = 0;
   for (final match in _inlineRegex.allMatches(text)) {
     if (match.start > lastEnd) {
-      spans.add(TextSpan(text: text.substring(lastEnd, match.start), style: base));
+      spans.add(
+        TextSpan(text: text.substring(lastEnd, match.start), style: base),
+      );
     }
     if (match.group(1) != null) {
-      spans.add(TextSpan(
-        text: match.group(1),
-        style: base.copyWith(fontWeight: FontWeight.w800),
-      ));
+      spans.add(
+        TextSpan(
+          text: match.group(1),
+          style: base.copyWith(fontWeight: FontWeight.w800),
+        ),
+      );
     } else if (match.group(2) != null) {
-      spans.add(TextSpan(
-        text: match.group(2),
-        style: base.copyWith(fontStyle: FontStyle.italic),
-      ));
+      spans.add(
+        TextSpan(
+          text: match.group(2),
+          style: base.copyWith(fontStyle: FontStyle.italic),
+        ),
+      );
     } else if (match.group(3) != null) {
-      spans.add(TextSpan(
-        text: match.group(3),
-        style: base.copyWith(decoration: TextDecoration.underline),
-      ));
+      spans.add(
+        TextSpan(
+          text: match.group(3),
+          style: base.copyWith(decoration: TextDecoration.underline),
+        ),
+      );
     }
     lastEnd = match.end;
   }
