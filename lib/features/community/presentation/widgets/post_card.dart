@@ -37,7 +37,6 @@ class CommunityPostCard extends StatelessWidget {
   static const _primaryGreen = Color(0xFF00C49A);
   static const _white = Color(0xFFFFFFFF);
   static const _heartRed = Color(0xFFE86B5D);
-  static const _cardShadow = Color(0xFF006C53);
 
   // Category chip colors
   static Color _chipBg(String category) => switch (category) {
@@ -91,9 +90,16 @@ class CommunityPostCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(Responsive.w(context, 14)),
         boxShadow: [
           BoxShadow(
-            color: _cardShadow.withValues(alpha: isDark ? 0.12 : 0.06),
-            blurRadius: 12,
-            offset: const Offset(0, 2),
+            color: Theme.of(
+              context,
+            ).shadowColor.withValues(alpha: isDark ? 0.2 : 0.13),
+            blurRadius: 18,
+            offset: const Offset(0, 7),
+          ),
+          BoxShadow(
+            color: AppColors.accentTeal.withValues(alpha: isDark ? 0.04 : 0.07),
+            blurRadius: 26,
+            spreadRadius: 2,
           ),
         ],
       ),

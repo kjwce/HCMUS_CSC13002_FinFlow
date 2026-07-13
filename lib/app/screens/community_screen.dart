@@ -156,14 +156,29 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
   Widget build(BuildContext context) {
     final service = ref.watch(communityServiceProvider);
     final colors = context.finFlowColors;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final posts = switch (_selectedTab) {
       1 => service.likedPosts,
       2 => service.savedPosts,
       _ => service.posts,
     };
 
-    return ColoredBox(
-      color: colors.pageBackground,
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: isDark ? colors.pageBackground : AppColors.mintSoft,
+        gradient: isDark
+            ? null
+            : RadialGradient(
+                center: const Alignment(0.45, -0.72),
+                radius: 0.95,
+                colors: [
+                  AppColors.primaryGreen.withValues(alpha: 0.24),
+                  AppColors.dashboardHeaderBg.withValues(alpha: 0.82),
+                  AppColors.mint,
+                ],
+                stops: const [0, 0.38, 1],
+              ),
+      ),
       child: SafeArea(
         child: Column(
           children: [
@@ -263,7 +278,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
     final tabs = ['Post', 'Like', 'Save'];
     final colors = context.finFlowColors;
     return Container(
-      color: colors.pageBackground,
+      color: Colors.transparent,
       padding: EdgeInsets.symmetric(
         horizontal: Responsive.w(context, 16),
         vertical: Responsive.h(context, 10),
@@ -375,10 +390,14 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
   }
 
   Widget _buildComposeEntry() {
-    final isSignedIn = AuthService.instance.currentUser != null;
+    final user = AuthService.instance.currentUser;
+    final isSignedIn = user != null;
+    final avatarUrl = user?.avatarUrl;
+    final displayName = user?.fullName.trim() ?? '';
+    final initial = displayName.isEmpty ? '?' : displayName[0].toUpperCase();
     final colors = context.finFlowColors;
     return Container(
-      color: colors.pageBackground,
+      color: Colors.transparent,
       padding: EdgeInsets.fromLTRB(
         Responsive.w(context, 16),
         Responsive.h(context, 4),
@@ -401,26 +420,41 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
               borderRadius: BorderRadius.circular(Responsive.w(context, 24)),
               boxShadow: [
                 BoxShadow(
-                  color: _cardShadow.withValues(alpha: 0.06),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
+                  color: Theme.of(context).shadowColor.withValues(alpha: 0.14),
+                  blurRadius: 18,
+                  offset: const Offset(0, 7),
+                ),
+                BoxShadow(
+                  color: AppColors.accentTeal.withValues(alpha: 0.08),
+                  blurRadius: 24,
+                  spreadRadius: 2,
                 ),
               ],
             ),
             child: Row(
               children: [
-                Container(
-                  width: Responsive.w(context, 32),
-                  height: Responsive.w(context, 32),
-                  decoration: BoxDecoration(
-                    color: _primaryGreen,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.person,
-                    size: Responsive.w(context, 16),
-                    color: _white,
-                  ),
+                CircleAvatar(
+                  radius: Responsive.w(context, 16),
+                  backgroundColor: _primaryGreen,
+                  backgroundImage: avatarUrl?.isNotEmpty == true
+                      ? NetworkImage(avatarUrl!)
+                      : null,
+                  child: avatarUrl?.isNotEmpty == true
+                      ? null
+                      : isSignedIn
+                      ? Text(
+                          initial,
+                          style: TextStyle(
+                            color: _white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: Responsive.sp(context, 13),
+                          ),
+                        )
+                      : Icon(
+                          Icons.person,
+                          size: Responsive.w(context, 16),
+                          color: _white,
+                        ),
                 ),
                 SizedBox(width: Responsive.w(context, 10)),
                 Expanded(
