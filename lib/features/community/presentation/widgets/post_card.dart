@@ -121,11 +121,21 @@ class CommunityPostCard extends StatelessWidget {
                     // Avatar circle
                     CircleAvatar(
                       radius: Responsive.w(context, 18),
-                      backgroundColor: _avatarColor,
-                      backgroundImage: post.authorAvatarUrl?.isNotEmpty == true
+                      backgroundColor: post.isAnonymous
+                          ? AppColors.mutedGray
+                          : _avatarColor,
+                      backgroundImage:
+                          !post.isAnonymous &&
+                              post.authorAvatarUrl?.isNotEmpty == true
                           ? NetworkImage(post.authorAvatarUrl!)
                           : null,
-                      child: post.authorAvatarUrl?.isNotEmpty == true
+                      child: post.isAnonymous
+                          ? Icon(
+                              Icons.visibility_off,
+                              color: _white,
+                              size: Responsive.w(context, 18),
+                            )
+                          : post.authorAvatarUrl?.isNotEmpty == true
                           ? null
                           : Text(
                               _initials.toUpperCase(),
