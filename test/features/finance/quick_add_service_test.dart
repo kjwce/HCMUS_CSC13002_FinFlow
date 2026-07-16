@@ -9,7 +9,6 @@ void main() {
     id: 'wallet-momo',
     userId: 'user-1',
     name: 'MoMo',
-    shortName: 'MOMO',
     logoAssetPath: '',
     brandColor: Colors.pink,
     type: WalletType.ewallet,
@@ -19,7 +18,6 @@ void main() {
     id: 'wallet-mb',
     userId: 'user-1',
     name: 'MB Bank',
-    shortName: 'MB',
     logoAssetPath: '',
     brandColor: Colors.blue,
     type: WalletType.bank,
@@ -29,7 +27,6 @@ void main() {
     id: 'wallet-cash',
     userId: 'user-1',
     name: 'Tiền mặt',
-    shortName: 'CASH',
     logoAssetPath: '',
     brandColor: Colors.green,
     type: WalletType.cash,
@@ -39,7 +36,6 @@ void main() {
     id: 'wallet-inactive',
     userId: 'user-1',
     name: 'Old Wallet',
-    shortName: 'OLD',
     logoAssetPath: '',
     brandColor: Colors.grey,
     type: WalletType.bank,
@@ -217,10 +213,10 @@ void main() {
       expect(draft.walletName, momo.name);
     });
 
-    test('wallet resolves by short name', () async {
+    test('abbreviated wallet name is not used as an identifier', () async {
       final draft = await parse(response(walletName: 'MB'));
-      expect(draft.walletId, mb.id);
-      expect(draft.walletName, mb.name);
+      expect(draft.walletId, isNull);
+      expect(draft.missingFields, contains(QuickAddMissingField.wallet));
     });
 
     test('wallet resolves by common cash alias', () async {
@@ -228,6 +224,49 @@ void main() {
       expect(draft.walletId, cash.id);
       expect(draft.walletName, cash.name);
     });
+
+    test(
+      'localized cash hint resolves by wallet type and ignores punctuation',
+      () async {
+        const customNamedCash = WalletModel(
+          id: 'wallet-pocket',
+          userId: 'user-1',
+          name: 'Ví hằng ngày',
+          logoAssetPath: '',
+          brandColor: Colors.green,
+          type: WalletType.cash,
+          initialBalance: 0,
+        );
+        final draft = await parse(
+          response(walletName: 'Tiền mặt.'),
+          wallets: const [customNamedCash],
+        );
+        expect(draft.walletId, customNamedCash.id);
+        expect(draft.walletName, customNamedCash.name);
+      },
+    );
+
+    test(
+      'empty wallet cache is refreshed before resolving provider hint',
+      () async {
+        final wallets = <WalletModel>[];
+        var refreshCount = 0;
+        final quickAdd = QuickAddService.forTesting(
+          invoker: (_) async => response(walletName: 'Tiền mặt'),
+          wallets: () => wallets,
+          categoryKeys: () => const ['Food', 'Salary', 'Other'],
+          refreshWallets: () async {
+            refreshCount++;
+            wallets.add(cash);
+          },
+        );
+
+        final draft = await quickAdd.parse('ăn cơm 45k bằng tiền mặt');
+        expect(refreshCount, 1);
+        expect(draft.walletId, cash.id);
+        expect(draft.canConfirm, isTrue);
+      },
+    );
 
     test('inactive wallet cannot be resolved', () async {
       final draft = await parse(response(walletName: 'Old Wallet'));

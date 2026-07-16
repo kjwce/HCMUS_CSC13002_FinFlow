@@ -3,8 +3,8 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const VERSION = 1;
 const MAX_TEXT_LENGTH = 500;
 const DEFAULT_LOCALE = "vi-VN";
-const DEFAULT_MODEL = "gemini-2.5-flash";
-const GEMINI_TIMEOUT_MS = 20_000;
+const DEFAULT_MODEL = "gemini-3.1-flash-lite";
+const GEMINI_TIMEOUT_MS = 12_000;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -19,6 +19,7 @@ type ErrorCode =
   | "EMPTY_TEXT"
   | "TEXT_TOO_LONG"
   | "GEMINI_RATE_LIMITED"
+  | "GEMINI_TIMEOUT"
   | "GEMINI_UNAVAILABLE"
   | "INVALID_MODEL_OUTPUT"
   | "INTERNAL_ERROR";
@@ -31,7 +32,6 @@ type CategoryInput = {
 type WalletInput = {
   id: string;
   name: string;
-  shortName: string;
   type: "bank" | "ewallet" | "cash";
   isActive: boolean;
 };
@@ -74,6 +74,7 @@ const errorMessages: Record<Locale, Record<ErrorCode, string>> = {
     EMPTY_TEXT: "Nội dung giao dịch không được để trống.",
     TEXT_TOO_LONG: "Nội dung giao dịch không được vượt quá 500 ký tự.",
     GEMINI_RATE_LIMITED: "Dịch vụ phân tích đang quá tải. Vui lòng thử lại sau.",
+    GEMINI_TIMEOUT: "Dịch vụ phân tích phản hồi quá chậm. Vui lòng thử lại.",
     GEMINI_UNAVAILABLE: "Dịch vụ phân tích hiện không khả dụng.",
     INVALID_MODEL_OUTPUT: "Kết quả phân tích không hợp lệ.",
     INTERNAL_ERROR: "Đã xảy ra lỗi nội bộ.",
@@ -84,6 +85,7 @@ const errorMessages: Record<Locale, Record<ErrorCode, string>> = {
     EMPTY_TEXT: "Transaction text must not be empty.",
     TEXT_TOO_LONG: "Transaction text must not exceed 500 characters.",
     GEMINI_RATE_LIMITED: "The parsing service is busy. Please try again later.",
+    GEMINI_TIMEOUT: "The parsing service took too long. Please try again.",
     GEMINI_UNAVAILABLE: "The parsing service is currently unavailable.",
     INVALID_MODEL_OUTPUT: "The parser returned an invalid result.",
     INTERNAL_ERROR: "An internal error occurred.",
@@ -389,7 +391,6 @@ function validateWallets(value: unknown, locale: Locale): WalletInput[] {
     }
     const id = requiredNonEmptyString(item.id, locale);
     const name = requiredNonEmptyString(item.name, locale);
-    const shortName = requiredNonEmptyString(item.shortName, locale);
     if (
       item.type !== "bank" && item.type !== "ewallet" && item.type !== "cash"
     ) {
@@ -399,55 +400,71 @@ function validateWallets(value: unknown, locale: Locale): WalletInput[] {
       throw new FunctionError("INVALID_REQUEST", 400, locale);
     }
     seen.add(id);
-    return { id, name, shortName, type: item.type, isActive: item.isActive };
+    return { id, name, type: item.type, isActive: item.isActive };
   });
 }
 
 async function callGemini(input: ValidatedRequest): Promise<unknown> {
   const apiKey = Deno.env.get("GEMINI_API_KEY")?.trim();
-  const model = Deno.env.get("GEMINI_MODEL")?.trim() || DEFAULT_MODEL;
   if (!apiKey) {
     throw new FunctionError("INTERNAL_ERROR", 500, input.locale);
   }
+
+  const model = Deno.env.get("GEMINI_MODEL")?.trim() || DEFAULT_MODEL;
+  return callGeminiModel(input, apiKey, model);
+}
+
+async function callGeminiModel(
+  input: ValidatedRequest,
+  apiKey: string,
+  model: string,
+): Promise<unknown> {
+  const url =
+    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+  const body = JSON.stringify({
+    systemInstruction: { parts: [{ text: systemInstruction }] },
+    contents: [
+      {
+        role: "user",
+        parts: [
+          {
+            text: JSON.stringify({
+              task: "Parse this transaction text using only the supplied context.",
+              ...input,
+            }),
+          },
+        ],
+      },
+    ],
+    generationConfig: {
+      temperature: 0,
+      maxOutputTokens: 1024,
+      thinkingConfig: { thinkingLevel: "minimal" },
+      responseMimeType: "application/json",
+      responseJsonSchema: geminiResponseSchema,
+    },
+  });
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), GEMINI_TIMEOUT_MS);
   let response: Response;
   try {
-    response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": apiKey,
-        },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: systemInstruction }] },
-          contents: [
-            {
-              role: "user",
-              parts: [
-                {
-                  text: JSON.stringify({
-                    task: "Parse this transaction text using only the supplied context.",
-                    ...input,
-                  }),
-                },
-              ],
-            },
-          ],
-          generationConfig: {
-            temperature: 0,
-            responseMimeType: "application/json",
-            responseJsonSchema: geminiResponseSchema,
-          },
-        }),
-        signal: controller.signal,
+    response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey,
       },
-    );
+      body,
+      signal: controller.signal,
+    });
   } catch {
-    throw new FunctionError("GEMINI_UNAVAILABLE", 503, input.locale);
+    const timedOut = controller.signal.aborted;
+    throw new FunctionError(
+      timedOut ? "GEMINI_TIMEOUT" : "GEMINI_UNAVAILABLE",
+      timedOut ? 504 : 503,
+      input.locale,
+    );
   } finally {
     clearTimeout(timeout);
   }
@@ -664,7 +681,6 @@ function isValidTimezone(value: string): boolean {
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-
 function jsonResponse(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), {
     status,

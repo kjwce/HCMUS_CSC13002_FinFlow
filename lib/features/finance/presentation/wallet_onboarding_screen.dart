@@ -10,7 +10,6 @@ import '../models/ewallet_preset.dart';
 import '../models/wallet_model.dart';
 import '../services/wallet_service.dart';
 
-
 /// Onboarding screen shown after sign-up for the user to pick their wallets
 /// and enter initial balances.
 class WalletOnboardingScreen extends ConsumerStatefulWidget {
@@ -181,18 +180,14 @@ class _WalletOnboardingScreenState
             opacity: isDisabled ? 0.35 : 1.0,
             child: Container(
               width: Responsive.w(context, 76),
-              padding: EdgeInsets.symmetric(
-                vertical: Responsive.h(context, 8),
-              ),
+              padding: EdgeInsets.symmetric(vertical: Responsive.h(context, 8)),
               decoration: BoxDecoration(
                 color: isSelected
                     ? p.brandColor.withValues(alpha: 0.12)
                     : Colors.white,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: isSelected
-                      ? p.brandColor
-                      : const Color(0xFFE0E0E0),
+                  color: isSelected ? p.brandColor : const Color(0xFFE0E0E0),
                   width: isSelected ? 2 : 1,
                 ),
               ),
@@ -212,7 +207,7 @@ class _WalletOnboardingScreenState
                       ),
                       child: Center(
                         child: Text(
-                          p.shortName.substring(0, 1),
+                          p.name.substring(0, 1),
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: Responsive.sp(context, 14),
@@ -224,13 +219,14 @@ class _WalletOnboardingScreenState
                   ),
                   SizedBox(height: Responsive.h(context, 4)),
                   Text(
-                    p.shortName,
+                    p.name,
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontFamily: 'Poppins',
                       fontSize: Responsive.sp(context, 10),
-                      fontWeight:
-                          isSelected ? FontWeight.w600 : FontWeight.w400,
+                      fontWeight: isSelected
+                          ? FontWeight.w600
+                          : FontWeight.w400,
                       color: const Color(0xFF052224),
                     ),
                   ),
@@ -291,7 +287,9 @@ class _WalletOnboardingScreenState
             const Spacer(),
             Icon(
               _hasCash ? Icons.check_circle : Icons.radio_button_unchecked,
-              color: _hasCash ? const Color(0xFF4CAF50) : const Color(0xFF9E9E9E),
+              color: _hasCash
+                  ? const Color(0xFF4CAF50)
+                  : const Color(0xFF9E9E9E),
             ),
           ],
         ),
@@ -354,9 +352,7 @@ class _WalletOnboardingScreenState
               children: _selectedPresets.map((p) {
                 final ctrl = _balanceControllers[p.name]!;
                 return Padding(
-                  padding: EdgeInsets.only(
-                    bottom: Responsive.h(context, 16),
-                  ),
+                  padding: EdgeInsets.only(bottom: Responsive.h(context, 16)),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -375,7 +371,7 @@ class _WalletOnboardingScreenState
                               ),
                               child: Center(
                                 child: Text(
-                                  p.shortName.substring(0, 1),
+                                  p.name.substring(0, 1),
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 14,
@@ -468,10 +464,9 @@ class _WalletOnboardingScreenState
         final raw = _balanceControllers[p.name]?.text.trim() ?? '';
         final balance = int.tryParse(raw.replaceAll(',', '')) ?? 0;
         return WalletModel(
-          id: 'w_${DateTime.now().millisecondsSinceEpoch}_${p.shortName}',
+          id: 'w_${DateTime.now().millisecondsSinceEpoch}_${p.name.hashCode.abs()}',
           userId: userId,
           name: p.name,
-          shortName: p.shortName,
           logoAssetPath: p.logoAssetPath,
           brandColor: p.brandColor,
           type: p.type,
@@ -482,16 +477,15 @@ class _WalletOnboardingScreenState
       await WalletService.instance.insertWallets(wallets);
       if (!mounted) return;
       // Navigate to budget setup
-      Navigator.of(context).pushNamedAndRemoveUntil(
-        AppRoutes.budgetSetup,
-        (route) => false,
-      );
+      Navigator.of(
+        context,
+      ).pushNamedAndRemoveUntil(AppRoutes.budgetSetup, (route) => false);
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSaving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Lỗi: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
     }
   }
 }

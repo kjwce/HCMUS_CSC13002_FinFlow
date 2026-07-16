@@ -8,6 +8,7 @@ import 'wallet_service.dart';
 
 typedef QuickAddFunctionInvoker =
     Future<dynamic> Function(Map<String, dynamic> body);
+typedef QuickAddWalletRefresher = Future<void> Function();
 
 class QuickAddException implements Exception {
   const QuickAddException(this.code, this.message);
@@ -26,9 +27,11 @@ class QuickAddService {
     QuickAddFunctionInvoker? invoker,
     List<WalletModel> Function()? wallets,
     List<String> Function()? categoryKeys,
+    QuickAddWalletRefresher? refreshWallets,
   }) : _invoker = invoker ?? _invokeFunction,
        _wallets = wallets ?? _activeCurrentUserWallets,
-       _categoryKeys = categoryKeys ?? _availableCategoryKeys;
+       _categoryKeys = categoryKeys ?? _availableCategoryKeys,
+       _refreshWallets = refreshWallets ?? _refreshProductionWallets;
 
   static final QuickAddService instance = QuickAddService._();
 
@@ -37,11 +40,13 @@ class QuickAddService {
     required QuickAddFunctionInvoker invoker,
     required List<WalletModel> Function() wallets,
     List<String> Function()? categoryKeys,
+    QuickAddWalletRefresher? refreshWallets,
   }) {
     return QuickAddService._(
       invoker: invoker,
       wallets: wallets,
       categoryKeys: categoryKeys,
+      refreshWallets: refreshWallets ?? () async {},
     );
   }
 
@@ -49,6 +54,7 @@ class QuickAddService {
   final QuickAddFunctionInvoker _invoker;
   final List<WalletModel> Function() _wallets;
   final List<String> Function() _categoryKeys;
+  final QuickAddWalletRefresher _refreshWallets;
 
   Future<QuickAddDraft> parse(
     String text, {
@@ -65,7 +71,16 @@ class QuickAddService {
 
     final localNow = now ?? DateTime.now();
     final requestLocale = locale ?? _currentLocale;
-    final wallets = _wallets().where((wallet) => wallet.isActive).toList();
+    var wallets = _wallets().where((wallet) => wallet.isActive).toList();
+    if (wallets.isEmpty) {
+      try {
+        await _refreshWallets();
+      } catch (_) {
+        // Wallet context improves matching, but must not prevent the Edge
+        // Function request. The review screen can collect a missing wallet.
+      }
+      wallets = _wallets().where((wallet) => wallet.isActive).toList();
+    }
     final categoryKeys = _categoryKeys();
     final body = <String, dynamic>{
       'text': trimmedText,
@@ -81,7 +96,6 @@ class QuickAddService {
             (wallet) => {
               'id': wallet.id,
               'name': wallet.name,
-              'shortName': wallet.shortName,
               'type': wallet.type.name,
               'isActive': wallet.isActive,
             },
@@ -285,11 +299,43 @@ class QuickAddService {
   }
 
   static Future<dynamic> _invokeFunction(Map<String, dynamic> body) async {
-    final response = await Supabase.instance.client.functions.invoke(
-      'parse-natural-language-transaction',
-      body: body,
-    );
-    return response.data;
+    try {
+      final response = await Supabase.instance.client.functions.invoke(
+        'parse-natural-language-transaction',
+        body: body,
+      );
+      return response.data;
+    } on FunctionException catch (error) {
+      final details = error.details;
+      final rawError = details is Map ? details['error'] : null;
+      final code = rawError is Map && rawError['code'] is String
+          ? rawError['code'] as String
+          : 'PARSER_UNAVAILABLE';
+      final locale = body['locale']?.toString() ?? _currentLocale;
+      throw QuickAddException(code, _functionErrorMessage(code, locale));
+    }
+  }
+
+  static String _functionErrorMessage(String code, String locale) {
+    final vi = _isVietnamese(locale);
+    return switch (code) {
+      'GEMINI_TIMEOUT' =>
+        vi
+            ? 'Dịch vụ phân tích phản hồi quá chậm. Vui lòng thử lại.'
+            : 'The parsing service took too long. Please try again.',
+      'GEMINI_RATE_LIMITED' =>
+        vi
+            ? 'Dịch vụ phân tích đang quá tải. Vui lòng thử lại sau.'
+            : 'The parsing service is busy. Please try again later.',
+      'UNAUTHORIZED' =>
+        vi
+            ? 'Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.'
+            : 'Your session is invalid. Please sign in again.',
+      _ =>
+        vi
+            ? 'Không thể phân tích giao dịch lúc này.'
+            : 'Unable to parse the transaction right now.',
+    };
   }
 
   static List<WalletModel> _activeCurrentUserWallets() => WalletService
@@ -297,6 +343,9 @@ class QuickAddService {
       .currentUserWallets
       .where((wallet) => wallet.isActive)
       .toList(growable: false);
+
+  static Future<void> _refreshProductionWallets() =>
+      WalletService.instance.fetchWallets();
 
   static List<String> _availableCategoryKeys() => [
     ...TransactionCategory.all.map((category) => category.key),
@@ -308,29 +357,13 @@ class QuickAddService {
     for (final wallet in wallets) {
       if (_normalizeWalletText(wallet.name) == normalizedHint) return wallet;
     }
-    for (final wallet in wallets) {
-      if (_normalizeWalletText(wallet.shortName) == normalizedHint) {
-        return wallet;
+    const cashAliases = {'tien mat', 'cash', 'cash account', 'vi tien mat'};
+    if (cashAliases.contains(normalizedHint)) {
+      for (final wallet in wallets) {
+        if (wallet.type == WalletType.cash) return wallet;
       }
     }
 
-    final aliases = <String, List<String>>{
-      'momo': ['momo'],
-      'mb': ['mb', 'mb bank', 'military bank'],
-      'tien mat': ['tien mat', 'cash'],
-    };
-    for (final wallet in wallets) {
-      final candidates = {
-        _normalizeWalletText(wallet.name),
-        _normalizeWalletText(wallet.shortName),
-      };
-      for (final entry in aliases.entries) {
-        if (entry.value.contains(normalizedHint) &&
-            candidates.any((candidate) => entry.value.contains(candidate))) {
-          return wallet;
-        }
-      }
-    }
     return null;
   }
 
@@ -353,7 +386,11 @@ class QuickAddService {
       final index = source.indexOf(char);
       buffer.write(index < 0 ? char : target[index]);
     }
-    return buffer.toString().replaceAll(RegExp(r'\s+'), ' ').trim();
+    return buffer
+        .toString()
+        .replaceAll(RegExp(r'[^a-z0-9]+'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
   }
 
   static bool _looksLikeTransfer(String text) {

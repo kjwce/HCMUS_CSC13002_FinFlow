@@ -3,7 +3,6 @@ CREATE TABLE IF NOT EXISTS wallets (
   id TEXT PRIMARY KEY,
   user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
-  short_name TEXT NOT NULL DEFAULT '',
   logo_asset_path TEXT NOT NULL DEFAULT '',
   brand_color TEXT NOT NULL DEFAULT '#4285F4',
   type TEXT NOT NULL DEFAULT 'bank',

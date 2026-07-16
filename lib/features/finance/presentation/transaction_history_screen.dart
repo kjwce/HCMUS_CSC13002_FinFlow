@@ -814,7 +814,7 @@ class _TransactionHistoryScreenState
 
   String _walletLabel(WalletModel? wallet) {
     if (wallet == null) return 'Transfer';
-    return wallet.shortName.isNotEmpty ? wallet.shortName : wallet.name;
+    return wallet.name;
   }
 
   static String _formatSignedMoney(int amount) {

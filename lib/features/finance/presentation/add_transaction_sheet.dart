@@ -411,42 +411,29 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                         setState(() => _isSavingTransaction = true);
                         final sign = _isExpense ? -1 : 1;
                         final transactionName = _nameController.text.trim();
+                        final transaction = TransactionModel(
+                          id: 't_${DateTime.now().millisecondsSinceEpoch}',
+                          userId: ref.read(authServiceProvider).currentUser!.id,
+                          name: transactionName.isNotEmpty
+                              ? transactionName
+                              : _selectedCategory,
+                          category: _selectedCategory,
+                          amount: amount * sign,
+                          date: _transactionDate ?? DateTime.now(),
+                          walletId: _selectedWalletId,
+                        );
                         await ref
                             .read(transactionServiceProvider)
-                            .add(
-                              TransactionModel(
-                                id: 't_${DateTime.now().millisecondsSinceEpoch}',
-                                userId: ref
-                                    .read(authServiceProvider)
-                                    .currentUser!
-                                    .id,
-                                name: transactionName.isNotEmpty
-                                    ? transactionName
-                                    : _selectedCategory,
-                                category: _selectedCategory,
-                                amount: amount * sign,
-                                date: _transactionDate ?? DateTime.now(),
-                                walletId: _selectedWalletId,
-                              ),
-                            );
+                            .add(transaction);
                         if (!context.mounted) return;
+                        if (widget.fromQuickAdd) {
+                          Navigator.of(context).pop(true);
+                          return;
+                        }
                         Navigator.of(context).pushReplacement(
                           MaterialPageRoute(
                             builder: (_) => TransactionSavedScreen(
-                              transaction: TransactionModel(
-                                id: 't_${DateTime.now().millisecondsSinceEpoch}',
-                                userId: ref
-                                    .read(authServiceProvider)
-                                    .currentUser!
-                                    .id,
-                                name: transactionName.isNotEmpty
-                                    ? transactionName
-                                    : _selectedCategory,
-                                category: _selectedCategory,
-                                amount: amount * sign,
-                                date: _transactionDate ?? DateTime.now(),
-                                walletId: _selectedWalletId,
-                              ),
+                              transaction: transaction,
                             ),
                           ),
                         );
@@ -604,7 +591,6 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
         _selectedWalletName = 'Tiền mặt';
         await _createWalletSync(
           name: 'Tiền mặt',
-          shortName: 'CASH',
           logoAssetPath: 'assets/logos/ewallets/cash.png',
           brandColor: const Color(0xFF4CAF50),
           type: WalletType.cash,
@@ -650,10 +636,9 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                   children: presets.map((p) {
                     return GestureDetector(
                       onTap: () async {
-                        _selectedWalletName = '${p.shortName} - ${p.name}';
+                        _selectedWalletName = p.name;
                         await _createWalletSync(
                           name: p.name,
-                          shortName: p.shortName,
                           logoAssetPath: p.logoAssetPath,
                           brandColor: p.brandColor,
                           type: p.type,
@@ -678,7 +663,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                               ),
                               child: Center(
                                 child: Text(
-                                  p.shortName.substring(0, 1),
+                                  p.name.substring(0, 1),
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 48,
@@ -703,14 +688,13 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
 
   Future<void> _createWalletSync({
     required String name,
-    required String shortName,
     required String logoAssetPath,
     required Color brandColor,
     required WalletType type,
   }) async {
     // Check if wallet already exists for this user
     final existing = WalletService.instance.currentUserWallets
-        .where((w) => w.shortName == shortName && w.type == type)
+        .where((w) => w.name == name && w.type == type)
         .toList();
     if (existing.isNotEmpty) {
       _selectedWalletId = existing.first.id;
@@ -718,7 +702,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     }
     final userId = AuthService.instance.currentUser?.id;
     if (userId == null) return;
-    final newId = 'w_${DateTime.now().millisecondsSinceEpoch}_$shortName';
+    final newId = 'w_${DateTime.now().millisecondsSinceEpoch}';
     // Insert wallet to DB first — await it so the FK is satisfied before
     // any transaction referencing this wallet_id is inserted.
     await WalletService.instance.insertWallets([
@@ -726,7 +710,6 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
         id: newId,
         userId: userId,
         name: name,
-        shortName: shortName,
         logoAssetPath: logoAssetPath,
         brandColor: brandColor,
         type: type,
