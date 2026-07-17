@@ -408,7 +408,7 @@ void main() {
           ),
         ),
       );
-      expect(find.text('New expense'), findsOneWidget);
+      expect(find.text('NEW EXPENSE'), findsOneWidget);
       expect(find.text('From Quick Add'), findsOneWidget);
       final fields = tester
           .widgetList<TextField>(find.byType(TextField))
@@ -457,7 +457,7 @@ void main() {
           ),
         ),
       );
-      expect(find.text('New income'), findsOneWidget);
+      expect(find.text('NEW INCOME'), findsOneWidget);
       expect(find.text('From Quick Add'), findsNothing);
       final fields = tester
           .widgetList<TextField>(find.byType(TextField))

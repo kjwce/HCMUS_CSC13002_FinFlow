@@ -3,10 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../features/auth/services/auth_service.dart';
+import '../../features/chatbot/presentation/chat_screen.dart';
 import '../../features/community/services/notification_service.dart';
 import '../../features/finance/presentation/add_transaction_sheet.dart';
 import '../../features/scan/presentation/scan_screen.dart';
-import '../../features/chatbot/presentation/chat_screen.dart';
 import '../screens/community_screen.dart';
 import '../screens/home_screen.dart';
 import '../screens/profile_screen.dart';

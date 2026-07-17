@@ -30,6 +30,36 @@ void main() {
     return [for (final child in span.children!) ...leafSpans(child)];
   }
 
+  test('notification preview strips markers but preserves their text', () {
+    expect(
+      stripFormattingForPreview(
+        '**Bold** *italic* ~underlined~ ||hidden content||',
+      ),
+      'Bold italic underlined 🙈 spoiler',
+    );
+  });
+
+  test('full notification message cannot leak formatting markers', () {
+    final preview = stripFormattingForNotificationPreview(
+      'shared a new community post: "**Budget** *today* ~important~"',
+    );
+
+    expect(preview, 'shared a new community post: "Budget today important"');
+    expect(preview, isNot(contains('*')));
+    expect(preview, isNot(contains('~')));
+  });
+
+  test('legacy notification history removes unmatched old markers', () {
+    final preview = stripFormattingForNotificationPreview(
+      'shared a post: ~ **Old budget note* ||unfinished',
+    );
+
+    expect(preview, 'shared a post: Old budget note unfinished');
+    expect(preview, isNot(contains('*')));
+    expect(preview, isNot(contains('~')));
+    expect(preview, isNot(contains('||')));
+  });
+
   testWidgets('renders formatting in a limited feed preview', (tester) async {
     final root = await renderContent(
       tester,

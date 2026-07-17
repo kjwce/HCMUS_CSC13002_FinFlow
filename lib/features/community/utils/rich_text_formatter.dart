@@ -33,6 +33,16 @@ String stripFormattingForPreview(String raw) {
   return text.replaceAll('\n', ' ').trim();
 }
 
+/// Produces a defensive plain-text preview for notification history.
+/// Legacy posts can contain incomplete marker pairs from older composers, so
+/// notification previews remove any formatting controls left after parsing.
+String stripFormattingForNotificationPreview(String raw) {
+  var text = stripFormattingForPreview(raw);
+  text = text.replaceAll(RegExp(r'[\*~]'), '');
+  text = text.replaceAll('||', '');
+  return text.replaceAll(RegExp(r'\s+'), ' ').trim();
+}
+
 /// Renders post/comment content with bold/italic/underline/bullets and
 /// tap-to-reveal spoilers.
 ///
