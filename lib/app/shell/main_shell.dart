@@ -13,7 +13,7 @@ import '../screens/profile_screen.dart';
 import 'bottom_nav_bar.dart';
 import 'finflow_app.dart';
 
-/// MAIN SHELL — bottom nav with 5 tabs + center scan FAB
+/// MAIN SHELL — bottom nav with four destinations + center add action.
 class MainShell extends ConsumerStatefulWidget {
   const MainShell({super.key});
 
@@ -82,6 +82,7 @@ class _MainShellState extends ConsumerState<MainShell> {
       bottomNavigationBar: AppBottomNavBar(
         selectedIndex: _index,
         onTabChanged: (i) => setState(() => _index = i),
+        onAddTap: () => AddTransactionSheet.show(context),
       ),
     );
   }

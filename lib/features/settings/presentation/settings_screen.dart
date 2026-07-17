@@ -9,6 +9,7 @@ import '../../../core/theme/app_theme_manager.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/notification_bell.dart';
 import '../../auth/services/auth_service.dart';
+import '../../finance/presentation/add_transaction_sheet.dart';
 
 /// Settings screen with cover image, back arrow + title, menu rows
 /// matching Figma node 1:1314 "settings".
@@ -20,7 +21,10 @@ class SettingsScreen extends ConsumerWidget {
     final themeColors = context.finFlowColors;
     return Scaffold(
       backgroundColor: themeColors.pageBackground,
-      bottomNavigationBar: const AppBottomNavBar(selectedIndex: 4),
+      bottomNavigationBar: AppBottomNavBar(
+        selectedIndex: 4,
+        onAddTap: () => AddTransactionSheet.show(context),
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           child: Stack(

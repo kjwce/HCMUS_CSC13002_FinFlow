@@ -364,8 +364,33 @@ class _CommunityPostDetailScreenState
   }
 
   Widget _buildCommentBar() {
-    final isSignedIn = AuthService.instance.currentUser != null;
+    final currentUser = AuthService.instance.currentUser;
+    final isSignedIn = currentUser != null;
     final colors = context.finFlowColors;
+    final avatarUrl = currentUser?.avatarUrl?.trim();
+    final fullName = currentUser?.fullName.trim() ?? '';
+    final initial = fullName.isEmpty ? '?' : fullName[0].toUpperCase();
+
+    Widget profileFallback() {
+      if (!isSignedIn) {
+        return Icon(
+          Icons.person_outline,
+          size: Responsive.w(context, 18),
+          color: _textDark,
+        );
+      }
+      return Center(
+        child: Text(
+          initial,
+          style: TextStyle(
+            color: _textDark,
+            fontWeight: FontWeight.w700,
+            fontSize: Responsive.sp(context, 13),
+          ),
+        ),
+      );
+    }
+
     return Container(
       color: colors.surface,
       padding: EdgeInsets.fromLTRB(
@@ -377,22 +402,38 @@ class _CommunityPostDetailScreenState
       child: Row(
         children: [
           // Anonymous toggle
-          IconButton(
-            onPressed: () =>
-                setState(() => _commentAnonymously = !_commentAnonymously),
-            tooltip: _commentAnonymously
+          Tooltip(
+            message: _commentAnonymously
                 ? 'Post with your profile'
                 : 'Comment anonymously',
-            style: IconButton.styleFrom(
-              backgroundColor: _commentAnonymously
+            child: Material(
+              color: _commentAnonymously
                   ? _primaryGreen
                   : _commentBg.withValues(alpha: 0.5),
               shape: const CircleBorder(),
-            ),
-            icon: Icon(
-              _commentAnonymously ? Icons.visibility_off : Icons.person_outline,
-              size: Responsive.w(context, 18),
-              color: _commentAnonymously ? _white : _textDark,
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: () =>
+                    setState(() => _commentAnonymously = !_commentAnonymously),
+                customBorder: const CircleBorder(),
+                child: SizedBox(
+                  width: Responsive.w(context, 40),
+                  height: Responsive.w(context, 40),
+                  child: _commentAnonymously
+                      ? Icon(
+                          Icons.visibility_off,
+                          size: Responsive.w(context, 18),
+                          color: _white,
+                        )
+                      : avatarUrl?.isNotEmpty == true
+                      ? Image.network(
+                          avatarUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => profileFallback(),
+                        )
+                      : profileFallback(),
+                ),
+              ),
             ),
           ),
           SizedBox(width: Responsive.w(context, 8)),

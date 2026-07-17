@@ -44,3 +44,4 @@ doc/api/
 .claude/
 .mcp.json
 .mcp.local.json
+.DS_Store

@@ -30,7 +30,7 @@ const List<WalletPreset> ewalletPresets = [
   ),
   WalletPreset(
     name: 'Viettel Money',
-    logoAssetPath: 'assets/logos/ewallets/viettel_money.png',
+    logoAssetPath: 'assets/logos/ewallets/viettelmoney.png',
     brandColor: Color(0xFFEE0033),
     type: WalletType.ewallet,
   ),

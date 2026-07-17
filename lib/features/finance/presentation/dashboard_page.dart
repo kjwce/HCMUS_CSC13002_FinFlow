@@ -823,7 +823,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       if (useCategoryColors) {
         color = e.key == 'Other'
             ? Colors.grey
-            : TransactionCategory.fromKey(e.key).color;
+            : TransactionCategory.resolve(e.key).color;
       } else {
         // Wallet type colors
         color = _walletTypeColor(e.key);
@@ -924,7 +924,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                     if (useCategoryColors) {
                       color = e.key == 'Other'
                           ? Colors.grey
-                          : TransactionCategory.fromKey(e.key).color;
+                          : TransactionCategory.resolve(e.key).color;
                     } else {
                       color = _walletTypeColor(e.key);
                     }

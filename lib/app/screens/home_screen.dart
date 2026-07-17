@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -12,21 +10,14 @@ import '../../features/auth/providers/auth_provider.dart';
 import '../../features/auth/services/auth_service.dart';
 import '../../features/finance/models/transaction_category.dart';
 import '../../features/finance/models/transaction_model.dart';
-import '../../features/finance/models/quick_add_draft_model.dart';
-import '../../features/finance/presentation/add_transaction_sheet.dart';
 import '../../features/finance/presentation/dashboard_page.dart';
 import '../../features/finance/presentation/edit_transaction_screen.dart';
 import '../../features/finance/presentation/goal_setup_sheet.dart';
-import '../../features/finance/presentation/quick_add_review_sheet.dart';
-import '../../features/finance/presentation/transaction_saved_screen.dart';
-import '../../features/finance/presentation/widgets/quick_add_card.dart';
 import '../../features/finance/presentation/transaction_history_screen.dart';
 import '../../features/finance/providers/goal_provider.dart';
 import '../../features/finance/providers/transaction_provider.dart';
 import '../../features/finance/providers/wallet_provider.dart';
 import '../../features/finance/services/goal_service.dart';
-import '../../features/finance/services/quick_add_service.dart';
-import '../../features/finance/services/quick_add_speech_recognition_service.dart';
 import '../../features/finance/services/transaction_service.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -48,20 +39,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _selectedTab = 2; // Monthly
   var _summaryMetric = _SummaryMetric.revenue;
   var _summaryPeriod = _SummaryPeriod.week;
-  final _quickAddController = TextEditingController();
-  var _isQuickAddParsing = false;
-  var _isQuickAddReviewOpen = false;
-  var _voiceState = _QuickAddVoiceState.idle;
-  var _voiceSession = 0;
-  var _voiceFinalHandled = false;
-  var _latestVoiceTranscript = '';
-  Timer? _voiceTimeout;
-
-  bool get _isVoiceRecording => _voiceState == _QuickAddVoiceState.listening;
-  bool get _isVoiceProcessing =>
-      _voiceState == _QuickAddVoiceState.initializing ||
-      _voiceState == _QuickAddVoiceState.processingFinal;
-
   @override
   void initState() {
     super.initState();
@@ -93,11 +70,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void dispose() {
     TransactionService.instance.removeListener(_onTransactionsChanged);
     GoalService.instance.removeListener(_onTransactionsChanged);
-    _voiceTimeout?.cancel();
-    if (_voiceState != _QuickAddVoiceState.idle) {
-      unawaited(QuickAddSpeechRecognitionService.instance.cancelListening());
-    }
-    _quickAddController.dispose();
     super.dispose();
   }
 
@@ -106,60 +78,310 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final ts = ref.watch(transactionServiceProvider);
-    final showViewAll = _transactionsForSelectedTab(ts).isNotEmpty;
-
-    return Stack(
+    return Column(
       children: [
-        SingleChildScrollView(
-          child: Column(
-            children: [
-              _buildHeaderAndBalance(ts),
-              Transform.translate(
-                offset: Offset(0, -Responsive.h(context, 18)),
-                child: Container(
-                  width: double.infinity,
-                  clipBehavior: Clip.antiAlias,
-                  decoration: BoxDecoration(
-                    color: context.finFlowColors.pageBackground,
-                    borderRadius: BorderRadius.vertical(
-                      top: Radius.circular(Responsive.w(context, 42)),
+        _buildTopBar(),
+        Expanded(
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: Column(
+              children: [
+                _buildStitchHero(ts),
+                Transform.translate(
+                  offset: Offset(0, -Responsive.h(context, 24)),
+                  child: Container(
+                    width: double.infinity,
+                    clipBehavior: Clip.antiAlias,
+                    decoration: BoxDecoration(
+                      color: context.finFlowColors.pageBackground,
+                      borderRadius: BorderRadius.vertical(
+                        top: Radius.circular(Responsive.w(context, 32)),
+                      ),
+                    ),
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: Responsive.w(context, 20),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SizedBox(height: Responsive.h(context, 24)),
+                          _sectionTitle('Savings Goals'),
+                          SizedBox(height: Responsive.h(context, 12)),
+                          _buildGoalSummaryCard(),
+                          SizedBox(height: Responsive.h(context, 24)),
+                          _buildTransactionList(ts),
+                          SizedBox(height: Responsive.h(context, 32)),
+                        ],
+                      ),
                     ),
                   ),
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: Responsive.w(context, 20),
-                    ),
-                    child: Column(
-                      children: [
-                        SizedBox(height: Responsive.h(context, 14)),
-                        _buildGoalSummaryCard(),
-                        SizedBox(height: Responsive.h(context, 25)),
-                        _buildPeriodTabs(),
-                        SizedBox(height: Responsive.h(context, 25)),
-                        _buildQuickAddCard(),
-                        SizedBox(height: Responsive.h(context, 25)),
-                        _buildTransactionList(ts),
-                        SizedBox(height: Responsive.h(context, 150)),
-                      ],
-                    ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTopBar() {
+    final user = ref.watch(authServiceProvider).currentUser;
+    final displayName = user?.fullName.trim().isNotEmpty == true
+        ? user!.fullName.trim()
+        : 'FinFlow User';
+    final avatarUrl = user?.avatarUrl?.trim();
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        Responsive.w(context, 20),
+        Responsive.h(context, 10),
+        Responsive.w(context, 20),
+        Responsive.h(context, 10),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: Responsive.w(context, 42),
+            height: Responsive.w(context, 42),
+            padding: const EdgeInsets.all(2),
+            decoration: const BoxDecoration(
+              color: Color(0xFF8DE6C4),
+              shape: BoxShape.circle,
+            ),
+            child: ClipOval(
+              child: avatarUrl != null && avatarUrl.isNotEmpty
+                  ? Image.network(
+                      avatarUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => _avatarFallback(displayName),
+                    )
+                  : _avatarFallback(displayName),
+            ),
+          ),
+          SizedBox(width: Responsive.w(context, 12)),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _greeting(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: _bodyFont,
+                    fontSize: Responsive.sp(context, 12),
+                    color: const Color(0xFF60736D),
+                  ),
+                ),
+                Text(
+                  displayName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: _headlineFont,
+                    fontSize: Responsive.sp(context, 20),
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF063B30),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const NotificationBell(),
+        ],
+      ),
+    );
+  }
+
+  Widget _avatarFallback(String name) {
+    return ColoredBox(
+      color: const Color(0xFFE7F7F0),
+      child: Center(
+        child: Text(
+          name.characters.first.toUpperCase(),
+          style: TextStyle(
+            fontFamily: _headlineFont,
+            fontWeight: FontWeight.w700,
+            color: const Color(0xFF07513F),
+            fontSize: Responsive.sp(context, 16),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStitchHero(TransactionService ts) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.fromLTRB(
+        Responsive.w(context, 20),
+        Responsive.h(context, 18),
+        Responsive.w(context, 20),
+        Responsive.h(context, 48),
+      ),
+      decoration: const BoxDecoration(
+        image: DecorationImage(
+          image: AssetImage('assets/home_bg.png'),
+          fit: BoxFit.cover,
+        ),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: _buildGlassMetric(
+                  title: AppStrings.totalBalance,
+                  amount: ts.totalBalance,
+                  icon: Icons.north_east_rounded,
+                  color: _incomeColor,
+                ),
+              ),
+              SizedBox(width: Responsive.w(context, 12)),
+              Expanded(
+                child: _buildGlassMetric(
+                  title: AppStrings.totalExpenseLabel,
+                  amount: ts.monthlyExpense,
+                  icon: Icons.south_west_rounded,
+                  color: _expenseColor,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: Responsive.h(context, 12)),
+          _buildProgressBar(ts),
+          SizedBox(height: Responsive.h(context, 12)),
+          Semantics(
+            button: true,
+            label: 'View Financial Insights',
+            child: SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: _navigateToDashboard,
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF07513F),
+                  foregroundColor: Colors.white,
+                  minimumSize: Size.fromHeight(Responsive.h(context, 50)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                icon: const Icon(Icons.insights_rounded, size: 20),
+                label: Text(
+                  'View Financial Insights',
+                  style: TextStyle(
+                    fontFamily: _bodyFont,
+                    fontWeight: FontWeight.w700,
+                    fontSize: Responsive.sp(context, 14),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGlassMetric({
+    required String title,
+    required int amount,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Container(
+      padding: EdgeInsets.all(Responsive.w(context, 16)),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.84),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.9)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x33002D22),
+            blurRadius: 24,
+            spreadRadius: 1,
+            offset: Offset(0, 10),
+          ),
+          BoxShadow(
+            color: Color(0x26FFFFFF),
+            blurRadius: 3,
+            offset: Offset(0, -1),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 16, color: color),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: _bodyFont,
+                    fontSize: Responsive.sp(context, 12),
+                    fontWeight: FontWeight.w700,
+                    color: color,
                   ),
                 ),
               ),
             ],
           ),
-        ),
-        if (showViewAll)
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: Responsive.h(context, 18),
-            child: Center(child: _buildViewAllButton()),
+          SizedBox(height: Responsive.h(context, 8)),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: _formatMoneyValue(amount.abs()),
+                    style: TextStyle(
+                      fontFamily: _headlineFont,
+                      fontSize: Responsive.sp(context, 20),
+                      fontWeight: FontWeight.w800,
+                      color: color,
+                    ),
+                  ),
+                  TextSpan(
+                    text: ' VND',
+                    style: TextStyle(
+                      fontFamily: _bodyFont,
+                      fontSize: Responsive.sp(context, 12),
+                      fontWeight: FontWeight.w600,
+                      color: color,
+                    ),
+                  ),
+                ],
+              ),
+              maxLines: 1,
+            ),
           ),
-      ],
+        ],
+      ),
+    );
+  }
+
+  Widget _sectionTitle(String title) {
+    return Text(
+      title,
+      style: TextStyle(
+        fontFamily: _headlineFont,
+        fontSize: Responsive.sp(context, 20),
+        fontWeight: FontWeight.w700,
+        color: const Color(0xFF052224),
+      ),
     );
   }
 
   // --- 1. Header + Balance Card đè lên ảnh ---
+  // Kept temporarily for visual rollback while the Stitch hero is validated.
+  // ignore: unused_element
   Widget _buildHeaderAndBalance(TransactionService ts) {
     return SizedBox(
       height: Responsive.h(context, 275),
@@ -326,8 +548,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         vertical: Responsive.h(context, 10),
       ),
       decoration: BoxDecoration(
-        color: const Color(0xFFF1FFF3),
-        borderRadius: BorderRadius.circular(18),
+        color: Colors.white.withValues(alpha: 0.86),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.9)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x33002D22),
+            blurRadius: 24,
+            spreadRadius: 1,
+            offset: Offset(0, 10),
+          ),
+          BoxShadow(
+            color: Color(0x26FFFFFF),
+            blurRadius: 3,
+            offset: Offset(0, -1),
+          ),
+        ],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -532,9 +768,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final metricAmount = _summaryMetric == _SummaryMetric.revenue
         ? ts.incomeBetween(metricRange.start, metricRange.end)
         : ts.expenseBetween(metricRange.start, metricRange.end);
-    final metricColor = _summaryMetric == _SummaryMetric.revenue
-        ? _incomeColor
-        : _expenseColor;
+    const metricColor = Colors.white;
     final metricTitle = '${_summaryMetric.label} Last ${_summaryPeriod.label}';
     final metricAmountText =
         '${_summaryMetric == _SummaryMetric.revenue ? '+' : '-'}${_formatMoney(metricAmount)}';
@@ -545,8 +779,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return Container(
       padding: EdgeInsets.all(Responsive.w(context, 20)),
       decoration: BoxDecoration(
-        color: const Color(0xFF00D293),
-        borderRadius: BorderRadius.circular(30),
+        color: const Color(0xFF07513F),
+        borderRadius: BorderRadius.circular(32),
       ),
       child: Row(
         children: [
@@ -563,8 +797,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       child: CircularProgressIndicator(
                         value: progress,
                         strokeWidth: 4,
-                        color: const Color(0xFF007AFF),
-                        backgroundColor: Colors.white30,
+                        color: Colors.white,
+                        backgroundColor: Colors.white24,
                       ),
                     ),
                     SvgPicture.asset(
@@ -572,7 +806,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       width: Responsive.w(context, 28),
                       height: Responsive.w(context, 28),
                       colorFilter: const ColorFilter.mode(
-                        Color(0xFF093030),
+                        Colors.white,
                         BlendMode.srcIn,
                       ),
                     ),
@@ -587,7 +821,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       fontFamily: _bodyFont,
                       fontSize: Responsive.sp(context, 11),
                       fontWeight: FontWeight.w400,
-                      color: const Color(0xFF052224),
+                      color: Colors.white70,
                     ),
                   ),
                   SizedBox(height: Responsive.h(context, 2)),
@@ -601,7 +835,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     fontFamily: _bodyFont,
                     fontSize: Responsive.sp(context, 12),
                     fontWeight: FontWeight.w500,
-                    color: const Color(0xFF093030),
+                    color: Colors.white,
                   ),
                 ),
               ],
@@ -621,7 +855,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               children: [
                 _buildSummaryRow(
                   _FigmaWalletIcon(
-                    color: const Color(0xFF052224),
+                    color: Colors.white,
                     size: Responsive.w(context, 22),
                   ),
                   metricTitle,
@@ -816,9 +1050,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final amount = selectedCategory != null
         ? '${expense > 0 ? '-' : ''}${_formatMoney(expense)}'
         : '—';
-    final color = selectedCategory != null
-        ? const Color(0xFF0068FF)
-        : Colors.black38;
+    const color = Colors.white;
 
     return _PressableScale(
       onTap: () => _showCategoryPicker(selectedCategory),
@@ -831,12 +1063,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ? Icon(
                     _iconForCategory(selectedCategory),
                     size: Responsive.w(context, 22),
-                    color: const Color(0xFF0068FF),
+                    color: Colors.white,
                   )
                 : const Icon(
                     Icons.category_outlined,
                     size: 22,
-                    color: Colors.black38,
+                    color: Colors.white70,
                   ),
           ),
           SizedBox(width: Responsive.w(context, 10)),
@@ -854,7 +1086,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         fontFamily: _bodyFont,
                         fontSize: Responsive.sp(context, 12),
                         fontWeight: FontWeight.w400,
-                        color: const Color(0xFF052224),
+                        color: Colors.white70,
                       ),
                     ),
                     SizedBox(width: Responsive.w(context, 4)),
@@ -1031,7 +1263,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         fontFamily: _bodyFont,
                         fontSize: Responsive.sp(context, 12),
                         fontWeight: FontWeight.w400,
-                        color: const Color(0xFF052224),
+                        color: Colors.white70,
                       ),
                     ),
                   ),
@@ -1093,25 +1325,46 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   width: tabWidth,
                   child: Container(
                     decoration: BoxDecoration(
-                      color: const Color(0xFF00D293),
+                      color: const Color(0xFF00B884),
                       borderRadius: BorderRadius.circular(15),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x26006B52),
+                          blurRadius: 8,
+                          offset: Offset(0, 3),
+                        ),
+                      ],
                     ),
                   ),
                 ),
                 Row(
                   children: labels.asMap().entries.map((entry) {
+                    final isSelected = _selectedTab == entry.key;
                     return Expanded(
-                      child: _PressableScale(
-                        onTap: () => setState(() => _selectedTab = entry.key),
-                        child: Center(
-                          child: Text(
-                            entry.value,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontFamily: _bodyFont,
-                              fontSize: Responsive.sp(context, 15),
-                              fontWeight: FontWeight.w400,
-                              color: const Color(0xFF052224),
+                      child: Semantics(
+                        button: true,
+                        selected: isSelected,
+                        label: '${entry.value} transactions',
+                        child: _PressableScale(
+                          onTap: () => setState(() => _selectedTab = entry.key),
+                          child: Center(
+                            child: AnimatedDefaultTextStyle(
+                              duration: const Duration(milliseconds: 200),
+                              curve: Curves.easeOutCubic,
+                              style: TextStyle(
+                                fontFamily: _bodyFont,
+                                fontSize: Responsive.sp(context, 15),
+                                fontWeight: isSelected
+                                    ? FontWeight.w700
+                                    : FontWeight.w400,
+                                color: isSelected
+                                    ? Colors.white
+                                    : const Color(0xFF052224),
+                              ),
+                              child: Text(
+                                entry.value,
+                                textAlign: TextAlign.center,
+                              ),
                             ),
                           ),
                         ),
@@ -1125,303 +1378,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         },
       ),
     );
-  }
-
-  Widget _buildQuickAddCard() => QuickAddCard(
-    controller: _quickAddController,
-    isLoading: _isQuickAddParsing,
-    isRecording: _isVoiceRecording,
-    isVoiceProcessing: _isVoiceProcessing,
-    onSubmit: _submitQuickAdd,
-    onVoiceTap: _handleVoiceTap,
-  );
-
-  Future<void> _handleVoiceTap() async {
-    if (_isQuickAddParsing || _isQuickAddReviewOpen || _isVoiceProcessing) {
-      return;
-    }
-    if (_isVoiceRecording) {
-      await _stopVoiceListening();
-      return;
-    }
-
-    final session = ++_voiceSession;
-    _voiceFinalHandled = false;
-    _latestVoiceTranscript = '';
-    setState(() => _voiceState = _QuickAddVoiceState.initializing);
-    try {
-      final speech = QuickAddSpeechRecognitionService.instance;
-      final available = await speech.initialize(
-        onStatus: (status) => _handleVoiceStatus(session, status),
-        onError: (error) => _handleVoiceError(session, error),
-      );
-      if (!mounted || session != _voiceSession) return;
-      if (!available) {
-        throw const QuickAddSpeechException(
-          'RECOGNIZER_UNAVAILABLE',
-          'Speech recognition is unavailable.',
-        );
-      }
-      if (!speech.usesVietnameseLocale) {
-        _showQuickAddMessage(
-          AppLanguage.instance.locale == AppLocale.vietnamese
-              ? 'Không có nhận diện tiếng Việt; đang dùng ngôn ngữ hệ thống.'
-              : 'Vietnamese recognition is unavailable; using system locale.',
-        );
-      }
-      await speech.startListening(
-        onResult: (result) => _handleVoiceResult(session, result),
-      );
-      if (!mounted || session != _voiceSession) {
-        await speech.cancelListening();
-        return;
-      }
-      setState(() => _voiceState = _QuickAddVoiceState.listening);
-      _voiceTimeout?.cancel();
-      _voiceTimeout = Timer(
-        const Duration(seconds: 30),
-        () => _finishVoiceAfterStop(session, timedOut: true),
-      );
-    } on QuickAddSpeechException catch (error) {
-      _showVoiceErrorIfCurrent(session, error.code);
-    } catch (_) {
-      _showVoiceErrorIfCurrent(session, 'RECOGNIZER_UNAVAILABLE');
-    }
-  }
-
-  void _handleVoiceResult(int session, QuickAddSpeechResult result) {
-    if (!mounted || session != _voiceSession || _voiceFinalHandled) return;
-    final transcript = result.text.trim();
-    if (transcript.isNotEmpty) {
-      _latestVoiceTranscript = transcript;
-      _quickAddController.value = TextEditingValue(
-        text: transcript,
-        selection: TextSelection.collapsed(offset: transcript.length),
-      );
-    }
-    if (result.isFinal) {
-      unawaited(_submitFinalVoiceTranscript(session, transcript));
-    }
-  }
-
-  void _handleVoiceStatus(int session, String status) {
-    if (!mounted || session != _voiceSession || _voiceFinalHandled) return;
-    final normalized = status.toLowerCase();
-    if (normalized == 'done' || normalized == 'notlistening') {
-      _voiceTimeout?.cancel();
-      _voiceTimeout = Timer(
-        const Duration(milliseconds: 300),
-        () => _submitFinalVoiceTranscript(session, _latestVoiceTranscript),
-      );
-    }
-  }
-
-  void _handleVoiceError(int session, QuickAddSpeechException error) {
-    _showVoiceErrorIfCurrent(session, error.code);
-  }
-
-  Future<void> _stopVoiceListening() async {
-    if (!_isVoiceRecording || _isVoiceProcessing) return;
-    final session = _voiceSession;
-    _voiceTimeout?.cancel();
-    setState(() => _voiceState = _QuickAddVoiceState.processingFinal);
-    try {
-      await QuickAddSpeechRecognitionService.instance.stopListening();
-      await Future<void>.delayed(const Duration(milliseconds: 300));
-      await _submitFinalVoiceTranscript(session, _latestVoiceTranscript);
-    } on QuickAddSpeechException catch (error) {
-      _showVoiceErrorIfCurrent(session, error.code);
-    } catch (_) {
-      _showVoiceErrorIfCurrent(session, 'RECOGNIZER_ERROR');
-    }
-  }
-
-  Future<void> _finishVoiceAfterStop(
-    int session, {
-    required bool timedOut,
-  }) async {
-    if (!mounted || session != _voiceSession || _voiceFinalHandled) return;
-    setState(() => _voiceState = _QuickAddVoiceState.processingFinal);
-    try {
-      await QuickAddSpeechRecognitionService.instance.stopListening();
-      await Future<void>.delayed(const Duration(milliseconds: 300));
-      if (_latestVoiceTranscript.trim().isEmpty && timedOut) {
-        _showVoiceErrorIfCurrent(session, 'RECOGNITION_TIMEOUT');
-        return;
-      }
-      await _submitFinalVoiceTranscript(session, _latestVoiceTranscript);
-    } catch (_) {
-      _showVoiceErrorIfCurrent(session, 'RECOGNIZER_ERROR');
-    }
-  }
-
-  Future<void> _submitFinalVoiceTranscript(int session, String value) async {
-    if (!mounted || session != _voiceSession || _voiceFinalHandled) return;
-    final transcript = value.trim();
-    if (transcript.isEmpty) {
-      _showVoiceErrorIfCurrent(session, 'EMPTY_TRANSCRIPT');
-      return;
-    }
-    _voiceFinalHandled = true;
-    _voiceTimeout?.cancel();
-    _quickAddController.value = TextEditingValue(
-      text: transcript,
-      selection: TextSelection.collapsed(offset: transcript.length),
-    );
-    setState(() => _voiceState = _QuickAddVoiceState.processingFinal);
-    await Future<void>.delayed(Duration.zero);
-    if (!mounted || session != _voiceSession) return;
-    setState(() => _voiceState = _QuickAddVoiceState.parsing);
-    await _submitQuickAdd(transcript);
-  }
-
-  void _showVoiceErrorIfCurrent(int session, String code) {
-    if (!mounted || session != _voiceSession || _voiceFinalHandled) return;
-    _voiceFinalHandled = true;
-    _voiceTimeout?.cancel();
-    setState(() => _voiceState = _QuickAddVoiceState.error);
-    _showQuickAddMessage(_localizedVoiceError(code));
-    if (mounted && session == _voiceSession) {
-      setState(() => _voiceState = _QuickAddVoiceState.idle);
-    }
-  }
-
-  String _localizedVoiceError(String code) {
-    final vi = AppLanguage.instance.locale == AppLocale.vietnamese;
-    return switch (code) {
-      'MICROPHONE_PERMISSION_DENIED' || 'error_permission' =>
-        vi
-            ? 'Cần quyền microphone để nhập giao dịch bằng giọng nói.'
-            : 'Microphone permission is required for voice Quick Add.',
-      'EMPTY_TRANSCRIPT' || 'error_no_match' =>
-        vi
-            ? 'Không nhận diện được nội dung giọng nói.'
-            : 'No speech could be recognized.',
-      'RECOGNITION_TIMEOUT' || 'error_speech_timeout' =>
-        vi
-            ? 'Không nhận diện được giọng nói trong thời gian cho phép.'
-            : 'No speech was recognized before the timeout.',
-      'RECOGNIZER_UNAVAILABLE' =>
-        vi
-            ? 'Thiết bị không có dịch vụ nhận diện giọng nói khả dụng.'
-            : 'Speech recognition is unavailable on this device.',
-      _ =>
-        vi
-            ? 'Nhận diện giọng nói hiện không khả dụng. Vui lòng thử lại.'
-            : 'Speech recognition is unavailable. Please try again.',
-    };
-  }
-
-  Future<void> _submitQuickAdd(String input) async {
-    if (_isQuickAddParsing ||
-        _isQuickAddReviewOpen ||
-        _isVoiceRecording ||
-        _isVoiceProcessing) {
-      return;
-    }
-    final text = input.trim();
-    if (text.isEmpty) {
-      _showQuickAddMessage(
-        AppLanguage.instance.locale == AppLocale.vietnamese
-            ? 'Vui lòng nhập nội dung giao dịch.'
-            : 'Please enter a transaction.',
-      );
-      return;
-    }
-
-    setState(() => _isQuickAddParsing = true);
-    try {
-      final draft = await QuickAddService.instance.parse(text);
-      if (!mounted) return;
-      setState(() {
-        _isQuickAddParsing = false;
-        _isQuickAddReviewOpen = true;
-        if (_voiceState == _QuickAddVoiceState.parsing) {
-          _voiceState = _QuickAddVoiceState.idle;
-        }
-      });
-      final action = await QuickAddReviewSheet.show(
-        context,
-        draft: draft,
-        onConfirm: () => _confirmQuickAdd(draft),
-      );
-      if (!mounted) return;
-      _isQuickAddReviewOpen = false;
-
-      if (action == QuickAddReviewAction.confirmed) {
-        _quickAddController.clear();
-        if (!mounted) return;
-        // Reconstruct from draft for the saved screen (already saved by _confirmQuickAdd)
-        final userId = ref.read(authServiceProvider).currentUser?.id;
-        final savedTx = draft.toTransactionModel(
-          id: 't_${DateTime.now().millisecondsSinceEpoch}',
-          userId: userId ?? '',
-        );
-        if (!mounted) return;
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => TransactionSavedScreen(transaction: savedTx),
-          ),
-        );
-      } else if (action == QuickAddReviewAction.editDetails) {
-        final saved = await _openQuickAddDetails(draft);
-        if (!mounted) return;
-        if (saved == true) {
-          _quickAddController.clear();
-        }
-      }
-    } on QuickAddException catch (error) {
-      if (!mounted) return;
-      _showQuickAddMessage(error.message);
-    } catch (_) {
-      if (!mounted) return;
-      _showQuickAddMessage(
-        AppLanguage.instance.locale == AppLocale.vietnamese
-            ? 'Không thể phân tích giao dịch lúc này.'
-            : 'Unable to parse the transaction right now.',
-      );
-    } finally {
-      if (mounted &&
-          (_isQuickAddParsing || _voiceState == _QuickAddVoiceState.parsing)) {
-        setState(() {
-          _isQuickAddParsing = false;
-          if (_voiceState == _QuickAddVoiceState.parsing) {
-            _voiceState = _QuickAddVoiceState.idle;
-          }
-        });
-      }
-    }
-  }
-
-  Future<void> _confirmQuickAdd(QuickAddDraft draft) async {
-    final userId = ref.read(authServiceProvider).currentUser?.id;
-    if (userId == null) {
-      throw StateError('Not authenticated');
-    }
-    final transaction = draft.toTransactionModel(
-      id: 't_${DateTime.now().millisecondsSinceEpoch}',
-      userId: userId,
-    );
-    await ref.read(transactionServiceProvider).add(transaction);
-  }
-
-  Future<bool?> _openQuickAddDetails(QuickAddDraft draft) {
-    return AddTransactionSheet.show(
-      context,
-      initialIsExpense: draft.type == QuickAddTransactionType.expense,
-      initialAmount: draft.amount,
-      initialName: draft.name,
-      initialCategoryKey: draft.categoryKey,
-      initialWalletId: draft.walletId,
-      initialDate: draft.date,
-      fromQuickAdd: true,
-    );
-  }
-
-  void _showQuickAddMessage(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   static const _months = [
@@ -1451,83 +1407,77 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Header row: Recent transactions + Add button
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              'Recent transactions',
-              style: TextStyle(
-                fontFamily: _headlineFont,
-                fontSize: Responsive.sp(context, 16),
-                fontWeight: FontWeight.w600,
-                color: const Color(0xFF052224),
-              ),
-            ),
-            TextButton.icon(
-              onPressed: widget.onAddTap,
-              style: TextButton.styleFrom(
-                backgroundColor: const Color(0xFF00C49A),
-                foregroundColor: Colors.white,
-                padding: EdgeInsets.symmetric(
-                  horizontal: Responsive.w(context, 14),
-                  vertical: Responsive.h(context, 9),
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                minimumSize: Size.zero,
-              ),
-              icon: Icon(Icons.add_rounded, size: Responsive.w(context, 18)),
-              label: Text(
-                'Add',
-                style: TextStyle(
-                  fontFamily: _bodyFont,
-                  fontSize: Responsive.sp(context, 14),
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
+            Expanded(child: _sectionTitle('Recent Transactions')),
+            _buildViewAllButton(),
           ],
         ),
         SizedBox(height: Responsive.h(context, 12)),
+        _buildPeriodTabs(),
+        SizedBox(height: Responsive.h(context, 14)),
         if (visibleTransactions.isEmpty)
-          Padding(
-            padding: EdgeInsets.symmetric(vertical: Responsive.h(context, 20)),
-            child: Center(
-              child: Text(
-                emptyMessage,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.grey),
-              ),
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.symmetric(vertical: Responsive.h(context, 28)),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF3F7F5),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              children: [
+                const Icon(
+                  Icons.receipt_long_outlined,
+                  color: Color(0xFF6F8980),
+                ),
+                SizedBox(height: Responsive.h(context, 8)),
+                Text(
+                  emptyMessage,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: _bodyFont,
+                    color: const Color(0xFF60736D),
+                    fontSize: Responsive.sp(context, 13),
+                  ),
+                ),
+              ],
             ),
           )
         else
-          Column(
-            children: visibleTransactions.map((t) {
-              return Padding(
-                padding: EdgeInsets.only(bottom: Responsive.h(context, 15)),
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: visibleTransactions.length,
+            separatorBuilder: (_, _) =>
+                SizedBox(height: Responsive.h(context, 10)),
+            itemBuilder: (context, index) {
+              final transaction = visibleTransactions[index];
+              return Semantics(
+                button: true,
+                label:
+                    '${transaction.name}, ${_formatSignedMoney(transaction.amount)}',
                 child: _PressableScale(
-                  pressedOverlayColor: const Color(0x33000000),
+                  pressedOverlayColor: const Color(0x14000000),
                   borderRadius: BorderRadius.circular(16),
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => EditTransactionScreen(transaction: t),
+                      builder: (_) =>
+                          EditTransactionScreen(transaction: transaction),
                     ),
                   ),
                   child: _buildTransactionItem(
-                    _iconForCategory(t.category),
-                    t.name,
-                    _formatTransactionTime(t.date),
-                    t.category,
-                    _formatSignedMoney(t.amount),
-                    _iconColorForCategory(t.category),
-                    t.amount > 0,
+                    _iconForCategory(transaction.category),
+                    transaction.name,
+                    _formatTransactionTime(transaction.date),
+                    transaction.category,
+                    _formatSignedMoney(transaction.amount),
+                    _iconColorForCategory(transaction.category),
+                    transaction.amount > 0,
                   ),
                 ),
               );
-            }).toList(),
+            },
           ),
       ],
     );
@@ -1545,7 +1495,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             vertical: Responsive.h(context, 9),
           ),
           decoration: BoxDecoration(
-            color: const Color(0xFF00C49A).withValues(alpha: 0.86),
+            color: const Color(0xFFE3F5ED),
             borderRadius: BorderRadius.circular(999),
           ),
           child: Row(
@@ -1557,14 +1507,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   fontFamily: _bodyFont,
                   fontSize: Responsive.sp(context, 12),
                   fontWeight: FontWeight.w700,
-                  color: Colors.white,
+                  color: const Color(0xFF07513F),
                 ),
               ),
               SizedBox(width: Responsive.w(context, 5)),
               Icon(
                 Icons.arrow_forward_rounded,
                 size: Responsive.w(context, 15),
-                color: Colors.white,
+                color: const Color(0xFF07513F),
               ),
             ],
           ),
@@ -1591,20 +1541,46 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     Color iconBg,
     bool isIncome,
   ) {
-    return Padding(
-      padding: EdgeInsets.symmetric(
-        horizontal: Responsive.w(context, 6),
-        vertical: Responsive.h(context, 4),
+    return Container(
+      padding: EdgeInsets.all(Responsive.w(context, 12)),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF3F7F5),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x2600523C),
+            blurRadius: 18,
+            spreadRadius: 1,
+            offset: Offset(0, 7),
+          ),
+          BoxShadow(
+            color: Color(0x16000000),
+            blurRadius: 5,
+            offset: Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: [
           Container(
-            padding: EdgeInsets.all(Responsive.w(context, 12)),
+            width: Responsive.w(context, 42),
+            height: Responsive.w(context, 42),
             decoration: BoxDecoration(
               color: iconBg,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(10),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x20000000),
+                  blurRadius: 6,
+                  offset: Offset(0, 3),
+                ),
+              ],
             ),
-            child: Icon(icon, color: Colors.white),
+            child: Icon(
+              icon,
+              color: Colors.white,
+              size: Responsive.w(context, 21),
+            ),
           ),
           SizedBox(width: Responsive.w(context, 15)),
           Expanded(
@@ -1613,10 +1589,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               children: [
                 Text(
                   title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontFamily: _bodyFont,
-                    fontWeight: FontWeight.w500,
-                    fontSize: Responsive.sp(context, 15),
+                    fontWeight: FontWeight.w600,
+                    fontSize: Responsive.sp(context, 14),
                     color: const Color(0xFF052224),
                   ),
                 ),
@@ -1624,16 +1602,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   date,
                   style: TextStyle(
                     fontFamily: _bodyFont,
-                    color: const Color(0xFF0068FF),
+                    color: const Color(0xFF70827C),
                     fontSize: Responsive.sp(context, 12),
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w400,
                   ),
                 ),
               ],
             ),
           ),
-          SizedBox(
-            width: Responsive.w(context, 112),
+          ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: Responsive.w(context, 122)),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
@@ -1649,8 +1627,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       textAlign: TextAlign.right,
                       style: TextStyle(
                         fontFamily: _headlineFont,
-                        fontWeight: FontWeight.w500,
-                        fontSize: Responsive.sp(context, 15),
+                        fontWeight: FontWeight.w700,
+                        fontSize: Responsive.sp(context, 14),
                         color: isIncome ? _incomeColor : _expenseColor,
                       ),
                     ),
@@ -1665,9 +1643,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontFamily: _bodyFont,
-                      fontWeight: FontWeight.w300,
-                      fontSize: Responsive.sp(context, 13),
-                      color: const Color(0xFF052224),
+                      fontWeight: FontWeight.w400,
+                      fontSize: Responsive.sp(context, 12),
+                      color: const Color(0xFF70827C),
                     ),
                   ),
                 ],
@@ -1680,13 +1658,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   static IconData _iconForCategory(String category) {
-    final custom = CustomCategoryStore.instance.findByKey(category);
-    if (custom != null) return custom.iconData;
-    return TransactionCategory.fromKey(category).icon;
+    return TransactionCategory.resolve(category).icon;
   }
 
   static Color _iconColorForCategory(String category) =>
-      TransactionCategory.fromKey(category).color;
+      TransactionCategory.resolve(category).color;
 
   static String _formatSignedMoney(int amount) {
     final sign = amount < 0 ? '-' : '+';
@@ -1694,11 +1670,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   static String _formatMoney(int amount) {
+    return '${_formatMoneyValue(amount)} VND';
+  }
+
+  static String _formatMoneyValue(int amount) {
     final text = amount.toString().replaceAllMapped(
       RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
       (match) => '${match[1]},',
     );
-    return '$text VND';
+    return text;
   }
 
   static String _formatTransactionTime(DateTime dt) {
@@ -1934,15 +1914,6 @@ enum _SummaryMetric {
 
   const _SummaryMetric(this.label);
   final String label;
-}
-
-enum _QuickAddVoiceState {
-  idle,
-  initializing,
-  listening,
-  processingFinal,
-  parsing,
-  error,
 }
 
 enum _SummaryPeriod {

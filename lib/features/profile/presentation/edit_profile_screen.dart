@@ -9,6 +9,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/notification_bell.dart';
 import '../../auth/services/auth_service.dart';
+import '../../finance/presentation/add_transaction_sheet.dart';
 
 /// Edit Profile screen – shown when user taps "Edit Profile" from the profile tab.
 ///
@@ -78,7 +79,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
         return Scaffold(
           backgroundColor: AppColors.dashboardBg,
-          bottomNavigationBar: const AppBottomNavBar(selectedIndex: 4),
+          bottomNavigationBar: AppBottomNavBar(
+            selectedIndex: 4,
+            onAddTap: () => AddTransactionSheet.show(context),
+          ),
           body: SafeArea(
             child: SingleChildScrollView(
               child: Stack(

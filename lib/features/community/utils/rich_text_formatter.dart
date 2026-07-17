@@ -33,11 +33,22 @@ String stripFormattingForPreview(String raw) {
   return text.replaceAll('\n', ' ').trim();
 }
 
+/// Produces a defensive plain-text preview for notification history.
+/// Legacy posts can contain incomplete marker pairs from older composers, so
+/// notification previews remove any formatting controls left after parsing.
+String stripFormattingForNotificationPreview(String raw) {
+  var text = stripFormattingForPreview(raw);
+  text = text.replaceAll(RegExp(r'[\*~]'), '');
+  text = text.replaceAll('||', '');
+  return text.replaceAll(RegExp(r'\s+'), ' ').trim();
+}
+
 /// Renders post/comment content with bold/italic/underline/bullets and
 /// tap-to-reveal spoilers.
 ///
-/// Pass [maxLines] for a compact, unformatted preview (feed cards);
-/// leave it `null` for the fully-formatted view (post detail screen).
+/// [maxLines] only limits the visible lines. Formatting is rendered in both
+/// feed previews and the full post detail so the storage markers never leak
+/// into the UI.
 class RichPostContent extends StatelessWidget {
   const RichPostContent({
     super.key,
@@ -54,62 +65,18 @@ class RichPostContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (maxLines != null) {
-      return Text(
-        stripFormattingForPreview(content),
-        maxLines: maxLines,
-        overflow: TextOverflow.ellipsis,
+    return Text.rich(
+      TextSpan(
         style: style,
-      );
-    }
-
-    final lines = content.split('\n');
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [for (final line in lines) _buildLine(line)],
-    );
-  }
-
-  Widget _buildLine(String line) {
-    final isBullet = line.startsWith('• ') || line.startsWith('•');
-    final text = isBullet ? line.replaceFirst(RegExp(r'^•\s?'), '') : line;
-    final spans = _parseSpoilers(text, style, spoilerColor);
-
-    if (line.trim().isEmpty) {
-      return const SizedBox(height: 6);
-    }
-
-    final richText = Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Text.rich(TextSpan(children: spans)),
-    );
-
-    if (!isBullet) return richText;
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 1, right: 8),
-            child: Text(
-              '•',
-              style: style.copyWith(fontWeight: FontWeight.w800),
-            ),
-          ),
-          Expanded(child: Text.rich(TextSpan(children: spans))),
-        ],
+        children: _parseSpoilers(content, style, spoilerColor),
       ),
+      maxLines: maxLines,
+      overflow: maxLines == null ? TextOverflow.clip : TextOverflow.ellipsis,
     );
   }
 }
 
 final _spoilerRegex = RegExp(r'\|\|(.+?)\|\|', dotAll: true);
-final _inlineRegex = RegExp(
-  r'\*\*(.*?)\*\*|\*([^*]*?)\*|~(.*?)~',
-  dotAll: true,
-);
 
 /// Text controller that previews the community's lightweight Markdown while
 /// preserving the raw marker text used for storage and cursor offsets.
@@ -217,41 +184,64 @@ List<InlineSpan> _parseSpoilers(
 
 List<InlineSpan> _parseInline(String text, TextStyle base) {
   final spans = <InlineSpan>[];
-  var lastEnd = 0;
-  for (final match in _inlineRegex.allMatches(text)) {
-    if (match.start > lastEnd) {
-      spans.add(
-        TextSpan(text: text.substring(lastEnd, match.start), style: base),
-      );
-    }
-    if (match.group(1) != null) {
-      spans.add(
-        TextSpan(
-          text: match.group(1),
-          style: base.copyWith(fontWeight: FontWeight.w800),
+  final starCount = '*'.allMatches(text).length;
+  final tildeCount = '~'.allMatches(text).length;
+  final parseStars = starCount.isEven;
+  final parseTildes = tildeCount.isEven;
+  var bold = false;
+  var italic = false;
+  var underline = false;
+  var index = 0;
+  var textStart = 0;
+
+  void addText(int end) {
+    if (end <= textStart) return;
+    spans.add(
+      TextSpan(
+        text: text.substring(textStart, end),
+        style: base.copyWith(
+          fontWeight: bold ? FontWeight.w800 : base.fontWeight,
+          fontStyle: italic ? FontStyle.italic : base.fontStyle,
+          decoration: underline ? TextDecoration.underline : base.decoration,
         ),
-      );
-    } else if (match.group(2) != null) {
-      spans.add(
-        TextSpan(
-          text: match.group(2),
-          style: base.copyWith(fontStyle: FontStyle.italic),
-        ),
-      );
-    } else if (match.group(3) != null) {
-      spans.add(
-        TextSpan(
-          text: match.group(3),
-          style: base.copyWith(decoration: TextDecoration.underline),
-        ),
-      );
-    }
-    lastEnd = match.end;
+      ),
+    );
   }
-  if (lastEnd < text.length) {
-    spans.add(TextSpan(text: text.substring(lastEnd), style: base));
+
+  while (index < text.length) {
+    if (parseStars && text[index] == '*') {
+      addText(index);
+      var count = 0;
+      while (index + count < text.length && text[index + count] == '*') {
+        count++;
+      }
+
+      if ((count ~/ 3).isOdd) {
+        bold = !bold;
+        italic = !italic;
+      }
+      final remainder = count % 3;
+      if (remainder == 2) bold = !bold;
+      if (remainder == 1) italic = !italic;
+      index += count;
+      textStart = index;
+      continue;
+    }
+
+    if (parseTildes && text[index] == '~') {
+      addText(index);
+      underline = !underline;
+      index++;
+      textStart = index;
+      continue;
+    }
+    index++;
   }
-  if (spans.isEmpty) spans.add(TextSpan(text: text, style: base));
+
+  addText(text.length);
+  if (spans.isEmpty && text.isNotEmpty) {
+    spans.add(TextSpan(text: text, style: base));
+  }
   return spans;
 }
 
