@@ -150,6 +150,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(chatControllerProvider);
+    final showTyping = state.isSending && !state.isReceivingText;
     ref.listen(chatControllerProvider, (_, _) => _scrollToBottom());
 
     return Scaffold(
@@ -168,7 +169,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 Responsive.w(context, 20),
                 Responsive.h(context, 20),
               ),
-              itemCount: state.messages.length + (state.isSending ? 1 : 0),
+              itemCount: state.messages.length + (showTyping ? 1 : 0),
               separatorBuilder: (_, _) =>
                   SizedBox(height: Responsive.h(context, 20)),
               itemBuilder: (context, index) {

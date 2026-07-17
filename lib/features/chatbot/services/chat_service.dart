@@ -1,11 +1,17 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/constants/supabase_constants.dart';
 import '../models/chat_model.dart';
 
 typedef ChatFunctionInvoker =
     Future<dynamic> Function(Map<String, dynamic> body);
+typedef ChatFunctionStreamer =
+    Stream<Map<String, dynamic>> Function(Map<String, dynamic> body);
 
 class ChatReply {
   const ChatReply({required this.message, this.insight, this.chart});
@@ -13,6 +19,15 @@ class ChatReply {
   final String message;
   final ChatInsight? insight;
   final ChatChart? chart;
+}
+
+class ChatStreamUpdate {
+  const ChatStreamUpdate.delta(this.delta) : reply = null;
+
+  const ChatStreamUpdate.done(this.reply) : delta = '';
+
+  final String delta;
+  final ChatReply? reply;
 }
 
 class ChatException implements Exception {
@@ -28,9 +43,13 @@ class ChatException implements Exception {
 class ChatService {
   ChatService({
     ChatFunctionInvoker? invokeFunction,
+    ChatFunctionStreamer? streamFunction,
     SupabaseClient? client,
     bool? persistenceEnabled,
   }) : _invokeFunction = invokeFunction ?? _invokeSupabaseFunction,
+       _streamFunction =
+           streamFunction ??
+           (invokeFunction == null ? _streamSupabaseFunction : null),
        _client = client,
        _persistenceEnabled =
            persistenceEnabled ?? (invokeFunction == null || client != null);
@@ -38,6 +57,7 @@ class ChatService {
   static final instance = ChatService();
 
   final ChatFunctionInvoker _invokeFunction;
+  final ChatFunctionStreamer? _streamFunction;
   final SupabaseClient? _client;
   final bool _persistenceEnabled;
 
@@ -188,6 +208,88 @@ class ChatService {
     required String locale,
     ChatImageAttachment? image,
   }) async {
+    final response = await _invokeFunction(
+      _buildRequestBody(
+        message: message,
+        history: history,
+        locale: locale,
+        image: image,
+      ),
+    );
+
+    if (response is! Map || response['success'] != true) {
+      throw ChatException(
+        'INVALID_RESPONSE',
+        locale == 'vi-VN'
+            ? 'Phản hồi của trợ lý không hợp lệ.'
+            : 'The assistant returned an invalid response.',
+      );
+    }
+    return _parseReply(response['data']);
+  }
+
+  Stream<ChatStreamUpdate> sendStream({
+    required String message,
+    required List<ChatModel> history,
+    required String locale,
+    ChatImageAttachment? image,
+  }) async* {
+    final streamFunction = _streamFunction;
+    if (streamFunction == null) {
+      yield ChatStreamUpdate.done(
+        await send(
+          message: message,
+          history: history,
+          locale: locale,
+          image: image,
+        ),
+      );
+      return;
+    }
+
+    final body = _buildRequestBody(
+      message: message,
+      history: history,
+      locale: locale,
+      image: image,
+    );
+    var completed = false;
+    await for (final event in streamFunction(body)) {
+      switch (event['type']) {
+        case 'delta':
+          final delta = event['delta'];
+          if (delta is String && delta.isNotEmpty) {
+            yield ChatStreamUpdate.delta(delta);
+          }
+        case 'done':
+          completed = true;
+          yield ChatStreamUpdate.done(_parseReply(event['data']));
+        case 'error':
+          final rawError = event['error'];
+          final error = rawError is Map
+              ? Map<String, dynamic>.from(rawError)
+              : const <String, dynamic>{};
+          throw ChatException(
+            error['code'] as String? ?? 'CHATBOT_UNAVAILABLE',
+            error['message'] as String? ??
+                'Unable to reach the financial assistant.',
+          );
+      }
+    }
+    if (!completed) {
+      throw const ChatException(
+        'STREAM_INTERRUPTED',
+        'The assistant response was interrupted.',
+      );
+    }
+  }
+
+  static Map<String, dynamic> _buildRequestBody({
+    required String message,
+    required List<ChatModel> history,
+    required String locale,
+    ChatImageAttachment? image,
+  }) {
     final trimmed = message.trim();
     if (trimmed.isEmpty) {
       throw ChatException(
@@ -220,7 +322,7 @@ class ChatService {
       promptHistory.removeAt(0);
     }
 
-    final response = await _invokeFunction({
+    return {
       'message': trimmed,
       'locale': locale,
       'timezone': DateTime.now().timeZoneName,
@@ -230,17 +332,10 @@ class ChatService {
           .toList(growable: false),
       if (image?.storagePath != null) 'imagePath': image!.storagePath,
       if (image?.storagePath != null) 'imageMimeType': image!.mimeType,
-    });
+    };
+  }
 
-    if (response is! Map || response['success'] != true) {
-      throw ChatException(
-        'INVALID_RESPONSE',
-        locale == 'vi-VN'
-            ? 'Phản hồi của trợ lý không hợp lệ.'
-            : 'The assistant returned an invalid response.',
-      );
-    }
-    final rawData = response['data'];
+  static ChatReply _parseReply(dynamic rawData) {
     if (rawData is! Map) {
       throw const ChatException(
         'INVALID_RESPONSE',
@@ -292,6 +387,81 @@ class ChatService {
       '${date.year.toString().padLeft(4, '0')}-'
       '${date.month.toString().padLeft(2, '0')}-'
       '${date.day.toString().padLeft(2, '0')}';
+
+  static Stream<Map<String, dynamic>> _streamSupabaseFunction(
+    Map<String, dynamic> body,
+  ) async* {
+    final session = Supabase.instance.client.auth.currentSession;
+    if (session == null) {
+      throw const ChatException(
+        'UNAUTHORIZED',
+        'Please sign in to use the assistant.',
+      );
+    }
+
+    final client = http.Client();
+    try {
+      final request =
+          http.Request(
+              'POST',
+              Uri.parse(
+                '${SupabaseConstants.url}/functions/v1/finance-chatbot',
+              ),
+            )
+            ..headers.addAll({
+              'Authorization': 'Bearer ${session.accessToken}',
+              'apikey': SupabaseConstants.anonKey,
+              'Content-Type': 'application/json',
+              'Accept': 'text/event-stream',
+            })
+            ..body = jsonEncode(body);
+      final response = await client.send(request);
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        final responseBody = await response.stream.bytesToString();
+        try {
+          final decoded = jsonDecode(responseBody);
+          final rawError = decoded is Map ? decoded['error'] : null;
+          if (rawError is Map) {
+            throw ChatException(
+              rawError['code'] as String? ?? 'CHATBOT_UNAVAILABLE',
+              rawError['message'] as String? ??
+                  'Unable to reach the financial assistant.',
+            );
+          }
+        } on ChatException {
+          rethrow;
+        } catch (_) {
+          // Fall through to the status-based error below.
+        }
+        throw ChatException(
+          'CHATBOT_UNAVAILABLE',
+          'The assistant returned HTTP ${response.statusCode}.',
+        );
+      }
+
+      await for (final line
+          in response.stream
+              .transform(utf8.decoder)
+              .transform(const LineSplitter())) {
+        if (!line.startsWith('data:')) continue;
+        final data = line.substring(5).trimLeft();
+        if (data.isEmpty || data == '[DONE]') continue;
+        final decoded = jsonDecode(data);
+        if (decoded is Map) {
+          yield Map<String, dynamic>.from(decoded);
+        }
+      }
+    } on ChatException {
+      rethrow;
+    } catch (_) {
+      throw const ChatException(
+        'CHATBOT_UNAVAILABLE',
+        'Unable to stream the assistant response.',
+      );
+    } finally {
+      client.close();
+    }
+  }
 
   static Future<dynamic> _invokeSupabaseFunction(
     Map<String, dynamic> body,

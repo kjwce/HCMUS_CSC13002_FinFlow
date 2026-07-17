@@ -26,6 +26,7 @@ class ChatController extends ChangeNotifier {
   List<ChatConversation> _conversations = [];
   String? _activeConversationId;
   bool _isSending = false;
+  bool _isReceivingText = false;
   bool _isLoadingHistory = false;
   String? _errorMessage;
   int _idCounter = 0;
@@ -34,6 +35,7 @@ class ChatController extends ChangeNotifier {
   List<ChatConversation> get conversations => List.unmodifiable(_conversations);
   String? get activeConversationId => _activeConversationId;
   bool get isSending => _isSending;
+  bool get isReceivingText => _isReceivingText;
   bool get isLoadingHistory => _isLoadingHistory;
   String? get errorMessage => _errorMessage;
 
@@ -139,8 +141,10 @@ class ChatController extends ChangeNotifier {
     );
     _messages.add(userMessage);
     _isSending = true;
+    _isReceivingText = false;
     notifyListeners();
 
+    int? assistantIndex;
     try {
       await _ensureConversation(displayText);
       if (pendingImage != null) {
@@ -157,35 +161,80 @@ class ChatController extends ChangeNotifier {
         notifyListeners();
       }
       await _saveMessageSafely(userMessage);
-      final reply = await _service.send(
+      final promptHistory = _messages.sublist(0, _messages.length - 1);
+      var streamedText = '';
+      ChatReply? finalReply;
+      await for (final update in _service.sendStream(
         message: displayText,
-        history: _messages.sublist(0, _messages.length - 1),
+        history: promptHistory,
         locale: _localeCode,
         image: userMessage.image,
+      )) {
+        if (update.delta.isNotEmpty) {
+          streamedText += update.delta;
+          assistantIndex ??= _messages.length;
+          final draft = ChatModel(
+            id: assistantIndex == _messages.length
+                ? _nextId()
+                : _messages[assistantIndex].id,
+            message: streamedText,
+            role: ChatRole.assistant,
+            createdAt: assistantIndex == _messages.length
+                ? DateTime.now()
+                : _messages[assistantIndex].createdAt,
+          );
+          if (assistantIndex == _messages.length) {
+            _messages.add(draft);
+          } else {
+            _messages[assistantIndex] = draft;
+          }
+          _isReceivingText = true;
+          notifyListeners();
+        }
+        if (update.reply != null) finalReply = update.reply;
+      }
+      final reply = finalReply;
+      if (reply == null) {
+        throw const ChatException(
+          'STREAM_INTERRUPTED',
+          'The assistant response was interrupted.',
+        );
+      }
+      final completedMessage = ChatModel(
+        id: assistantIndex == null ? _nextId() : _messages[assistantIndex].id,
+        message: reply.message,
+        role: ChatRole.assistant,
+        createdAt: assistantIndex == null
+            ? DateTime.now()
+            : _messages[assistantIndex].createdAt,
+        insight: reply.insight,
+        chart: reply.chart,
       );
-      _messages.add(
-        ChatModel(
-          id: _nextId(),
-          message: reply.message,
-          role: ChatRole.assistant,
-          createdAt: DateTime.now(),
-          insight: reply.insight,
-          chart: reply.chart,
-        ),
-      );
-      await _saveMessageSafely(_messages.last);
+      if (assistantIndex == null) {
+        _messages.add(completedMessage);
+      } else {
+        _messages[assistantIndex] = completedMessage;
+      }
+      await _saveMessageSafely(completedMessage);
       await _refreshConversations();
       return true;
     } on ChatException catch (error) {
+      if (assistantIndex != null && assistantIndex < _messages.length) {
+        _messages.removeAt(assistantIndex);
+      }
       _errorMessage = error.message;
       return false;
     } catch (_) {
+      if (assistantIndex != null && assistantIndex < _messages.length) {
+        _messages.removeAt(assistantIndex);
+      }
       _errorMessage = _localeCode == 'vi-VN'
           ? 'Không thể kết nối với trợ lý. Vui lòng thử lại.'
           : 'Unable to connect to the assistant. Please try again.';
       return false;
     } finally {
       _isSending = false;
+      _isReceivingText = false;
       notifyListeners();
     }
   }

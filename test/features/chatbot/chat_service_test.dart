@@ -120,5 +120,54 @@ void main() {
       expect(capturedBody['imagePath'], 'user-id/photo.jpg');
       expect(capturedBody['imageMimeType'], 'image/jpeg');
     });
+
+    test(
+      'streams reply deltas before the completed structured response',
+      () async {
+        final service = ChatService(
+          invokeFunction: (_) async => throw UnimplementedError(),
+          streamFunction: (_) async* {
+            yield {'type': 'delta', 'delta': 'Xin '};
+            yield {'type': 'delta', 'delta': 'chào!'};
+            yield {
+              'type': 'done',
+              'data': {'reply': 'Xin chào!', 'insight': null, 'chart': null},
+            };
+          },
+        );
+
+        final updates = await service
+            .sendStream(message: 'Hú', history: const [], locale: 'vi-VN')
+            .toList();
+
+        expect(updates.map((update) => update.delta), ['Xin ', 'chào!', '']);
+        expect(updates.last.reply?.message, 'Xin chào!');
+      },
+    );
+
+    test('surfaces an error event from a streamed response', () async {
+      final service = ChatService(
+        invokeFunction: (_) async => throw UnimplementedError(),
+        streamFunction: (_) async* {
+          yield {
+            'type': 'error',
+            'error': {'code': 'GEMINI_TIMEOUT', 'message': 'Timed out'},
+          };
+        },
+      );
+
+      expect(
+        () => service
+            .sendStream(message: 'Hello', history: const [], locale: 'en-US')
+            .drain<void>(),
+        throwsA(
+          isA<ChatException>().having(
+            (error) => error.code,
+            'code',
+            'GEMINI_TIMEOUT',
+          ),
+        ),
+      );
+    });
   });
 }

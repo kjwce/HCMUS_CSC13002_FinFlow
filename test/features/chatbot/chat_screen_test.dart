@@ -91,4 +91,48 @@ void main() {
     expect(find.byKey(const Key('new-chat-button')), findsOneWidget);
     expect(find.text('No saved conversations yet.'), findsOneWidget);
   });
+
+  testWidgets('replaces typing dots with streamed assistant text', (
+    tester,
+  ) async {
+    final events = StreamController<Map<String, dynamic>>();
+    final service = ChatService(
+      invokeFunction: (_) async => throw UnimplementedError(),
+      streamFunction: (_) => events.stream,
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [chatServiceProvider.overrideWithValue(service)],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChatScreen(showBackButton: false),
+        ),
+      ),
+    );
+
+    await tester.enterText(find.byKey(const Key('chat-input')), 'Hú');
+    await tester.tap(find.byKey(const Key('chat-send-button')));
+    await tester.pump();
+    expect(find.byKey(const Key('chat-typing-indicator')), findsOneWidget);
+
+    events.add({'type': 'delta', 'delta': 'Có mình '});
+    await tester.pump();
+    expect(find.text('Có mình '), findsOneWidget);
+    expect(find.byKey(const Key('chat-typing-indicator')), findsNothing);
+
+    events.add({'type': 'delta', 'delta': 'đây!'});
+    await tester.pump();
+    expect(find.text('Có mình đây!'), findsOneWidget);
+
+    events.add({
+      'type': 'done',
+      'data': {'reply': 'Có mình đây!', 'insight': null, 'chart': null},
+    });
+    await events.close();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Có mình đây!'), findsOneWidget);
+    expect(find.byKey(const Key('chat-typing-indicator')), findsNothing);
+  });
 }

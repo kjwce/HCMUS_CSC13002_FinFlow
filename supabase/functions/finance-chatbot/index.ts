@@ -1,6 +1,10 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import {
+  classifyChatIntent,
+  type ChatIntent,
+} from "../_shared/chat_intent.ts";
 
-const VERSION = 1;
+const VERSION = 2;
 const DEFAULT_MODEL = "gemini-3.1-flash-lite";
 const MAX_MESSAGE_LENGTH = 1000;
 const MAX_HISTORY_ITEMS = 10;
@@ -25,6 +29,7 @@ type ChatRequest = {
   imageMimeType: string | null;
 };
 type ChatImageData = { mimeType: string; base64: string };
+type AppSupabaseClient = ReturnType<typeof createClient<any>>;
 type ChatInsight = { title: string; detail: string };
 type ChartPreset =
   | "weekly_expense_comparison"
@@ -42,6 +47,7 @@ type ChatOutput = {
   insight: ChatInsight | null;
   chart: ChatChart | null;
 };
+type ResponseMode = "general" | "app_finance";
 
 class FunctionError extends Error {
   constructor(
@@ -53,7 +59,7 @@ class FunctionError extends Error {
   }
 }
 
-const messages = {
+const messages: Record<Locale, Record<string, string>> = {
   "vi-VN": {
     UNAUTHORIZED: "Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.",
     INVALID_REQUEST: "Dữ liệu yêu cầu không hợp lệ.",
@@ -76,13 +82,18 @@ const messages = {
     INVALID_IMAGE: "The image is invalid or could not be read.",
     INTERNAL_ERROR: "An internal error occurred.",
   },
-} satisfies Record<Locale, Record<string, string>>;
+};
 
 const responseSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["reply", "insight", "chartPreset"],
+  propertyOrdering: ["mode", "reply", "insight", "chartPreset"],
+  required: ["mode", "reply", "insight", "chartPreset"],
   properties: {
+    mode: {
+      type: "string",
+      enum: ["general", "app_finance"],
+    },
     reply: { type: "string", minLength: 1, maxLength: 1500 },
     insight: {
       type: "object",
@@ -109,6 +120,26 @@ const responseSchema = {
 
 const systemInstruction = `You are FinFlow AI Assistant, a grounded personal-finance coach.
 
+CHOOSE ONE MODE FROM THE LATEST USER MESSAGE BEFORE ANSWERING
+- The server-selected RESPONSE_MODE is authoritative. Return that exact value as mode and follow its rules.
+- general: greetings, small talk, jokes, casual conversation, everyday questions, or anything that does not require FinFlow app data. Short messages such as "hi", "hello", "hu", "alo", "hey", or "thanks" are general unless they unmistakably continue a finance question.
+- app_finance: the user explicitly asks about their wallet, balance, transactions, spending, income, budget, saving goal, financial chart, receipt, or a FinFlow feature. An unmistakable follow-up to an active app/finance discussion is also app_finance.
+- The presence of FINANCIAL_CONTEXT is never a reason by itself to choose app_finance.
+- If uncertain, choose general and ask a natural clarifying question instead of exposing financial data.
+
+GENERAL MODE
+- Answer the actual message naturally like a friendly, capable conversational assistant.
+- Never mention or summarize the user's balance, budget, transactions, goals, or spending unless the latest message asks for them or is an unmistakable follow-up.
+- Never force the conversation back to money or FinFlow.
+- Set insight and chartPreset to null.
+
+APP_FINANCE MODE
+- Use the financial coaching rules below and the supplied FINANCIAL_CONTEXT.
+
+STYLE
+- Match the user's energy and desired level of detail. A short casual message normally deserves a short casual response.
+- Vary openings, sentence rhythm, and wording. Do not reuse a canned persona, catchphrase, joke pattern, or financial summary in every answer.
+
 RULES
 - Reply in the language used by the latest user message; use the requested locale as fallback.
 - Speak like a supportive Gen Z bestie: natural, playful, concise, and warm. In Vietnamese, light slang such as "nha", "nè", "hơi căng", "ví đang khóc" and 0-2 fitting emojis are welcome.
@@ -127,7 +158,9 @@ RULES
 
 OUTPUT
 - Return only JSON matching the provided schema.
+- mode must be either general or app_finance according to the mode rules above.
 - reply is the main answer.
+- In general mode, insight and chartPreset must both be null.
 - insight is optional. Use it only for a useful data-backed comparison, warning, or next action. Otherwise return null.
 - chartPreset is optional. Choose exactly one supported preset only when a chart materially helps answer the question. The server builds and validates all chart numbers. Otherwise return null.`;
 
@@ -142,17 +175,23 @@ Deno.serve(async (request) => {
       throw new FunctionError("INVALID_REQUEST", 405, locale);
     }
     const body = await parseJson(request, locale);
-    locale = body?.locale === "en-US" ? "en-US" : "vi-VN";
+    locale = isRecord(body) && body.locale === "en-US" ? "en-US" : "vi-VN";
     const input = validateRequest(body, locale);
     const { client, userId } = await authenticatedClient(request, locale);
     const image = await loadChatImage(client, userId, input, locale);
-    const financeContext = await loadFinanceContext(
-      client,
-      userId,
-      input.currentDate,
-      locale,
-    );
-    const output = await callGemini(input, financeContext, image);
+    const intent = classifyChatIntent(input.message, input.history);
+    const financeContext = intent === "app_finance"
+      ? await loadFinanceContext(
+        client,
+        userId,
+        input.currentDate,
+        locale,
+      )
+      : {};
+    if (request.headers.get("Accept")?.includes("text/event-stream")) {
+      return streamResponse(input, financeContext, image, intent);
+    }
+    const output = await callGemini(input, financeContext, image, intent);
     return jsonResponse({ success: true, version: VERSION, data: output }, 200);
   } catch (error) {
     const safe = error instanceof FunctionError
@@ -235,7 +274,7 @@ function validateRequest(value: unknown, locale: Locale): ChatRequest {
 }
 
 async function loadChatImage(
-  client: ReturnType<typeof createClient>,
+  client: AppSupabaseClient,
   userId: string,
   input: ChatRequest,
   locale: Locale,
@@ -302,7 +341,7 @@ function getSupabasePublishableKey(): string | undefined {
 }
 
 async function loadFinanceContext(
-  client: ReturnType<typeof createClient>,
+  client: AppSupabaseClient,
   userId: string,
   currentDate: string,
   locale: Locale,
@@ -403,6 +442,7 @@ async function callGemini(
   input: ChatRequest,
   financeContext: Record<string, unknown>,
   image: ChatImageData | null,
+  intent: ChatIntent,
 ): Promise<ChatOutput> {
   // Keep the chatbot quota and credential independent from Quick Add, which
   // uses GEMINI_API_KEY in parse-natural-language-transaction.
@@ -417,7 +457,8 @@ async function callGemini(
       currentDate: input.currentDate,
       userQuestion: input.message,
       imageAttached: image !== null,
-      FINANCIAL_CONTEXT: financeContext,
+      RESPONSE_MODE: intent,
+      FINANCIAL_CONTEXT: intent === "app_finance" ? financeContext : null,
     }),
   }];
   if (image !== null) {
@@ -447,7 +488,7 @@ async function callGemini(
         systemInstruction: { parts: [{ text: systemInstruction }] },
         contents,
         generationConfig: {
-          temperature: 0.45,
+          temperature: 0.75,
           maxOutputTokens: 1200,
           responseMimeType: "application/json",
           responseJsonSchema: responseSchema,
@@ -480,23 +521,273 @@ async function callGemini(
     throw new FunctionError("INVALID_MODEL_OUTPUT", 502, input.locale);
   }
   try {
-    return validateOutput(JSON.parse(text), input.locale, financeContext);
+    return validateOutput(
+      JSON.parse(text),
+      input.locale,
+      financeContext,
+      intent,
+    );
   } catch (error) {
     if (error instanceof FunctionError) throw error;
     throw new FunctionError("INVALID_MODEL_OUTPUT", 502, input.locale);
   }
 }
 
+function streamResponse(
+  input: ChatRequest,
+  financeContext: Record<string, unknown>,
+  image: ChatImageData | null,
+  intent: ChatIntent,
+): Response {
+  const encoder = new TextEncoder();
+  const body = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const send = (event: unknown) => {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+      };
+      try {
+        const output = await callGeminiStreaming(
+          input,
+          financeContext,
+          image,
+          intent,
+          (delta) => send({ type: "delta", delta }),
+        );
+        send({ type: "done", version: VERSION, data: output });
+      } catch (error) {
+        const safe = error instanceof FunctionError
+          ? error
+          : new FunctionError("INTERNAL_ERROR", 500, input.locale);
+        console.error(JSON.stringify({
+          event: "finance_chatbot_stream_error",
+          code: safe.code,
+          status: safe.status,
+        }));
+        send({
+          type: "error",
+          error: {
+            code: safe.code,
+            message: messages[safe.locale][safe.code] ??
+              messages[safe.locale].INTERNAL_ERROR,
+          },
+        });
+      } finally {
+        controller.close();
+      }
+    },
+  });
+  return new Response(body, {
+    status: 200,
+    headers: {
+      ...corsHeaders,
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      "X-Accel-Buffering": "no",
+    },
+  });
+}
+
+async function callGeminiStreaming(
+  input: ChatRequest,
+  financeContext: Record<string, unknown>,
+  image: ChatImageData | null,
+  intent: ChatIntent,
+  onDelta: (delta: string) => void,
+): Promise<ChatOutput> {
+  const apiKey = Deno.env.get("CHATBOT_GEMINI_API_KEY")?.trim();
+  if (!apiKey) throw new FunctionError("INTERNAL_ERROR", 500, input.locale);
+  const model = Deno.env.get("GEMINI_MODEL")?.trim() || DEFAULT_MODEL;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`;
+  const userParts: Array<Record<string, unknown>> = [{
+    text: JSON.stringify({
+      locale: input.locale,
+      timezone: input.timezone,
+      currentDate: input.currentDate,
+      userQuestion: input.message,
+      imageAttached: image !== null,
+      RESPONSE_MODE: intent,
+      FINANCIAL_CONTEXT: intent === "app_finance" ? financeContext : null,
+    }),
+  }];
+  if (image !== null) {
+    userParts.push({
+      inlineData: { mimeType: image.mimeType, data: image.base64 },
+    });
+  }
+  const contents = [
+    ...input.history.map((item) => ({
+      role: item.role === "assistant" ? "model" : "user",
+      parts: [{ text: item.message }],
+    })),
+    { role: "user", parts: userParts },
+  ];
+
+  const abortController = new AbortController();
+  const timeout = setTimeout(() => abortController.abort(), GEMINI_TIMEOUT_MS);
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: systemInstruction }] },
+        contents,
+        generationConfig: {
+          temperature: 0.75,
+          maxOutputTokens: 1200,
+          responseMimeType: "application/json",
+          responseJsonSchema: responseSchema,
+        },
+      }),
+      signal: abortController.signal,
+    });
+  } catch {
+    clearTimeout(timeout);
+    throw new FunctionError(
+      abortController.signal.aborted ? "GEMINI_TIMEOUT" : "GEMINI_UNAVAILABLE",
+      abortController.signal.aborted ? 504 : 503,
+      input.locale,
+    );
+  }
+
+  try {
+    if (response.status === 429) {
+      throw new FunctionError("GEMINI_RATE_LIMITED", 429, input.locale);
+    }
+    if (!response.ok || !response.body) {
+      console.error(JSON.stringify({
+        event: "gemini_stream_error",
+        status: response.status,
+      }));
+      throw new FunctionError("GEMINI_UNAVAILABLE", 503, input.locale);
+    }
+
+    let generatedText = "";
+    let emittedReply = "";
+    for await (const data of readSseData(response.body)) {
+      const chunk = candidateText(data);
+      if (!chunk) continue;
+      generatedText += chunk;
+      const partialReply = extractPartialReply(generatedText);
+      if (partialReply.length > emittedReply.length) {
+        const delta = partialReply.slice(emittedReply.length);
+        emittedReply = partialReply;
+        onDelta(delta);
+      }
+    }
+
+    let output: ChatOutput;
+    try {
+      output = validateOutput(
+        JSON.parse(generatedText),
+        input.locale,
+        financeContext,
+        intent,
+      );
+    } catch (error) {
+      if (error instanceof FunctionError) throw error;
+      throw new FunctionError("INVALID_MODEL_OUTPUT", 502, input.locale);
+    }
+    if (output.reply.length > emittedReply.length) {
+      onDelta(output.reply.slice(emittedReply.length));
+    }
+    return output;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function* readSseData(
+  body: ReadableStream<Uint8Array>,
+): AsyncGenerator<unknown> {
+  const reader = body.pipeThrough(new TextDecoderStream()).getReader();
+  let buffer = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    buffer += value ?? "";
+    const blocks = buffer.split(/\r?\n\r?\n/);
+    buffer = done ? "" : blocks.pop() ?? "";
+    for (const block of blocks) {
+      const data = block.split(/\r?\n/)
+        .filter((line) => line.startsWith("data:"))
+        .map((line) => line.slice(5).trimStart())
+        .join("\n");
+      if (!data || data === "[DONE]") continue;
+      yield JSON.parse(data);
+    }
+    if (done) break;
+  }
+}
+
+function candidateText(value: unknown): string {
+  if (!isRecord(value)) return "";
+  const candidates = value.candidates;
+  if (!Array.isArray(candidates) || !isRecord(candidates[0])) return "";
+  const content = candidates[0].content;
+  if (!isRecord(content) || !Array.isArray(content.parts)) return "";
+  return content.parts
+    .filter(isRecord)
+    .map((part) => typeof part.text === "string" ? part.text : "")
+    .join("");
+}
+
+function extractPartialReply(json: string): string {
+  const match = /"reply"\s*:\s*"/.exec(json);
+  if (!match) return "";
+  let result = "";
+  let index = match.index + match[0].length;
+  while (index < json.length) {
+    const character = json[index++];
+    if (character === '"') break;
+    if (character !== "\\") {
+      result += character;
+      continue;
+    }
+    if (index >= json.length) break;
+    const escaped = json[index++];
+    if (escaped === "u") {
+      const hex = json.slice(index, index + 4);
+      if (!/^[0-9a-fA-F]{4}$/.test(hex)) break;
+      result += String.fromCharCode(Number.parseInt(hex, 16));
+      index += 4;
+      continue;
+    }
+    const escapes: Record<string, string> = {
+      '"': '"',
+      "\\": "\\",
+      "/": "/",
+      "b": "\b",
+      "f": "\f",
+      "n": "\n",
+      "r": "\r",
+      "t": "\t",
+    };
+    result += escapes[escaped] ?? escaped;
+  }
+  const lastCode = result.charCodeAt(result.length - 1);
+  return lastCode >= 0xD800 && lastCode <= 0xDBFF
+    ? result.slice(0, -1)
+    : result;
+}
+
 function validateOutput(
   value: unknown,
   locale: Locale,
   financeContext: Record<string, unknown>,
+  expectedMode: ChatIntent,
 ): ChatOutput {
   if (!isRecord(value)) {
     throw new FunctionError("INVALID_MODEL_OUTPUT", 502, locale);
   }
   const reply = cleanString(value.reply, 1500);
   if (!reply) throw new FunctionError("INVALID_MODEL_OUTPUT", 502, locale);
+  const generatedMode = value.mode === "general" || value.mode === "app_finance"
+    ? value.mode as ResponseMode
+    : null;
+  if (generatedMode === null) {
+    throw new FunctionError("INVALID_MODEL_OUTPUT", 502, locale);
+  }
+  const mode: ResponseMode = expectedMode;
   let insight: ChatInsight | null = null;
   if (value.insight !== null) {
     if (!isRecord(value.insight)) {
@@ -521,8 +812,8 @@ function validateOutput(
     : null;
   return {
     reply,
-    insight,
-    chart: chartPreset
+    insight: mode === "general" ? null : insight,
+    chart: mode === "app_finance" && chartPreset
       ? buildChart(chartPreset, financeContext, locale)
       : null,
   };
