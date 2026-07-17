@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -7,20 +5,17 @@ import '../../../core/i18n/app_language.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/responsive.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../auth/services/auth_service.dart';
 import '../models/bank_preset.dart';
 import '../models/ewallet_preset.dart';
-import '../models/quick_add_draft_model.dart';
 import '../models/transaction_category.dart';
 import '../models/transaction_model.dart';
 import '../models/wallet_model.dart';
 import '../providers/transaction_provider.dart';
-import '../services/quick_add_service.dart';
-import '../services/quick_add_speech_recognition_service.dart';
 import '../services/wallet_service.dart';
-import 'quick_add_review_sheet.dart';
 import 'transaction_saved_screen.dart';
-import 'widgets/quick_add_card.dart';
 
+/// Available icons for custom categories.
 const _customIcons = <IconData>[
   Icons.school,
   Icons.pets,
@@ -33,26 +28,41 @@ const _customIcons = <IconData>[
   Icons.computer,
   Icons.book,
   Icons.coffee,
+  Icons.wine_bar,
+  Icons.sports_esports,
   Icons.work,
+  Icons.family_restroom,
+  Icons.construction,
+  Icons.train,
+  Icons.local_gas_station,
 ];
 
+/// Available colors for custom categories.
 const _customColors = <Color>[
   Color(0xFFE53935),
   Color(0xFFD81B60),
   Color(0xFF8E24AA),
+  Color(0xFF5E35B1),
   Color(0xFF3949AB),
   Color(0xFF1E88E5),
+  Color(0xFF039BE5),
   Color(0xFF00ACC1),
   Color(0xFF00897B),
   Color(0xFF43A047),
+  Color(0xFF7CB342),
+  Color(0xFFC0CA33),
+  Color(0xFFFDD835),
   Color(0xFFFFB300),
   Color(0xFFFB8C00),
+  Color(0xFFF4511E),
   Color(0xFF6D4C41),
   Color(0xFF757575),
 ];
 
-/// Full-screen Add Transaction flow. The historical class name is preserved so
-/// existing callers keep the same API while [show] now pushes a page.
+// =============================================================================
+//  ADD TRANSACTION SHEET
+// =============================================================================
+
 class AddTransactionSheet extends ConsumerStatefulWidget {
   const AddTransactionSheet({
     super.key,
@@ -83,17 +93,20 @@ class AddTransactionSheet extends ConsumerStatefulWidget {
     DateTime? initialDate,
     bool fromQuickAdd = false,
   }) {
-    return Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        builder: (_) => AddTransactionSheet(
-          initialIsExpense: initialIsExpense,
-          initialAmount: initialAmount,
-          initialName: initialName,
-          initialCategoryKey: initialCategoryKey,
-          initialWalletId: initialWalletId,
-          initialDate: initialDate,
-          fromQuickAdd: fromQuickAdd,
-        ),
+    return showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => AddTransactionSheet(
+        initialIsExpense: initialIsExpense,
+        initialAmount: initialAmount,
+        initialName: initialName,
+        initialCategoryKey: initialCategoryKey,
+        initialWalletId: initialWalletId,
+        initialDate: initialDate,
+        fromQuickAdd: fromQuickAdd,
       ),
     );
   }
@@ -103,46 +116,19 @@ class AddTransactionSheet extends ConsumerStatefulWidget {
       _AddTransactionSheetState();
 }
 
-enum _AddMode { manual, quick, scan }
-
 enum _AccountCategory { bank, ewallet, cash }
-
-enum _QuickAddVoiceState {
-  idle,
-  initializing,
-  listening,
-  processingFinal,
-  parsing,
-  error,
-}
 
 class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   final _amountController = TextEditingController();
   final _nameController = TextEditingController();
-  final _quickAddController = TextEditingController();
-  var _mode = _AddMode.manual;
   var _isExpense = false;
   var _isSavingTransaction = false;
   String? _selectedWalletId;
   String? _selectedWalletName;
-  _AccountCategory? _selectedAcctCategory;
   var _selectedCategory = 'Food';
-  DateTime? _transactionDate;
   var _isFormatting = false;
-  var _allowPop = false;
-
-  var _isQuickAddParsing = false;
-  var _isQuickAddReviewOpen = false;
-  var _voiceState = _QuickAddVoiceState.idle;
-  var _voiceSession = 0;
-  var _voiceFinalHandled = false;
-  var _latestVoiceTranscript = '';
-  Timer? _voiceTimeout;
-
-  bool get _isVoiceRecording => _voiceState == _QuickAddVoiceState.listening;
-  bool get _isVoiceProcessing =>
-      _voiceState == _QuickAddVoiceState.initializing ||
-      _voiceState == _QuickAddVoiceState.processingFinal;
+  _AccountCategory? _selectedAcctCategory;
+  DateTime? _transactionDate;
 
   @override
   void initState() {
@@ -157,12 +143,45 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
         widget.initialAmount!.abs().toString(),
       );
     }
-    final wallet = WalletService.instance.byId(widget.initialWalletId);
-    if (wallet != null && wallet.isActive) {
-      _selectedWalletName = wallet.name;
-      _selectedAcctCategory = _accountCategoryFor(wallet.type);
+    final initialWallet = WalletService.instance.byId(widget.initialWalletId);
+    if (initialWallet != null && initialWallet.isActive) {
+      _selectedWalletName = initialWallet.name;
+      _selectedAcctCategory = switch (initialWallet.type) {
+        WalletType.bank => _AccountCategory.bank,
+        WalletType.ewallet => _AccountCategory.ewallet,
+        WalletType.cash => _AccountCategory.cash,
+      };
     }
     _amountController.addListener(_formatAmount);
+  }
+
+  void _formatAmount() {
+    if (_isFormatting) return;
+    _isFormatting = true;
+    final text = _amountController.text.replaceAll(',', '');
+    final digits = text.replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) {
+      _amountController.text = '';
+    } else {
+      final formatted = _addCommas(digits);
+      final pos = formatted.length;
+      _amountController.value = TextEditingValue(
+        text: formatted,
+        selection: TextSelection.collapsed(offset: pos),
+      );
+    }
+    _isFormatting = false;
+  }
+
+  static String _addCommas(String digits) {
+    final buffer = StringBuffer();
+    int count = 0;
+    for (int i = digits.length - 1; i >= 0; i--) {
+      if (count > 0 && count % 3 == 0) buffer.write(',');
+      buffer.write(digits[i]);
+      count++;
+    }
+    return buffer.toString().split('').reversed.join();
   }
 
   @override
@@ -170,507 +189,501 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     _amountController.removeListener(_formatAmount);
     _amountController.dispose();
     _nameController.dispose();
-    _quickAddController.dispose();
-    _voiceTimeout?.cancel();
-    if (_voiceState != _QuickAddVoiceState.idle) {
-      unawaited(QuickAddSpeechRecognitionService.instance.cancelListening());
-    }
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: _allowPop,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) unawaited(_requestClose());
-      },
-      child: Scaffold(
-        backgroundColor: const Color(0xFFFDFCFF),
-        body: SafeArea(
-          child: Column(
-            children: [
-              _buildHeader(),
-              Expanded(
-                child: SingleChildScrollView(
-                  keyboardDismissBehavior:
-                      ScrollViewKeyboardDismissBehavior.onDrag,
-                  padding: EdgeInsets.fromLTRB(
-                    Responsive.w(context, 16),
-                    Responsive.h(context, 24),
-                    Responsive.w(context, 16),
-                    MediaQuery.viewInsetsOf(context).bottom +
-                        Responsive.h(context, 24),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _buildModeSelector(),
-                      SizedBox(height: Responsive.h(context, 24)),
-                      AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 260),
-                        switchInCurve: Curves.easeOutCubic,
-                        child: switch (_mode) {
-                          _AddMode.manual => _buildManualMode(),
-                          _AddMode.quick => _buildQuickMode(),
-                          _AddMode.scan => _buildScanPlaceholder(),
-                        },
-                      ),
-                    ],
+    return Padding(
+      padding: EdgeInsets.only(
+        left: Responsive.w(context, 24),
+        right: Responsive.w(context, 24),
+        top: Responsive.h(context, 24),
+        bottom:
+            MediaQuery.of(context).viewInsets.bottom +
+            Responsive.h(context, 24),
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // ── Header ──
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Add transaction',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w500,
+                    fontSize: Responsive.sp(context, 18),
+                    color: const Color(0xFF003829),
                   ),
                 ),
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close),
+                ),
+              ],
+            ),
+            SizedBox(height: Responsive.h(context, 12)),
+
+            // ── Segmented tabs ──
+            Container(
+              height: Responsive.h(context, 36),
+              decoration: BoxDecoration(
+                color: AppColors.lightGreen.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(8),
               ),
-            ],
-          ),
+              child: Row(
+                children: [
+                  _SegmentTab(
+                    label: 'New income',
+                    isSelected: !_isExpense,
+                    selectedColor: const Color(0xFF006C52),
+                    selectedTextColor: Colors.white,
+                    unselectedTextColor: const Color(0xFF008768),
+                    onTap: () => setState(() => _isExpense = false),
+                  ),
+                  _SegmentTab(
+                    label: 'New expense',
+                    isSelected: _isExpense,
+                    selectedColor: const Color(0xFFBA1A1A),
+                    selectedTextColor: Colors.white,
+                    unselectedTextColor: const Color(0xFFBA1A1A),
+                    onTap: () => setState(() => _isExpense = true),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(height: Responsive.h(context, 24)),
+
+            // ── Amount input ──
+            Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: Responsive.w(context, 20),
+                vertical: Responsive.h(context, 16),
+              ),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(2),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 4,
+                    offset: const Offset(0, 1),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Text(
+                    _isExpense ? '-' : '+',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w100,
+                      fontSize: Responsive.sp(context, 74),
+                      color: const Color(0xFF7D968B),
+                    ),
+                  ),
+                  SizedBox(width: Responsive.w(context, 12)),
+                  Expanded(
+                    child: TextField(
+                      controller: _amountController,
+                      keyboardType: TextInputType.number,
+                      style: TextStyle(
+                        fontSize: Responsive.sp(context, 40),
+                        color: const Color(0xFF444745),
+                      ),
+                      decoration: InputDecoration(
+                        isDense: true,
+                        contentPadding: EdgeInsets.zero,
+                        border: InputBorder.none,
+                        hintText: '0',
+                        hintStyle: TextStyle(
+                          fontSize: Responsive.sp(context, 40),
+                          color: const Color(0xFF444745).withValues(alpha: 0.3),
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: Responsive.w(context, 8)),
+                  Text(
+                    'VND',
+                    style: TextStyle(
+                      fontSize: Responsive.sp(context, 24),
+                      color: const Color(0xFF0076E3),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(height: Responsive.h(context, 20)),
+
+            // ── Optional transaction name ──
+            Text(
+              'Name',
+              style: TextStyle(
+                fontWeight: FontWeight.w500,
+                fontSize: Responsive.sp(context, 16),
+                color: const Color(0xFF747875),
+              ),
+            ),
+            SizedBox(height: Responsive.h(context, 8)),
+            TextField(
+              controller: _nameController,
+              textInputAction: TextInputAction.next,
+              decoration: InputDecoration(
+                hintText: 'Optional transaction name',
+                filled: true,
+                fillColor: Colors.white,
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: Responsive.w(context, 16),
+                  vertical: Responsive.h(context, 14),
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+            SizedBox(height: Responsive.h(context, 20)),
+
+            // ── From account (Bank / Wallet / Cash) ──
+            Text(
+              'From account',
+              style: TextStyle(
+                fontWeight: FontWeight.w500,
+                fontSize: Responsive.sp(context, 16),
+                color: const Color(0xFF747875),
+              ),
+            ),
+            SizedBox(height: Responsive.h(context, 8)),
+            _buildAccountCategorySelector(),
+            SizedBox(height: Responsive.h(context, 20)),
+
+            // ── Category grid ──
+            Text(
+              'From category',
+              style: TextStyle(
+                fontWeight: FontWeight.w500,
+                fontSize: Responsive.sp(context, 16),
+                color: const Color(0xFF707974),
+              ),
+            ),
+            SizedBox(height: Responsive.h(context, 8)),
+            _buildCategoryGrid(),
+
+            SizedBox(height: Responsive.h(context, 24)),
+
+            // ── Confirm button ──
+            ElevatedButton(
+              onPressed: _isSavingTransaction
+                  ? null
+                  : () async {
+                      final amountText = _amountController.text.trim();
+                      final amount = int.tryParse(
+                        amountText.replaceAll(',', ''),
+                      );
+                      if (amount == null || amount <= 0) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(AppStrings.pleaseEnterValidAmount),
+                          ),
+                        );
+                        return;
+                      }
+                      if (ref.read(authServiceProvider).currentUser == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(AppStrings.pleaseSignInFirst)),
+                        );
+                        return;
+                      }
+
+                      if (_selectedWalletId == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Please select an account'),
+                          ),
+                        );
+                        return;
+                      }
+                      try {
+                        setState(() => _isSavingTransaction = true);
+                        final sign = _isExpense ? -1 : 1;
+                        final transactionName = _nameController.text.trim();
+                        final transaction = TransactionModel(
+                          id: 't_${DateTime.now().millisecondsSinceEpoch}',
+                          userId: ref.read(authServiceProvider).currentUser!.id,
+                          name: transactionName.isNotEmpty
+                              ? transactionName
+                              : _selectedCategory,
+                          category: _selectedCategory,
+                          amount: amount * sign,
+                          date: _transactionDate ?? DateTime.now(),
+                          walletId: _selectedWalletId,
+                        );
+                        await ref
+                            .read(transactionServiceProvider)
+                            .add(transaction);
+                        if (!context.mounted) return;
+                        if (widget.fromQuickAdd) {
+                          Navigator.of(context).pop(true);
+                          return;
+                        }
+                        Navigator.of(context).pushReplacement(
+                          MaterialPageRoute(
+                            builder: (_) => TransactionSavedScreen(
+                              transaction: transaction,
+                            ),
+                          ),
+                        );
+                      } catch (e) {
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(
+                          context,
+                        ).showSnackBar(SnackBar(content: Text('$e')));
+                      } finally {
+                        if (mounted) {
+                          setState(() => _isSavingTransaction = false);
+                        }
+                      }
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1CA380),
+                foregroundColor: Colors.white,
+                minimumSize: Size(double.infinity, Responsive.h(context, 50)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: _isSavingTransaction
+                  ? SizedBox(
+                      width: Responsive.w(context, 20),
+                      height: Responsive.w(context, 20),
+                      child: const CircularProgressIndicator(
+                        strokeWidth: 2.2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : Text(
+                      'Confirm',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: Responsive.sp(context, 16),
+                      ),
+                    ),
+            ),
+            SizedBox(height: Responsive.h(context, 12)),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildHeader() {
-    return Container(
-      height: Responsive.h(context, 64),
-      padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 12)),
-      decoration: const BoxDecoration(
-        color: Color(0xFFFDFCFF),
-        border: Border(bottom: BorderSide(color: Color(0xFFC3C7CF))),
-      ),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            child: IconButton(
-              onPressed: _requestClose,
-              tooltip: 'Back',
-              icon: const Icon(
-                Icons.arrow_back_rounded,
-                size: 22,
-                color: Color(0xFF43474E),
+  // ── Account category selector: Bank | E-Wallet | Cash ──
+  Widget _buildAccountCategorySelector() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 3 category chips on one line
+        Row(
+          children: [
+            Expanded(
+              child: _accountChip(
+                'Bank',
+                Icons.account_balance,
+                _AccountCategory.bank,
               ),
             ),
-          ),
-          Text(
-            'Add Transaction',
-            style: TextStyle(
-              fontFamily: 'Manrope',
-              fontSize: Responsive.sp(context, 18),
-              fontWeight: FontWeight.w600,
-              color: const Color(0xFF1A1C1E),
+            SizedBox(width: Responsive.w(context, 8)),
+            Expanded(
+              child: _accountChip(
+                'E-Wallet',
+                Icons.wallet,
+                _AccountCategory.ewallet,
+              ),
+            ),
+            SizedBox(width: Responsive.w(context, 8)),
+            Expanded(
+              child: _accountChip('Cash', Icons.money, _AccountCategory.cash),
+            ),
+          ],
+        ),
+        // Show selected wallet name below
+        if (_selectedWalletName != null) ...[
+          SizedBox(height: Responsive.h(context, 8)),
+          Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: Responsive.w(context, 12),
+              vertical: Responsive.h(context, 6),
+            ),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE8F5E9),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Text(
+              _selectedWalletName!,
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: Responsive.sp(context, 13),
+                fontWeight: FontWeight.w500,
+                color: const Color(0xFF2E7D32),
+              ),
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildModeSelector() {
-    return _StitchSegmentedControl<_AddMode>(
-      entries: const [
-        (_AddMode.manual, 'MANUAL'),
-        (_AddMode.quick, 'QUICK'),
-        (_AddMode.scan, 'SCAN'),
       ],
-      selected: _mode,
-      selectedColor: const Color(0xFF006C46),
-      onSelected: (value) => setState(() => _mode = value),
     );
   }
 
-  Widget _buildManualMode() {
-    final accent = _isExpense
-        ? const Color(0xFFBA1A1A)
-        : const Color(0xFF006C46);
-    final category = _categoryForKey(_selectedCategory);
-    final wallet = WalletService.instance.byId(_selectedWalletId);
-    final date = _transactionDate ?? DateTime.now();
-
-    return Column(
-      key: const ValueKey(_AddMode.manual),
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _StitchSegmentedControl<bool>(
-          entries: const [(false, 'NEW INCOME'), (true, 'NEW EXPENSE')],
-          selected: _isExpense,
-          selectedColor: accent,
-          onSelected: (value) => setState(() => _isExpense = value),
+  Widget _accountChip(String label, IconData icon, _AccountCategory cat) {
+    final isSelected = _selectedAcctCategory == cat;
+    return GestureDetector(
+      onTap: () async => _onAccountCategoryTap(cat),
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: Responsive.w(context, 14),
+          vertical: Responsive.h(context, 8),
         ),
-        SizedBox(height: Responsive.h(context, 22)),
-        Text('AMOUNT (VND)', style: _labelStyle),
-        SizedBox(height: Responsive.h(context, 4)),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF1CA380) : Colors.white,
+          borderRadius: BorderRadius.circular(34),
+          border: Border.all(
+            color: isSelected
+                ? const Color(0xFF1CA380)
+                : const Color(0xFFBFC9C3),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(
-              child: TextField(
-                key: const Key('manual_amount_field'),
-                controller: _amountController,
-                keyboardType: TextInputType.number,
-                cursorColor: accent,
-                style: TextStyle(
-                  fontFamily: 'Manrope',
-                  fontSize: Responsive.sp(context, 44),
-                  fontWeight: FontWeight.w700,
-                  color: accent,
-                ),
-                decoration: InputDecoration(
-                  hintText: '0',
-                  hintStyle: TextStyle(color: accent.withValues(alpha: 0.28)),
-                  enabledBorder: const UnderlineInputBorder(
-                    borderSide: BorderSide(color: Color(0xFFC3C7CF), width: 2),
-                  ),
-                  focusedBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: accent, width: 2),
-                  ),
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: Responsive.w(context, 6),
-                    vertical: Responsive.h(context, 8),
-                  ),
-                ),
-              ),
+            Icon(
+              icon,
+              size: Responsive.w(context, 16),
+              color: isSelected ? Colors.white : const Color(0xFF707974),
             ),
-            Padding(
-              padding: EdgeInsets.only(
-                left: Responsive.w(context, 8),
-                bottom: Responsive.h(context, 18),
-              ),
-              child: Text(
-                'VND',
-                style: _labelStyle.copyWith(
-                  color: accent.withValues(alpha: 0.72),
-                  fontWeight: FontWeight.w700,
-                ),
+            SizedBox(width: Responsive.w(context, 6)),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: Responsive.sp(context, 13),
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                color: isSelected ? Colors.white : const Color(0xFF707974),
               ),
             ),
           ],
         ),
-        SizedBox(height: Responsive.h(context, 18)),
-        _buildSelectionField(
-          fieldKey: const Key('manual_category_field'),
-          label: 'CATEGORY',
-          value: category.label,
-          leading: Icon(category.icon, color: accent, size: 22),
-          onTap: _showCategorySelection,
-          accent: accent,
-          highlighted: true,
-        ),
-        SizedBox(height: Responsive.h(context, 12)),
-        _buildSelectionField(
-          fieldKey: const Key('manual_source_field'),
-          label: 'SOURCE',
-          value: _sourceDisplayName(wallet?.name ?? _selectedWalletName),
-          leading: wallet == null
-              ? Icon(Icons.account_balance_rounded, color: accent, size: 22)
-              : _walletLogo(wallet.logoAssetPath, wallet.brandColor),
-          onTap: _showSourceSelection,
-          accent: accent,
-        ),
-        SizedBox(height: Responsive.h(context, 12)),
-        _buildSelectionField(
-          label: 'DATE',
-          value: _formatDate(date),
-          leading: Icon(Icons.calendar_today_outlined, color: accent, size: 21),
-          trailing: const Icon(Icons.calendar_month_outlined, size: 19),
-          onTap: _pickDate,
-          accent: accent,
-        ),
-        SizedBox(height: Responsive.h(context, 12)),
-        _buildNameField(accent),
-        if (widget.fromQuickAdd) ...[
-          SizedBox(height: Responsive.h(context, 10)),
-          const Text(
-            'From Quick Add',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontFamily: 'JetBrains Mono',
-              fontSize: 11,
-              color: Color(0xFF006C46),
-            ),
-          ),
-        ],
-        SizedBox(height: Responsive.h(context, 18)),
-        _buildPrimaryButton(
-          label: 'Save Transaction',
-          color: _isExpense ? const Color(0xFFBA1A1A) : AppColors.primaryGreen,
-          foregroundColor: _isExpense ? Colors.white : const Color(0xFF002112),
-          isLoading: _isSavingTransaction,
-          onPressed: _saveManualTransaction,
-        ),
-      ],
-    );
-  }
-
-  String _sourceDisplayName(String? name) {
-    if (name == null || name.isEmpty) return 'Select Source';
-    return name == 'Tiền mặt' ? 'Cash' : name;
-  }
-
-  Widget _buildQuickMode() {
-    return QuickAddCard(
-      key: const ValueKey(_AddMode.quick),
-      controller: _quickAddController,
-      isLoading: _isQuickAddParsing,
-      isRecording: _isVoiceRecording,
-      isVoiceProcessing: _isVoiceProcessing,
-      onSubmit: _submitQuickAdd,
-      onVoiceTap: _handleVoiceTap,
-    );
-  }
-
-  Widget _buildScanPlaceholder() {
-    return Container(
-      key: const ValueKey(_AddMode.scan),
-      padding: EdgeInsets.symmetric(
-        horizontal: Responsive.w(context, 24),
-        vertical: Responsive.h(context, 52),
-      ),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF1F4F9),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFC3C7CF)),
-      ),
-      child: const Column(
-        children: [
-          Icon(
-            Icons.document_scanner_outlined,
-            size: 48,
-            color: Color(0xFF006C46),
-          ),
-          SizedBox(height: 16),
-          Text(
-            'Scan mode is coming soon',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-          ),
-          SizedBox(height: 8),
-          Text(
-            'Receipt OCR will be connected here in a later update.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Color(0xFF5F6368)),
-          ),
-        ],
       ),
     );
   }
 
-  Widget _buildSelectionField({
-    Key? fieldKey,
-    required String label,
-    required String value,
-    required Widget leading,
-    required VoidCallback onTap,
-    required Color accent,
-    Widget? trailing,
-    bool highlighted = false,
-  }) {
-    return Semantics(
-      button: true,
-      label: '$label, $value',
-      child: Material(
-        key: fieldKey,
-        color: highlighted ? accent.withValues(alpha: 0.08) : Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(10),
-          child: Container(
-            constraints: BoxConstraints(minHeight: Responsive.h(context, 70)),
-            padding: EdgeInsets.symmetric(
-              horizontal: Responsive.w(context, 14),
-              vertical: Responsive.h(context, 10),
-            ),
-            decoration: BoxDecoration(
-              border: Border.all(
-                color: highlighted ? accent : const Color(0xFFC3C7CF),
-              ),
-              borderRadius: BorderRadius.circular(10),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x0D000000),
-                  blurRadius: 8,
-                  offset: Offset(0, 2),
+  Future<void> _onAccountCategoryTap(_AccountCategory cat) async {
+    setState(() => _selectedAcctCategory = cat);
+    switch (cat) {
+      case _AccountCategory.bank:
+        _showPresetPicker('Chọn ngân hàng', bankPresets);
+      case _AccountCategory.ewallet:
+        _showPresetPicker(
+          'Chọn ví điện tử',
+          ewalletPresets.where((p) => p.type == WalletType.ewallet).toList(),
+        );
+      case _AccountCategory.cash:
+        _selectedWalletName = 'Tiền mặt';
+        await _createWalletSync(
+          name: 'Tiền mặt',
+          logoAssetPath: 'assets/logos/ewallets/cash.png',
+          brandColor: const Color(0xFF4CAF50),
+          type: WalletType.cash,
+        );
+        if (!mounted) return;
+        setState(() {});
+    }
+  }
+
+  void _showPresetPicker(String title, List<WalletPreset> presets) {
+    showModalBottomSheet(
+      context: context,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.symmetric(
+            vertical: Responsive.h(context, 20),
+            horizontal: Responsive.w(context, 16),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: Responsive.sp(context, 16),
+                  color: const Color(0xFF003829),
                 ),
-              ],
-            ),
-            child: Row(
-              children: [
-                SizedBox(width: 30, height: 40, child: Center(child: leading)),
-                SizedBox(width: Responsive.w(context, 10)),
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(label, style: _labelStyle.copyWith(fontSize: 10)),
-                      const SizedBox(height: 2),
-                      Text(
-                        value,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontFamily: 'Hanken Grotesk',
-                          fontSize: 15,
-                          color: Color(0xFF1A1C1E),
-                        ),
-                      ),
-                    ],
+              ),
+              SizedBox(height: Responsive.h(context, 12)),
+              Expanded(
+                child: GridView(
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    mainAxisSpacing: Responsive.h(context, 16),
+                    crossAxisSpacing: Responsive.w(context, 16),
+                    childAspectRatio: 1.2,
                   ),
+                  children: presets.map((p) {
+                    return GestureDetector(
+                      onTap: () async {
+                        _selectedWalletName = p.name;
+                        await _createWalletSync(
+                          name: p.name,
+                          logoAssetPath: p.logoAssetPath,
+                          brandColor: p.brandColor,
+                          type: p.type,
+                        );
+                        if (!mounted) return;
+                        setState(() {});
+                        if (ctx.mounted) Navigator.of(ctx).pop();
+                      },
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Image.asset(
+                            p.logoAssetPath,
+                            width: Responsive.w(context, 130),
+                            height: Responsive.w(context, 130),
+                            errorBuilder: (_, _, _) => Container(
+                              width: Responsive.w(context, 130),
+                              height: Responsive.w(context, 130),
+                              decoration: BoxDecoration(
+                                color: p.brandColor,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  p.name.substring(0, 1),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 48,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
                 ),
-                trailing ?? const Icon(Icons.keyboard_arrow_down_rounded),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNameField(Color accent) {
-    return Container(
-      constraints: BoxConstraints(minHeight: Responsive.h(context, 70)),
-      padding: EdgeInsets.symmetric(
-        horizontal: Responsive.w(context, 14),
-        vertical: Responsive.h(context, 7),
-      ),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFC3C7CF)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0D000000),
-            blurRadius: 8,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.edit_note_rounded, color: accent, size: 25),
-          SizedBox(width: Responsive.w(context, 12)),
-          Expanded(
-            child: TextField(
-              key: const Key('manual_name_field'),
-              controller: _nameController,
-              textInputAction: TextInputAction.done,
-              cursorColor: accent,
-              decoration: InputDecoration(
-                labelText: 'TRANSACTION NAME',
-                labelStyle: _labelStyle.copyWith(fontSize: 10),
-                hintText: 'Enter transaction name...',
-                border: InputBorder.none,
-                isDense: true,
               ),
-            ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
-  }
-
-  Widget _buildPrimaryButton({
-    required String label,
-    required Color color,
-    required Color foregroundColor,
-    required bool isLoading,
-    required VoidCallback onPressed,
-  }) {
-    return FilledButton(
-      onPressed: isLoading ? null : onPressed,
-      style: FilledButton.styleFrom(
-        backgroundColor: color,
-        foregroundColor: foregroundColor,
-        disabledBackgroundColor: color.withValues(alpha: 0.55),
-        minimumSize: Size.fromHeight(Responsive.h(context, 54)),
-        shape: const StadiumBorder(),
-        elevation: 6,
-        shadowColor: color.withValues(alpha: 0.35),
-      ),
-      child: isLoading
-          ? SizedBox(
-              width: 22,
-              height: 22,
-              child: CircularProgressIndicator(
-                strokeWidth: 2.2,
-                color: foregroundColor,
-              ),
-            )
-          : Text(
-              label,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-            ),
-    );
-  }
-
-  TextStyle get _labelStyle => const TextStyle(
-    fontFamily: 'JetBrains Mono',
-    fontSize: 11,
-    height: 1.2,
-    letterSpacing: 0.5,
-    fontWeight: FontWeight.w500,
-    color: Color(0xFF5F6368),
-  );
-
-  void _formatAmount() {
-    if (_isFormatting) return;
-    _isFormatting = true;
-    final digits = _amountController.text.replaceAll(RegExp(r'\D'), '');
-    final formatted = digits.isEmpty ? '' : _addCommas(digits);
-    _amountController.value = TextEditingValue(
-      text: formatted,
-      selection: TextSelection.collapsed(offset: formatted.length),
-    );
-    _isFormatting = false;
-  }
-
-  static String _addCommas(String digits) {
-    return digits.replaceAllMapped(
-      RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
-      (match) => '${match[1]},',
-    );
-  }
-
-  Future<void> _pickDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _transactionDate ?? DateTime.now(),
-      firstDate: DateTime(2000),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
-    );
-    if (picked != null && mounted) setState(() => _transactionDate = picked);
-  }
-
-  Future<void> _showCategorySelection() async {
-    final result = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) =>
-          TransactionCategorySelectionSheet(initialKey: _selectedCategory),
-    );
-    if (result != null && mounted) setState(() => _selectedCategory = result);
-  }
-
-  Future<void> _showSourceSelection() async {
-    final selected = await showModalBottomSheet<WalletPreset>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _SourceSelectionSheet(
-        selectedName: _selectedWalletName,
-        selectedType: _selectedAcctCategory,
-      ),
-    );
-    if (selected == null || !mounted) return;
-    _selectedWalletName = selected.name;
-    _selectedAcctCategory = _accountCategoryFor(selected.type);
-    await _createWalletSync(
-      name: selected.name,
-      logoAssetPath: selected.logoAssetPath,
-      brandColor: selected.brandColor,
-      type: selected.type,
-    );
-    if (mounted) setState(() {});
   }
 
   Future<void> _createWalletSync({
@@ -679,19 +692,22 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     required Color brandColor,
     required WalletType type,
   }) async {
+    // Check if wallet already exists for this user
     final existing = WalletService.instance.currentUserWallets
-        .where((wallet) => wallet.name == name && wallet.type == type)
+        .where((w) => w.name == name && w.type == type)
         .toList();
     if (existing.isNotEmpty) {
       _selectedWalletId = existing.first.id;
       return;
     }
-    final userId = ref.read(authServiceProvider).currentUser?.id;
+    final userId = AuthService.instance.currentUser?.id;
     if (userId == null) return;
-    final id = 'w_${DateTime.now().millisecondsSinceEpoch}';
+    final newId = 'w_${DateTime.now().millisecondsSinceEpoch}';
+    // Insert wallet to DB first — await it so the FK is satisfied before
+    // any transaction referencing this wallet_id is inserted.
     await WalletService.instance.insertWallets([
       WalletModel(
-        id: id,
+        id: newId,
         userId: userId,
         name: name,
         logoAssetPath: logoAssetPath,
@@ -700,998 +716,456 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
         initialBalance: 0,
       ),
     ]);
-    _selectedWalletId = id;
+    _selectedWalletId = newId;
   }
 
-  Future<void> _saveManualTransaction() async {
-    final amount = int.tryParse(_amountController.text.replaceAll(',', ''));
-    if (amount == null || amount <= 0) {
-      _showMessage(AppStrings.pleaseEnterValidAmount);
-      return;
-    }
-    final user = ref.read(authServiceProvider).currentUser;
-    if (user == null) {
-      _showMessage(AppStrings.pleaseSignInFirst);
-      return;
-    }
-    if (_selectedWalletId == null) {
-      _showMessage('Please select an account');
-      return;
-    }
-    try {
-      setState(() => _isSavingTransaction = true);
-      final inputName = _nameController.text.trim();
-      final transaction = TransactionModel(
-        id: 't_${DateTime.now().millisecondsSinceEpoch}',
-        userId: user.id,
-        name: inputName.isNotEmpty ? inputName : _selectedCategory,
-        category: _selectedCategory,
-        amount: amount * (_isExpense ? -1 : 1),
-        date: _transactionDate ?? DateTime.now(),
-        walletId: _selectedWalletId,
-      );
-      await ref.read(transactionServiceProvider).add(transaction);
-      if (!mounted) return;
-      if (widget.fromQuickAdd) {
-        _popRoute(true);
-      } else {
-        _allowPop = true;
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (_) => TransactionSavedScreen(transaction: transaction),
-          ),
-        );
-      }
-    } catch (error) {
-      if (mounted) _showMessage('$error');
-    } finally {
-      if (mounted) setState(() => _isSavingTransaction = false);
-    }
-  }
+  // ── Category grid: popular + selected extended + custom + "More" ──
+  Widget _buildCategoryGrid() {
+    final store = CustomCategoryStore.instance;
+    final popularKeys = TransactionCategory.popular.map((c) => c.key).toSet();
+    final customKeys = store.items.map((c) => c.name).toSet();
+    final shownKeys = {...popularKeys, ...customKeys};
 
-  Future<void> _requestClose() async {
-    final hasInput =
-        _amountController.text.isNotEmpty ||
-        _nameController.text.isNotEmpty ||
-        _quickAddController.text.isNotEmpty ||
-        _selectedWalletId != null;
-    if (hasInput) {
-      final discard = await showDialog<bool>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('Discard transaction?'),
-          content: const Text('Your unsaved changes will be lost.'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Keep editing'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: const Text('Discard'),
-            ),
-          ],
-        ),
-      );
-      if (discard != true || !mounted) return;
-    }
-    _popRoute();
-  }
-
-  void _popRoute([bool? result]) {
-    if (!mounted) return;
-    setState(() => _allowPop = true);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) Navigator.of(context).pop(result);
-    });
-  }
-
-  TransactionCategory _categoryForKey(String key) {
-    final custom = CustomCategoryStore.instance.findByKey(key);
-    if (custom != null) {
-      return TransactionCategory(
-        key: custom.name,
-        label: custom.name,
-        icon: custom.iconData,
-        color: custom.color,
-      );
-    }
-    return TransactionCategory.fromKey(key);
-  }
-
-  static _AccountCategory _accountCategoryFor(WalletType type) {
-    return switch (type) {
-      WalletType.bank => _AccountCategory.bank,
-      WalletType.ewallet => _AccountCategory.ewallet,
-      WalletType.cash => _AccountCategory.cash,
-    };
-  }
-
-  Widget _walletLogo(String path, Color fallbackColor) {
-    return Container(
-      width: 40,
-      height: 40,
-      padding: const EdgeInsets.all(5),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Image.asset(
-        path,
-        fit: BoxFit.contain,
-        errorBuilder: (_, _, _) =>
-            Icon(Icons.account_balance_rounded, color: fallbackColor, size: 24),
-      ),
-    );
-  }
-
-  static String _formatDate(DateTime value) {
-    final month = value.month.toString().padLeft(2, '0');
-    final day = value.day.toString().padLeft(2, '0');
-    return '$month/$day/${value.year}';
-  }
-
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
-  }
-
-  // Quick Add behavior below mirrors the former Home implementation.
-  Future<void> _submitQuickAdd(String input) async {
-    if (_isQuickAddParsing ||
-        _isQuickAddReviewOpen ||
-        _isVoiceRecording ||
-        _isVoiceProcessing) {
-      return;
-    }
-    final text = input.trim();
-    if (text.isEmpty) {
-      _showMessage(
-        AppLanguage.instance.locale == AppLocale.vietnamese
-            ? 'Vui lòng nhập nội dung giao dịch.'
-            : 'Please enter a transaction.',
-      );
-      return;
-    }
-    setState(() => _isQuickAddParsing = true);
-    try {
-      final draft = await QuickAddService.instance.parse(text);
-      if (!mounted) return;
-      setState(() {
-        _isQuickAddParsing = false;
-        _isQuickAddReviewOpen = true;
-        if (_voiceState == _QuickAddVoiceState.parsing) {
-          _voiceState = _QuickAddVoiceState.idle;
-        }
-      });
-      final action = await QuickAddReviewSheet.show(
-        context,
-        draft: draft,
-        onConfirm: () => _confirmQuickAdd(draft),
-      );
-      if (!mounted) return;
-      _isQuickAddReviewOpen = false;
-      if (action == QuickAddReviewAction.confirmed) {
-        _quickAddController.clear();
-        final userId = ref.read(authServiceProvider).currentUser?.id;
-        if (userId == null || !mounted) return;
-        final saved = draft.toTransactionModel(
-          id: 't_${DateTime.now().millisecondsSinceEpoch}',
-          userId: userId,
-        );
-        _allowPop = true;
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (_) => TransactionSavedScreen(transaction: saved),
-          ),
-        );
-      } else if (action == QuickAddReviewAction.editDetails) {
-        _applyDraftToManual(draft);
-      }
-    } on QuickAddException catch (error) {
-      if (mounted) _showMessage(error.message);
-    } catch (_) {
-      if (mounted) {
-        _showMessage(
-          AppLanguage.instance.locale == AppLocale.vietnamese
-              ? 'Không thể phân tích giao dịch lúc này.'
-              : 'Unable to parse the transaction right now.',
-        );
-      }
-    } finally {
-      if (mounted &&
-          (_isQuickAddParsing || _voiceState == _QuickAddVoiceState.parsing)) {
-        setState(() {
-          _isQuickAddParsing = false;
-          if (_voiceState == _QuickAddVoiceState.parsing) {
-            _voiceState = _QuickAddVoiceState.idle;
-          }
-        });
-      }
-    }
-  }
-
-  Future<void> _confirmQuickAdd(QuickAddDraft draft) async {
-    final userId = ref.read(authServiceProvider).currentUser?.id;
-    if (userId == null) throw StateError('Not authenticated');
-    await ref
-        .read(transactionServiceProvider)
-        .add(
-          draft.toTransactionModel(
-            id: 't_${DateTime.now().millisecondsSinceEpoch}',
-            userId: userId,
-          ),
-        );
-  }
-
-  void _applyDraftToManual(QuickAddDraft draft) {
-    setState(() {
-      _mode = _AddMode.manual;
-      _isExpense = draft.type != QuickAddTransactionType.income;
-      _amountController.text = draft.amount == null
-          ? ''
-          : _addCommas(draft.amount!.abs().toString());
-      _nameController.text = draft.name ?? '';
-      _selectedCategory = draft.categoryKey ?? 'Other';
-      _selectedWalletId = draft.walletId;
-      _selectedWalletName = draft.walletName;
-      _transactionDate = draft.date;
-      final wallet = WalletService.instance.byId(draft.walletId);
-      if (wallet != null) {
-        _selectedWalletName = wallet.name;
-        _selectedAcctCategory = _accountCategoryFor(wallet.type);
-      }
-    });
-  }
-
-  Future<void> _handleVoiceTap() async {
-    if (_isQuickAddParsing || _isQuickAddReviewOpen || _isVoiceProcessing) {
-      return;
-    }
-    if (_isVoiceRecording) {
-      await _stopVoiceListening();
-      return;
-    }
-    final session = ++_voiceSession;
-    _voiceFinalHandled = false;
-    _latestVoiceTranscript = '';
-    setState(() => _voiceState = _QuickAddVoiceState.initializing);
-    try {
-      final speech = QuickAddSpeechRecognitionService.instance;
-      final available = await speech.initialize(
-        onStatus: (status) => _handleVoiceStatus(session, status),
-        onError: (error) => _handleVoiceError(session, error),
-      );
-      if (!mounted || session != _voiceSession) return;
-      if (!available) {
-        throw const QuickAddSpeechException(
-          'RECOGNIZER_UNAVAILABLE',
-          'Speech recognition is unavailable.',
-        );
-      }
-      if (!speech.usesVietnameseLocale) {
-        _showMessage(
-          AppLanguage.instance.locale == AppLocale.vietnamese
-              ? 'Không có nhận diện tiếng Việt; đang dùng ngôn ngữ hệ thống.'
-              : 'Vietnamese recognition is unavailable; using system locale.',
-        );
-      }
-      await speech.startListening(
-        onResult: (result) => _handleVoiceResult(session, result),
-      );
-      if (!mounted || session != _voiceSession) {
-        await speech.cancelListening();
-        return;
-      }
-      setState(() => _voiceState = _QuickAddVoiceState.listening);
-      _voiceTimeout?.cancel();
-      _voiceTimeout = Timer(
-        const Duration(seconds: 30),
-        () => _finishVoiceAfterStop(session, timedOut: true),
-      );
-    } on QuickAddSpeechException catch (error) {
-      _showVoiceErrorIfCurrent(session, error.code);
-    } catch (_) {
-      _showVoiceErrorIfCurrent(session, 'RECOGNIZER_UNAVAILABLE');
-    }
-  }
-
-  void _handleVoiceResult(int session, QuickAddSpeechResult result) {
-    if (!mounted || session != _voiceSession || _voiceFinalHandled) return;
-    final transcript = result.text.trim();
-    if (transcript.isNotEmpty) {
-      _latestVoiceTranscript = transcript;
-      _quickAddController.value = TextEditingValue(
-        text: transcript,
-        selection: TextSelection.collapsed(offset: transcript.length),
-      );
-    }
-    if (result.isFinal) {
-      unawaited(_submitFinalVoiceTranscript(session, transcript));
-    }
-  }
-
-  void _handleVoiceStatus(int session, String status) {
-    if (!mounted || session != _voiceSession || _voiceFinalHandled) return;
-    final normalized = status.toLowerCase();
-    if (normalized == 'done' || normalized == 'notlistening') {
-      _voiceTimeout?.cancel();
-      _voiceTimeout = Timer(
-        const Duration(milliseconds: 300),
-        () => _submitFinalVoiceTranscript(session, _latestVoiceTranscript),
-      );
-    }
-  }
-
-  void _handleVoiceError(int session, QuickAddSpeechException error) {
-    _showVoiceErrorIfCurrent(session, error.code);
-  }
-
-  Future<void> _stopVoiceListening() async {
-    if (!_isVoiceRecording || _isVoiceProcessing) return;
-    final session = _voiceSession;
-    _voiceTimeout?.cancel();
-    setState(() => _voiceState = _QuickAddVoiceState.processingFinal);
-    try {
-      await QuickAddSpeechRecognitionService.instance.stopListening();
-      await Future<void>.delayed(const Duration(milliseconds: 300));
-      await _submitFinalVoiceTranscript(session, _latestVoiceTranscript);
-    } on QuickAddSpeechException catch (error) {
-      _showVoiceErrorIfCurrent(session, error.code);
-    } catch (_) {
-      _showVoiceErrorIfCurrent(session, 'RECOGNIZER_ERROR');
-    }
-  }
-
-  Future<void> _finishVoiceAfterStop(
-    int session, {
-    required bool timedOut,
-  }) async {
-    if (!mounted || session != _voiceSession || _voiceFinalHandled) return;
-    setState(() => _voiceState = _QuickAddVoiceState.processingFinal);
-    try {
-      await QuickAddSpeechRecognitionService.instance.stopListening();
-      await Future<void>.delayed(const Duration(milliseconds: 300));
-      if (_latestVoiceTranscript.trim().isEmpty && timedOut) {
-        _showVoiceErrorIfCurrent(session, 'RECOGNITION_TIMEOUT');
-        return;
-      }
-      await _submitFinalVoiceTranscript(session, _latestVoiceTranscript);
-    } catch (_) {
-      _showVoiceErrorIfCurrent(session, 'RECOGNIZER_ERROR');
-    }
-  }
-
-  Future<void> _submitFinalVoiceTranscript(int session, String value) async {
-    if (!mounted || session != _voiceSession || _voiceFinalHandled) return;
-    final transcript = value.trim();
-    if (transcript.isEmpty) {
-      _showVoiceErrorIfCurrent(session, 'EMPTY_TRANSCRIPT');
-      return;
-    }
-    _voiceFinalHandled = true;
-    _voiceTimeout?.cancel();
-    _quickAddController.value = TextEditingValue(
-      text: transcript,
-      selection: TextSelection.collapsed(offset: transcript.length),
-    );
-    setState(() => _voiceState = _QuickAddVoiceState.parsing);
-    await _submitQuickAdd(transcript);
-  }
-
-  void _showVoiceErrorIfCurrent(int session, String code) {
-    if (!mounted || session != _voiceSession || _voiceFinalHandled) return;
-    _voiceFinalHandled = true;
-    _voiceTimeout?.cancel();
-    setState(() => _voiceState = _QuickAddVoiceState.error);
-    _showMessage(_localizedVoiceError(code));
-    if (mounted && session == _voiceSession) {
-      setState(() => _voiceState = _QuickAddVoiceState.idle);
-    }
-  }
-
-  String _localizedVoiceError(String code) {
-    final vi = AppLanguage.instance.locale == AppLocale.vietnamese;
-    return switch (code) {
-      'MICROPHONE_PERMISSION_DENIED' || 'error_permission' =>
-        vi
-            ? 'Cần quyền microphone để nhập giao dịch bằng giọng nói.'
-            : 'Microphone permission is required for voice Quick Add.',
-      'EMPTY_TRANSCRIPT' || 'error_no_match' =>
-        vi
-            ? 'Không nhận diện được nội dung giọng nói.'
-            : 'No speech could be recognized.',
-      'RECOGNITION_TIMEOUT' || 'error_speech_timeout' =>
-        vi
-            ? 'Không nhận diện được giọng nói trong thời gian cho phép.'
-            : 'No speech was recognized before the timeout.',
-      'RECOGNIZER_UNAVAILABLE' =>
-        vi
-            ? 'Thiết bị không có dịch vụ nhận diện giọng nói khả dụng.'
-            : 'Speech recognition is unavailable on this device.',
-      _ =>
-        vi
-            ? 'Nhận diện giọng nói hiện không khả dụng. Vui lòng thử lại.'
-            : 'Speech recognition is unavailable. Please try again.',
-    };
-  }
-}
-
-class _StitchSegmentedControl<T> extends StatelessWidget {
-  const _StitchSegmentedControl({
-    required this.entries,
-    required this.selected,
-    required this.selectedColor,
-    required this.onSelected,
-  });
-
-  final List<(T, String)> entries;
-  final T selected;
-  final Color selectedColor;
-  final ValueChanged<T> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: Responsive.h(context, 44),
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF1F4F9),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFC3C7CF)),
-      ),
-      child: Row(
-        children: entries.map((entry) {
-          final active = entry.$1 == selected;
-          return Expanded(
-            child: Semantics(
-              button: true,
-              selected: active,
-              label: entry.$2,
-              child: InkWell(
-                onTap: () => onSelected(entry.$1),
-                borderRadius: BorderRadius.circular(9),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 220),
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: active ? selectedColor : Colors.transparent,
-                    borderRadius: BorderRadius.circular(9),
-                    boxShadow: active
-                        ? const [
-                            BoxShadow(
-                              color: Color(0x1F000000),
-                              blurRadius: 5,
-                              offset: Offset(0, 2),
-                            ),
-                          ]
-                        : null,
-                  ),
-                  child: Text(
-                    entry.$2,
-                    maxLines: 1,
-                    style: TextStyle(
-                      fontFamily: 'JetBrains Mono',
-                      fontSize: Responsive.sp(context, 10),
-                      letterSpacing: 0.4,
-                      fontWeight: FontWeight.w600,
-                      color: active ? Colors.white : const Color(0xFF43474E),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-}
-
-class TransactionCategorySelectionSheet extends StatefulWidget {
-  const TransactionCategorySelectionSheet({
-    super.key,
-    required this.initialKey,
-  });
-
-  final String initialKey;
-
-  @override
-  State<TransactionCategorySelectionSheet> createState() =>
-      _TransactionCategorySelectionSheetState();
-}
-
-class _TransactionCategorySelectionSheetState
-    extends State<TransactionCategorySelectionSheet> {
-  late String _selectedKey = widget.initialKey;
-
-  List<TransactionCategory> get _categories => [
-    ...TransactionCategory.all,
-    ...CustomCategoryStore.instance.items.map(
-      (item) => TransactionCategory(
-        key: item.name,
-        label: item.name,
-        icon: item.iconData,
-        color: item.color,
-      ),
-    ),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return FractionallySizedBox(
-      heightFactor: 0.86,
-      child: Material(
-        color: Colors.white,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        clipBehavior: Clip.antiAlias,
-        child: SafeArea(
-          top: false,
-          child: Column(
-            children: [
-              const _SheetHandle(),
-              _SheetHeader(
-                title: 'Select Category',
-                onClose: () => Navigator.of(context).pop(),
-              ),
-              Expanded(
-                child: ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 18),
-                  itemCount: _categories.length + 1,
-                  separatorBuilder: (_, _) => const Divider(height: 1),
-                  itemBuilder: (context, index) {
-                    if (index == _categories.length) {
-                      return ListTile(
-                        contentPadding: const EdgeInsets.symmetric(vertical: 4),
-                        leading: const CircleAvatar(
-                          backgroundColor: Color(0xFFE8F5EF),
-                          child: Icon(
-                            Icons.add_rounded,
-                            color: Color(0xFF006C46),
-                          ),
-                        ),
-                        title: const Text('Create custom category'),
-                        onTap: _createCustomCategory,
-                      );
-                    }
-                    final category = _categories[index];
-                    final selected = category.key == _selectedKey;
-                    return Semantics(
-                      button: true,
-                      selected: selected,
-                      child: ListTile(
-                        contentPadding: const EdgeInsets.symmetric(vertical: 4),
-                        onTap: () =>
-                            setState(() => _selectedKey = category.key),
-                        leading: Container(
-                          width: 42,
-                          height: 42,
-                          decoration: BoxDecoration(
-                            color: category.color,
-                            borderRadius: BorderRadius.circular(10),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Color(0x1A000000),
-                                blurRadius: 7,
-                                offset: Offset(0, 3),
-                              ),
-                            ],
-                          ),
-                          child: Icon(
-                            category.icon,
-                            color: Colors.white,
-                            size: 21,
-                          ),
-                        ),
-                        title: Text(
-                          category.label,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w500),
-                        ),
-                        trailing: selected
-                            ? const Icon(
-                                Icons.check_circle,
-                                color: Color(0xFF00D09E),
-                              )
-                            : null,
-                      ),
-                    );
-                  },
-                ),
-              ),
-              _SheetApplyButton(
-                label: 'Apply Selection',
-                onPressed: () => Navigator.of(context).pop(_selectedKey),
-              ),
-            ],
-          ),
+    // Collect visible items: popular + custom
+    final items = <TransactionCategory>[
+      ...TransactionCategory.popular,
+      ...store.items.map(
+        (c) => TransactionCategory(
+          key: c.name,
+          label: c.name,
+          icon: c.iconData,
+          color: c.color,
         ),
       ),
-    );
-  }
+    ];
 
-  Future<void> _createCustomCategory() async {
-    final created = await showDialog<CustomCategoryDef>(
-      context: context,
-      builder: (_) => const _CreateCategoryDialog(),
-    );
-    if (created == null || !mounted) return;
-    CustomCategoryStore.instance.add(created);
-    setState(() => _selectedKey = created.name);
-  }
-}
-
-class _SourceSelectionSheet extends StatefulWidget {
-  const _SourceSelectionSheet({this.selectedName, this.selectedType});
-
-  final String? selectedName;
-  final _AccountCategory? selectedType;
-
-  @override
-  State<_SourceSelectionSheet> createState() => _SourceSelectionSheetState();
-}
-
-class _SourceSelectionSheetState extends State<_SourceSelectionSheet> {
-  WalletPreset? _selected;
-
-  static const _availableEwalletAssetPaths = {
-    'assets/logos/ewallets/momo.png',
-    'assets/logos/ewallets/zalopay.png',
-    'assets/logos/ewallets/vnpay.png',
-    'assets/logos/ewallets/viettelmoney.png',
-    'assets/logos/ewallets/grabpay.png',
-    'assets/logos/ewallets/onepay.png',
-    'assets/logos/ewallets/paypal.png',
-  };
-
-  static const _cash = WalletPreset(
-    name: 'Tiền mặt',
-    logoAssetPath: 'assets/logos/ewallets/cash.png',
-    brandColor: Color(0xFF4CAF50),
-    type: WalletType.cash,
-  );
-
-  @override
-  void initState() {
-    super.initState();
-    final all = [_cash, ...bankPresets, ..._ewallets];
-    for (final preset in all) {
-      if (preset.name == widget.selectedName &&
-          _AddTransactionSheetState._accountCategoryFor(preset.type) ==
-              widget.selectedType) {
-        _selected = preset;
-        break;
-      }
+    // If the selected category is an extended built-in not yet shown, add it
+    if (_selectedCategory.isNotEmpty &&
+        !shownKeys.contains(_selectedCategory)) {
+      final ext = TransactionCategory.fromKey(_selectedCategory);
+      items.add(ext);
+      shownKeys.add(_selectedCategory);
     }
-  }
 
-  static List<WalletPreset> get _ewallets => ewalletPresets
-      .where(
-        (preset) =>
-            preset.type == WalletType.ewallet &&
-            _availableEwalletAssetPaths.contains(preset.logoAssetPath),
-      )
-      .toList(growable: false);
-
-  @override
-  Widget build(BuildContext context) {
-    return FractionallySizedBox(
-      heightFactor: 0.9,
-      child: Material(
-        color: Colors.white,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        clipBehavior: Clip.antiAlias,
-        child: SafeArea(
-          top: false,
-          child: Column(
-            children: [
-              const _SheetHandle(),
-              _SheetHeader(
-                title: 'Select Source',
-                onClose: () => Navigator.of(context).pop(),
-              ),
-              Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  children: [
-                    _section('CASH', const [_cash]),
-                    _section('BANK', bankPresets),
-                    _section('E-WALLET', _ewallets),
-                  ],
-                ),
-              ),
-              _SheetApplyButton(
-                label: 'Apply Selection',
-                onPressed: _selected == null
-                    ? null
-                    : () => Navigator.of(context).pop(_selected),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _section(String title, List<WalletPreset> presets) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Wrap(
+      spacing: Responsive.w(context, 12),
+      runSpacing: Responsive.h(context, 12),
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(0, 10, 0, 7),
-          child: Text(
-            title,
-            style: const TextStyle(
-              fontFamily: 'JetBrains Mono',
-              fontSize: 10,
-              letterSpacing: 0.8,
-              color: Color(0xFF5F6368),
-            ),
-          ),
+        ...items.map(
+          (cat) =>
+              _buildCategoryCircle(cat.key, cat.icon, cat.color, cat.label),
         ),
-        ...presets.map(_sourceRow),
+        // "More" button
+        _buildMoreButton(),
       ],
     );
   }
 
-  Widget _sourceRow(WalletPreset preset) {
-    final selected =
-        _selected?.name == preset.name && _selected?.type == preset.type;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 9),
-      child: Semantics(
-        button: true,
-        selected: selected,
-        child: InkWell(
-          onTap: () => setState(() => _selected = preset),
-          borderRadius: BorderRadius.circular(10),
-          child: Container(
-            height: 66,
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFE0E4E2)),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  padding: const EdgeInsets.all(5),
-                  decoration: BoxDecoration(
-                    color: preset.brandColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Image.asset(
-                    preset.logoAssetPath,
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, _, _) => Icon(
-                      preset.type == WalletType.cash
-                          ? Icons.payments_outlined
-                          : preset.type == WalletType.ewallet
-                          ? Icons.account_balance_wallet_outlined
-                          : Icons.account_balance_outlined,
-                      color: preset.brandColor,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        preset.name == 'Tiền mặt' ? 'Cash' : preset.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      Text(
-                        switch (preset.type) {
-                          WalletType.bank => 'Bank account',
-                          WalletType.ewallet => 'E-wallet',
-                          WalletType.cash => 'Manual tracking',
-                        },
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Color(0xFF6D7B74),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(
-                  selected ? Icons.check_circle : Icons.circle_outlined,
-                  color: selected
-                      ? const Color(0xFF00D09E)
-                      : const Color(0xFF1A1C1E),
-                  size: 22,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SheetHandle extends StatelessWidget {
-  const _SheetHandle();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Container(
-        width: 36,
-        height: 4,
-        margin: const EdgeInsets.only(top: 8),
-        decoration: BoxDecoration(
-          color: const Color(0xFFD5DAD7),
-          borderRadius: BorderRadius.circular(99),
-        ),
-      ),
-    );
-  }
-}
-
-class _SheetHeader extends StatelessWidget {
-  const _SheetHeader({required this.title, required this.onClose});
-
-  final String title;
-  final VoidCallback onClose;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 10, 8, 8),
-      child: Row(
+  Widget _buildCategoryCircle(
+    String key,
+    IconData icon,
+    Color color,
+    String label,
+  ) {
+    final isSelected = _selectedCategory == key;
+    return GestureDetector(
+      onTap: () => setState(() => _selectedCategory = key),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
-            child: Text(
-              title,
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+          Container(
+            width: Responsive.w(context, 50),
+            height: Responsive.w(context, 50),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: isSelected ? color : color.withValues(alpha: 0.5),
+                width: isSelected ? 3 : 2,
+              ),
+              color: isSelected
+                  ? color.withValues(alpha: 0.1)
+                  : const Color(0xFFF5F5F5),
+            ),
+            child: Icon(
+              icon,
+              color: isSelected ? color : color.withValues(alpha: 0.7),
+              size: Responsive.w(context, 22),
             ),
           ),
-          IconButton(
-            tooltip: 'Close',
-            onPressed: onClose,
-            icon: const Icon(Icons.close_rounded),
+          SizedBox(height: Responsive.h(context, 4)),
+          SizedBox(
+            width: Responsive.w(context, 56),
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: Responsive.sp(context, 10),
+                color: AppColors.darkText,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+              ),
+            ),
           ),
         ],
       ),
     );
   }
+
+  Widget _buildMoreButton() {
+    return GestureDetector(
+      onTap: () => _showMoreSheet(context),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: Responsive.w(context, 50),
+            height: Responsive.w(context, 50),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: const Color(0xFFBFC9C3), width: 2),
+              color: Colors.white,
+            ),
+            child: Icon(
+              Icons.add,
+              color: const Color(0xFF707974),
+              size: Responsive.w(context, 22),
+            ),
+          ),
+          SizedBox(height: Responsive.h(context, 4)),
+          Text(
+            'More',
+            style: TextStyle(
+              fontSize: Responsive.sp(context, 10),
+              color: const Color(0xFF707974),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showMoreSheet(BuildContext context) async {
+    final result = await showModalBottomSheet<String?>(
+      context: context,
+      isScrollControlled: true,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => const _MoreCategorySheet(),
+    );
+    if (result != null && mounted) {
+      setState(() => _selectedCategory = result);
+    }
+  }
 }
 
-class _SheetApplyButton extends StatelessWidget {
-  const _SheetApplyButton({required this.label, required this.onPressed});
+// =============================================================================
+// "MORE" BOTTOM SHEET
+// =============================================================================
 
-  final String label;
-  final VoidCallback? onPressed;
+class _MoreCategorySheet extends ConsumerStatefulWidget {
+  const _MoreCategorySheet();
+
+  @override
+  ConsumerState<_MoreCategorySheet> createState() => _MoreCategorySheetState();
+}
+
+class _MoreCategorySheetState extends ConsumerState<_MoreCategorySheet> {
+  // ── Custom category form state ──
+  final _customNameController = TextEditingController();
+  var _customIcon = Icons.school;
+  var _customColor = const Color(0xFF1E88E5);
+
+  @override
+  void dispose() {
+    _customNameController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
-      child: SizedBox(
-        width: double.infinity,
-        child: FilledButton(
-          onPressed: onPressed,
-          style: FilledButton.styleFrom(
-            backgroundColor: AppColors.primaryGreen,
-            foregroundColor: const Color(0xFF002112),
-            minimumSize: const Size.fromHeight(52),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(7),
+      padding: EdgeInsets.only(
+        left: Responsive.w(context, 24),
+        right: Responsive.w(context, 24),
+        top: Responsive.h(context, 24),
+        bottom:
+            MediaQuery.of(context).viewInsets.bottom +
+            Responsive.h(context, 24),
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'More Categories',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: Responsive.sp(context, 18),
+                color: const Color(0xFF003829),
+              ),
             ),
-          ),
-          child: Text(
-            label,
-            style: const TextStyle(fontWeight: FontWeight.w700),
-          ),
+            SizedBox(height: Responsive.h(context, 16)),
+
+            // ── Built-in extended categories ──
+            Text(
+              'Built-in',
+              style: TextStyle(
+                fontWeight: FontWeight.w500,
+                fontSize: Responsive.sp(context, 14),
+                color: const Color(0xFF747875),
+              ),
+            ),
+            SizedBox(height: Responsive.h(context, 8)),
+            Wrap(
+              spacing: Responsive.w(context, 12),
+              runSpacing: Responsive.h(context, 12),
+              children: TransactionCategory.extended.map((cat) {
+                return GestureDetector(
+                  onTap: () => Navigator.of(context).pop(cat.key),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: Responsive.w(context, 50),
+                        height: Responsive.w(context, 50),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: cat.color.withValues(alpha: 0.5),
+                            width: 2,
+                          ),
+                          color: cat.color.withValues(alpha: 0.1),
+                        ),
+                        child: Icon(
+                          cat.icon,
+                          color: cat.color,
+                          size: Responsive.w(context, 22),
+                        ),
+                      ),
+                      SizedBox(height: Responsive.h(context, 4)),
+                      Text(
+                        cat.label,
+                        style: TextStyle(
+                          fontSize: Responsive.sp(context, 10),
+                          color: AppColors.darkText,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+
+            SizedBox(height: Responsive.h(context, 24)),
+            const Divider(),
+            SizedBox(height: Responsive.h(context, 12)),
+
+            // ── Custom category ──
+            Text(
+              'Custom Category',
+              style: TextStyle(
+                fontWeight: FontWeight.w500,
+                fontSize: Responsive.sp(context, 14),
+                color: const Color(0xFF747875),
+              ),
+            ),
+            SizedBox(height: Responsive.h(context, 8)),
+            TextField(
+              controller: _customNameController,
+              decoration: InputDecoration(
+                hintText: 'e.g. Tuition, Repair...',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: Responsive.w(context, 16),
+                  vertical: Responsive.h(context, 12),
+                ),
+              ),
+            ),
+            SizedBox(height: Responsive.h(context, 12)),
+
+            // ── Icon picker ──
+            Text(
+              'Pick icon',
+              style: TextStyle(
+                fontWeight: FontWeight.w500,
+                fontSize: Responsive.sp(context, 13),
+                color: const Color(0xFF747875),
+              ),
+            ),
+            SizedBox(height: Responsive.h(context, 6)),
+            SizedBox(
+              height: Responsive.h(context, 36),
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: _customIcons.map((icn) {
+                  final isSelected = icn == _customIcon;
+                  return GestureDetector(
+                    onTap: () => setState(() => _customIcon = icn),
+                    child: Container(
+                      width: Responsive.w(context, 36),
+                      height: Responsive.w(context, 36),
+                      margin: EdgeInsets.only(right: Responsive.w(context, 6)),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isSelected
+                            ? _customColor.withValues(alpha: 0.2)
+                            : const Color(0xFFF5F5F5),
+                        border: Border.all(
+                          color: isSelected
+                              ? _customColor
+                              : const Color(0xFFBFC9C3),
+                          width: 2,
+                        ),
+                      ),
+                      child: Icon(
+                        icn,
+                        size: Responsive.w(context, 18),
+                        color: isSelected
+                            ? _customColor
+                            : const Color(0xFF707974),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+            SizedBox(height: Responsive.h(context, 12)),
+
+            // ── Color picker ──
+            Text(
+              'Pick color',
+              style: TextStyle(
+                fontWeight: FontWeight.w500,
+                fontSize: Responsive.sp(context, 13),
+                color: const Color(0xFF747875),
+              ),
+            ),
+            SizedBox(height: Responsive.h(context, 6)),
+            Wrap(
+              spacing: Responsive.w(context, 6),
+              runSpacing: Responsive.h(context, 6),
+              children: _customColors.map((clr) {
+                final isSelected = clr == _customColor;
+                return GestureDetector(
+                  onTap: () => setState(() => _customColor = clr),
+                  child: Container(
+                    width: Responsive.w(context, 28),
+                    height: Responsive.w(context, 28),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: clr,
+                      border: isSelected
+                          ? Border.all(color: Colors.black, width: 2.5)
+                          : null,
+                    ),
+                    child: isSelected
+                        ? Icon(
+                            Icons.check,
+                            size: Responsive.w(context, 16),
+                            color: Colors.white,
+                          )
+                        : null,
+                  ),
+                );
+              }).toList(),
+            ),
+            SizedBox(height: Responsive.h(context, 16)),
+
+            // ── Save custom category ──
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  final name = _customNameController.text.trim();
+                  if (name.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Please enter a category name'),
+                      ),
+                    );
+                    return;
+                  }
+                  // Store custom category
+                  CustomCategoryStore.instance.add(
+                    CustomCategoryDef(
+                      name: name,
+                      iconData: _customIcon,
+                      color: _customColor,
+                    ),
+                  );
+                  Navigator.of(context).pop(name);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1CA380),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: Text(
+                  'Save Category',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w500,
+                    fontSize: Responsive.sp(context, 15),
+                  ),
+                ),
+              ),
+            ),
+            SizedBox(height: Responsive.h(context, 8)),
+          ],
         ),
       ),
     );
   }
 }
 
-class _CreateCategoryDialog extends StatefulWidget {
-  const _CreateCategoryDialog();
+// =============================================================================
+//  Segment tab widget
+// =============================================================================
 
-  @override
-  State<_CreateCategoryDialog> createState() => _CreateCategoryDialogState();
-}
-
-class _CreateCategoryDialogState extends State<_CreateCategoryDialog> {
-  final _controller = TextEditingController();
-  var _icon = _customIcons.first;
-  var _color = _customColors.first;
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
+class _SegmentTab extends StatelessWidget {
+  const _SegmentTab({
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+    required this.selectedColor,
+    required this.selectedTextColor,
+    required this.unselectedTextColor,
+  });
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final Color selectedColor;
+  final Color selectedTextColor;
+  final Color unselectedTextColor;
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Custom Category'),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            TextField(
-              controller: _controller,
-              maxLength: 24,
-              decoration: const InputDecoration(labelText: 'Category name'),
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          alignment: Alignment.center,
+          padding: EdgeInsets.symmetric(vertical: Responsive.h(context, 8)),
+          decoration: BoxDecoration(
+            color: isSelected ? selectedColor : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontWeight: isSelected ? FontWeight.w500 : FontWeight.w400,
+              fontSize: Responsive.sp(context, 16),
+              color: isSelected ? selectedTextColor : unselectedTextColor,
             ),
-            const SizedBox(height: 12),
-            const Text('Icon'),
-            Wrap(
-              spacing: 6,
-              children: _customIcons.map((icon) {
-                return IconButton.filledTonal(
-                  onPressed: () => setState(() => _icon = icon),
-                  style: IconButton.styleFrom(
-                    backgroundColor: _icon == icon
-                        ? _color.withValues(alpha: 0.22)
-                        : null,
-                  ),
-                  icon: Icon(icon, color: _icon == icon ? _color : null),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 8),
-            const Text('Color'),
-            Wrap(
-              spacing: 7,
-              runSpacing: 7,
-              children: _customColors.map((color) {
-                return GestureDetector(
-                  onTap: () => setState(() => _color = color),
-                  child: Container(
-                    width: 30,
-                    height: 30,
-                    decoration: BoxDecoration(
-                      color: color,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: _color == color
-                            ? Colors.black
-                            : Colors.transparent,
-                        width: 2,
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ],
+          ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: () {
-            final name = _controller.text.trim();
-            if (name.isEmpty) return;
-            Navigator.of(context).pop(
-              CustomCategoryDef(name: name, iconData: _icon, color: _color),
-            );
-          },
-          child: const Text('Save Category'),
-        ),
-      ],
     );
   }
 }

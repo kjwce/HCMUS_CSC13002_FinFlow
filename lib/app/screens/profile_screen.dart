@@ -11,7 +11,13 @@ import '../../features/auth/providers/auth_provider.dart';
 
 /// Profile screen shown inside [MainShell] bottom navigation.
 ///
-/// The original profile header uses a cover image with an overlapping avatar.
+/// Layout (from Figma node 1:838 "profile"):
+///   - Green-gradient cover image (full width, top)
+///   - Back arrow (left) + "Profile" title (center) + notification bell (right)
+///   - Circle avatar (128x128) overlapping cover bottom edge
+///   - Username (Poppins Bold 20px) and ID (Poppins SemiBold 13px)
+///   - Menu items: Edit Profile, Security, Setting, Help, Logout
+///     each with a rounded icon container (57x53, r22) and label
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key, this.onTabChanged});
 
@@ -33,12 +39,12 @@ class ProfileScreen extends ConsumerWidget {
           child: Stack(
             clipBehavior: Clip.none,
             children: [
-              _ProfileCover(
-                avatarUrl: user?.avatarUrl,
-                displayName: displayName,
-              ),
+              // ── Cover ảnh ──────────────────────────────
+              _ProfileCover(displayName: displayName),
+
+              // ── White card ────────────────────────────
               Container(
-                margin: EdgeInsets.only(top: Responsive.h(context, 216)),
+                margin: EdgeInsets.only(top: Responsive.h(context, 160)),
                 decoration: BoxDecoration(
                   color: context.finFlowColors.surface,
                   borderRadius: const BorderRadius.only(
@@ -48,7 +54,9 @@ class ProfileScreen extends ConsumerWidget {
                 ),
                 child: Column(
                   children: [
-                    SizedBox(height: Responsive.h(context, 76)),
+                    SizedBox(
+                      height: Responsive.h(context, 76),
+                    ), // chỗ cho avatar
                     Text(
                       displayName,
                       style: TextStyle(
@@ -74,8 +82,10 @@ class ProfileScreen extends ConsumerWidget {
                   ],
                 ),
               ),
+
+              // ── Avatar nằm TRÊN CÙNG trong Stack chính ──
               Positioned(
-                top: Responsive.h(context, 152),
+                top: Responsive.h(context, 160 - 64),
                 left: 0,
                 right: 0,
                 child: Center(
@@ -118,73 +128,46 @@ class ProfileScreen extends ConsumerWidget {
 const _profileText = Color(0xFF093030);
 
 // ---------------------------------------------------------------------------
-// Cover image and header
+// Cover - gradient + header bar + avatar
 // ---------------------------------------------------------------------------
 
 class _ProfileCover extends StatelessWidget {
-  const _ProfileCover({required this.avatarUrl, required this.displayName});
+  const _ProfileCover({required this.displayName});
 
-  final String? avatarUrl;
   final String displayName;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return Stack(
       children: [
-        SizedBox(
-          height: Responsive.h(context, 56),
-          child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: Responsive.w(context, 20),
-            ),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: Responsive.w(context, 15),
-                  backgroundColor: AppColors.lightGreen,
-                  backgroundImage:
-                      avatarUrl != null && avatarUrl!.trim().isNotEmpty
-                      ? NetworkImage(avatarUrl!)
-                      : null,
-                  child: avatarUrl == null || avatarUrl!.trim().isEmpty
-                      ? Text(
-                          displayName.trim().isEmpty
-                              ? '?'
-                              : displayName
-                                    .trim()
-                                    .substring(0, 1)
-                                    .toUpperCase(),
-                          style: TextStyle(
-                            color: AppColors.primaryGreen,
-                            fontSize: Responsive.sp(context, 12),
-                            fontWeight: FontWeight.w800,
-                          ),
-                        )
-                      : null,
-                ),
-                SizedBox(width: Responsive.w(context, 10)),
-                Text(
-                  AppStrings.profileTitle,
-                  style: TextStyle(
-                    fontFamily: 'Poppins',
-                    fontWeight: FontWeight.w700,
-                    fontSize: Responsive.sp(context, 20),
-                    color: Theme.of(context).brightness == Brightness.dark
-                        ? context.finFlowColors.primaryText
-                        : const Color(0xFF006B52),
-                  ),
-                ),
-                const Spacer(),
-                const NotificationBell(),
-              ],
-            ),
-          ),
-        ),
+        // Cover image
         Image.asset(
           'assets/profile_cover.png',
           width: double.infinity,
           height: Responsive.h(context, 200),
           fit: BoxFit.cover,
+        ),
+        // Top bar
+        Positioned(
+          top: Responsive.h(context, 12),
+          left: Responsive.w(context, 20),
+          right: Responsive.w(context, 20),
+          child: Row(
+            children: [
+              const Spacer(),
+              Text(
+                AppStrings.profileTitle,
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontWeight: FontWeight.w600,
+                  fontSize: Responsive.sp(context, 20),
+                  color: _profileText,
+                ),
+              ),
+              const Spacer(),
+              const NotificationBell(),
+            ],
+          ),
         ),
       ],
     );
@@ -224,12 +207,9 @@ class _MenuItems extends ConsumerWidget {
           'assets/icons/icon_profile.svg',
           width: Responsive.w(context, 24),
           height: Responsive.h(context, 24),
-          colorFilter: const ColorFilter.mode(
-            Color(0xFF2389B8),
-            BlendMode.srcIn,
-          ),
+          colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
         ),
-        bgColor: const Color(0xFFE8F5FB),
+        bgColor: const Color(0xFF6DB6FE),
         label: AppStrings.editProfileMenuItem,
         onTap: () async {
           final result = await Navigator.of(
@@ -246,12 +226,9 @@ class _MenuItems extends ConsumerWidget {
           'assets/icons/icon_security.svg',
           width: Responsive.w(context, 24),
           height: Responsive.h(context, 24),
-          colorFilter: const ColorFilter.mode(
-            Color(0xFF168B68),
-            BlendMode.srcIn,
-          ),
+          colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
         ),
-        bgColor: const Color(0xFFE6F7EF),
+        bgColor: const Color(0xFF3299FF),
         label: AppStrings.security,
         onTap: () {
           // TODO: navigate to security screen
@@ -262,12 +239,9 @@ class _MenuItems extends ConsumerWidget {
           'assets/icons/icon_setting.svg',
           width: Responsive.w(context, 24),
           height: Responsive.h(context, 24),
-          colorFilter: const ColorFilter.mode(
-            Color(0xFF72831F),
-            BlendMode.srcIn,
-          ),
+          colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
         ),
-        bgColor: const Color(0xFFF3F5D9),
+        bgColor: AppColors.blueAccent,
         label: AppStrings.settingMenu,
         onTap: () async {
           final result = await Navigator.of(
@@ -284,12 +258,9 @@ class _MenuItems extends ConsumerWidget {
           'assets/icons/icon_help.svg',
           width: Responsive.w(context, 24),
           height: Responsive.h(context, 24),
-          colorFilter: const ColorFilter.mode(
-            Color(0xFFA33CAA),
-            BlendMode.srcIn,
-          ),
+          colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
         ),
-        bgColor: const Color(0xFFF7EAF8),
+        bgColor: const Color(0xFF6DB6FE),
         label: AppStrings.help,
         onTap: () {
           // TODO: navigate to help screen
@@ -300,12 +271,9 @@ class _MenuItems extends ConsumerWidget {
           'assets/icons/icon_logout.svg',
           width: Responsive.w(context, 24),
           height: Responsive.h(context, 24),
-          colorFilter: const ColorFilter.mode(
-            Color(0xFFD84A55),
-            BlendMode.srcIn,
-          ),
+          colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
         ),
-        bgColor: const Color(0xFFFCEBED),
+        bgColor: const Color(0xFF3299FF),
         label: AppStrings.logout,
         onTap: () async {
           await ref.read(authServiceProvider).signOut();
@@ -324,7 +292,7 @@ class _MenuItems extends ConsumerWidget {
           children: [
             _MenuRow(data: item),
             if (i < items.length - 1)
-              SizedBox(height: Responsive.h(context, 10)),
+              SizedBox(height: Responsive.h(context, 34)),
           ],
         );
       }),
@@ -340,65 +308,42 @@ class _MenuRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 16)),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0x14006C46)),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x1200523C),
-              blurRadius: 12,
-              offset: Offset(0, 4),
+      padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 24)),
+      child: GestureDetector(
+        onTap: data.onTap,
+        child: Row(
+          children: [
+            // Rounded icon container
+            Container(
+              width: Responsive.w(context, 57),
+              height: Responsive.h(context, 53),
+              decoration: BoxDecoration(
+                color: data.bgColor,
+                borderRadius: BorderRadius.circular(22),
+              ),
+              child: Center(
+                child: SizedBox(
+                  width: Responsive.w(context, 24),
+                  height: Responsive.h(context, 24),
+                  child: data.icon,
+                ),
+              ),
             ),
+            SizedBox(width: Responsive.w(context, 16)),
+            // Label
+            Text(
+              data.label,
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontWeight: FontWeight.w500,
+                fontSize: Responsive.sp(context, 15),
+                color: _profileText,
+              ),
+            ),
+            const Spacer(),
+            // Chevron
+            const Icon(Icons.chevron_right, color: _profileText),
           ],
-        ),
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: data.onTap,
-            child: Container(
-              constraints: BoxConstraints(minHeight: Responsive.h(context, 62)),
-              padding: EdgeInsets.symmetric(
-                horizontal: Responsive.w(context, 12),
-                vertical: Responsive.h(context, 10),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: Responsive.w(context, 40),
-                    height: Responsive.w(context, 40),
-                    padding: EdgeInsets.all(Responsive.w(context, 8)),
-                    decoration: BoxDecoration(
-                      color: data.bgColor,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: data.icon,
-                  ),
-                  SizedBox(width: Responsive.w(context, 14)),
-                  Expanded(
-                    child: Text(
-                      data.label,
-                      style: TextStyle(
-                        fontFamily: 'Hanken Grotesk',
-                        fontWeight: FontWeight.w600,
-                        fontSize: Responsive.sp(context, 15),
-                        color: _profileText,
-                      ),
-                    ),
-                  ),
-                  Icon(
-                    Icons.chevron_right_rounded,
-                    size: Responsive.w(context, 20),
-                    color: const Color(0xFF7D8985),
-                  ),
-                ],
-              ),
-            ),
-          ),
         ),
       ),
     );

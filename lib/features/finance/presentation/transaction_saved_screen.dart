@@ -31,7 +31,7 @@ class TransactionSavedScreen extends StatelessWidget {
     final balance = TransactionService.instance.balanceByWallet(
       transaction.walletId ?? '',
     );
-    final category = TransactionCategory.resolve(transaction.category);
+    final category = TransactionCategory.fromKey(transaction.category);
     final themeColors = context.finFlowColors;
 
     return Scaffold(

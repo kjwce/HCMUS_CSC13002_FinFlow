@@ -6,7 +6,7 @@ import '../../features/auth/services/auth_service.dart';
 import '../../features/community/services/notification_service.dart';
 import '../../features/finance/presentation/add_transaction_sheet.dart';
 import '../../features/scan/presentation/scan_screen.dart';
-import '../screens/ai_screen.dart';
+import '../../features/chatbot/presentation/chat_screen.dart';
 import '../screens/community_screen.dart';
 import '../screens/home_screen.dart';
 import '../screens/profile_screen.dart';
@@ -72,7 +72,7 @@ class _MainShellState extends ConsumerState<MainShell> {
               onAddTap: () => AddTransactionSheet.show(context),
               onTabChanged: (i) => setState(() => _index = i),
             ),
-            const AiScreen(),
+            const ChatScreen(showBackButton: false),
             const ScanScreen(),
             const CommunityScreen(),
             ProfileScreen(onTabChanged: (i) => setState(() => _index = i)),

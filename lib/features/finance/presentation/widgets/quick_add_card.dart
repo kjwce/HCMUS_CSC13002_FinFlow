@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/responsive.dart';
 
 class QuickAddCard extends StatefulWidget {
   const QuickAddCard({
@@ -25,24 +26,10 @@ class QuickAddCard extends StatefulWidget {
 }
 
 class _QuickAddCardState extends State<QuickAddCard> {
+  static const _headlineFont = 'Manrope';
+  static const _bodyFont = 'Hanken Grotesk';
+
   late final TextEditingController _textController;
-
-  bool get _blocked =>
-      widget.isLoading || widget.isRecording || widget.isVoiceProcessing;
-
-  double _widthScale(BuildContext context) =>
-      (MediaQuery.sizeOf(context).width / 393).clamp(0.85, 1.1);
-
-  double _heightScale(BuildContext context) =>
-      (MediaQuery.sizeOf(context).height / 852).clamp(0.8, 1.0);
-
-  double _w(BuildContext context, double value) => value * _widthScale(context);
-
-  double _h(BuildContext context, double value) =>
-      value * _heightScale(context);
-
-  double _sp(BuildContext context, double value) =>
-      value * _widthScale(context);
 
   @override
   void initState() {
@@ -57,176 +44,186 @@ class _QuickAddCardState extends State<QuickAddCard> {
   }
 
   void _submit() {
-    if (_blocked) return;
-    widget.onSubmit?.call(_textController.text.trim());
-  }
-
-  String get _inputHint {
-    if (widget.isRecording) return 'LISTENING FOR INPUT...';
-    if (widget.isVoiceProcessing) return 'PROCESSING VOICE...';
-    return 'TYPE A TRANSACTION...';
+    if (widget.isLoading || widget.isRecording || widget.isVoiceProcessing) {
+      return;
+    }
+    final text = _textController.text.trim();
+    widget.onSubmit?.call(text);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Container(
-          padding: EdgeInsets.fromLTRB(
-            _w(context, 22),
-            _h(context, 30),
-            _w(context, 22),
-            _h(context, 26),
+    final themeColors = context.finFlowColors;
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.fromLTRB(
+        Responsive.w(context, 20),
+        Responsive.h(context, 20),
+        Responsive.w(context, 20),
+        Responsive.h(context, 22),
+      ),
+      decoration: BoxDecoration(
+        color: themeColors.surface,
+        borderRadius: BorderRadius.circular(Responsive.w(context, 24)),
+        border: Border.all(color: const Color(0xFFE9EEEB)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.deepEmerald.withValues(alpha: 0.06),
+            blurRadius: Responsive.w(context, 16),
+            offset: Offset(0, Responsive.h(context, 5)),
           ),
-          decoration: BoxDecoration(
-            color: const Color(0xFFE9EDF3),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0x14006C46)),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x0D000000),
-                blurRadius: 10,
-                offset: Offset(0, 3),
-              ),
-            ],
-          ),
-          child: Column(
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              const Icon(
-                Icons.auto_awesome_rounded,
-                size: 38,
-                color: Color(0xFF006C46),
+              Icon(
+                Icons.auto_awesome_outlined,
+                size: Responsive.w(context, 22),
+                color: AppColors.mediumGreen,
               ),
-              SizedBox(height: _h(context, 18)),
+              SizedBox(width: Responsive.w(context, 9)),
               Text(
-                'Try "Lunch 50k" or tap\nmic',
-                textAlign: TextAlign.center,
+                'QUICK ADD',
                 style: TextStyle(
-                  fontFamily: 'Manrope',
-                  fontSize: _sp(context, 19),
-                  fontWeight: FontWeight.w700,
-                  height: 1.2,
-                  color: const Color(0xFF101418),
-                ),
-              ),
-              SizedBox(height: _h(context, 26)),
-              Material(
-                color: widget.isRecording
-                    ? AppColors.coral
-                    : const Color(0xFF00EFAF),
-                borderRadius: BorderRadius.circular(10),
-                elevation: 5,
-                shadowColor: const Color(0x3300A77A),
-                child: InkWell(
-                  key: const Key('quick_add_voice_button'),
-                  onTap: widget.isLoading || widget.isVoiceProcessing
-                      ? null
-                      : widget.onVoiceTap,
-                  borderRadius: BorderRadius.circular(10),
-                  child: SizedBox(
-                    width: _w(context, 72),
-                    height: _w(context, 72),
-                    child: widget.isVoiceProcessing
-                        ? const Padding(
-                            padding: EdgeInsets.all(22),
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.4,
-                              color: Color(0xFF052224),
-                            ),
-                          )
-                        : Icon(
-                            widget.isRecording
-                                ? Icons.stop_rounded
-                                : Icons.mic_rounded,
-                            color: const Color(0xFF052224),
-                            size: _w(context, 29),
-                          ),
-                  ),
-                ),
-              ),
-              SizedBox(height: _h(context, 16)),
-              ConstrainedBox(
-                constraints: BoxConstraints(minHeight: _h(context, 54)),
-                child: TextField(
-                  key: const Key('quick_add_text_field'),
-                  controller: _textController,
-                  enabled: !_blocked,
-                  minLines: 1,
-                  maxLines: 3,
-                  textAlign: TextAlign.center,
-                  textInputAction: TextInputAction.done,
-                  onSubmitted: (_) => _submit(),
-                  cursorColor: const Color(0xFF006C46),
-                  style: TextStyle(
-                    fontFamily: 'Hanken Grotesk',
-                    fontSize: _sp(context, 15),
-                    fontWeight: FontWeight.w600,
-                    height: 1.35,
-                    color: const Color(0xFF10221D),
-                  ),
-                  decoration: InputDecoration(
-                    hintText: _inputHint,
-                    hintStyle: TextStyle(
-                      fontFamily: 'JetBrains Mono',
-                      fontSize: _sp(context, 10),
-                      letterSpacing: 1.2,
-                      color: const Color(0xFF354B44),
-                    ),
-                    border: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    disabledBorder: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: _w(context, 4),
-                      vertical: _h(context, 8),
-                    ),
-                  ),
-                ),
-              ),
-              SizedBox(height: _h(context, 5)),
-              Text(
-                'Example: “Coffee 45000 with friends”',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontFamily: 'Hanken Grotesk',
-                  fontSize: _sp(context, 12),
-                  fontStyle: FontStyle.italic,
-                  color: const Color(0xFF728078),
+                  fontFamily: _headlineFont,
+                  fontSize: Responsive.sp(context, 16),
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.4,
+                  color: themeColors.primaryText,
                 ),
               ),
             ],
           ),
-        ),
-        SizedBox(height: _h(context, 20)),
-        FilledButton(
-          key: const Key('quick_add_submit_button'),
-          onPressed: _blocked ? null : _submit,
-          style: FilledButton.styleFrom(
-            backgroundColor: AppColors.primaryGreen,
-            foregroundColor: const Color(0xFF002112),
-            disabledBackgroundColor: AppColors.primaryGreen.withValues(
-              alpha: 0.55,
+          SizedBox(height: Responsive.h(context, 16)),
+          Container(
+            height: Responsive.h(context, 64),
+            padding: EdgeInsets.only(
+              left: Responsive.w(context, 16),
+              right: Responsive.w(context, 8),
             ),
-            minimumSize: Size.fromHeight(_h(context, 54)),
-            shape: const StadiumBorder(),
-            elevation: 6,
-            shadowColor: AppColors.primaryGreen.withValues(alpha: 0.35),
-          ),
-          child: widget.isLoading
-              ? const SizedBox(
-                  width: 22,
-                  height: 22,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.2,
-                    color: Color(0xFF002112),
+            decoration: BoxDecoration(
+              color: themeColors.elevatedSurface,
+              borderRadius: BorderRadius.circular(Responsive.w(context, 16)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    key: const Key('quick_add_text_field'),
+                    controller: _textController,
+                    enabled:
+                        !widget.isLoading &&
+                        !widget.isRecording &&
+                        !widget.isVoiceProcessing,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) => _submit(),
+                    cursorColor: AppColors.mediumGreen,
+                    style: TextStyle(
+                      fontFamily: _bodyFont,
+                      fontSize: Responsive.sp(context, 15),
+                      color: themeColors.primaryText,
+                    ),
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: themeColors.elevatedSurface,
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(
+                        vertical: Responsive.h(context, 15),
+                      ),
+                      hintText: "Try 'Lunch 50k' or tap mic",
+                      hintStyle: TextStyle(
+                        fontFamily: _bodyFont,
+                        fontSize: Responsive.sp(context, 14),
+                        fontWeight: FontWeight.w400,
+                        color: AppColors.mutedGray,
+                      ),
+                    ),
                   ),
-                )
-              : const Text(
-                  'Interpret & Save',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                 ),
-        ),
-      ],
+                Material(
+                  color: widget.isRecording
+                      ? AppColors.coral.withValues(alpha: 0.14)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(999),
+                  child: InkWell(
+                    key: const Key('quick_add_voice_button'),
+                    onTap: widget.isLoading || widget.isVoiceProcessing
+                        ? null
+                        : () => widget.onVoiceTap?.call(),
+                    borderRadius: BorderRadius.circular(999),
+                    child: Padding(
+                      padding: EdgeInsets.all(Responsive.w(context, 10)),
+                      child: widget.isVoiceProcessing
+                          ? SizedBox(
+                              width: Responsive.w(context, 21),
+                              height: Responsive.w(context, 21),
+                              child: const CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: AppColors.mediumGreen,
+                              ),
+                            )
+                          : Icon(
+                              widget.isRecording
+                                  ? Icons.stop_rounded
+                                  : Icons.mic_none_rounded,
+                              size: Responsive.w(context, 23),
+                              color: widget.isRecording
+                                  ? AppColors.coral
+                                  : AppColors.mediumGreen,
+                            ),
+                    ),
+                  ),
+                ),
+                SizedBox(width: Responsive.w(context, 3)),
+                Material(
+                  color: AppColors.primaryGreen,
+                  borderRadius: BorderRadius.circular(
+                    Responsive.w(context, 13),
+                  ),
+                  child: InkWell(
+                    key: const Key('quick_add_submit_button'),
+                    onTap:
+                        widget.isLoading ||
+                            widget.isRecording ||
+                            widget.isVoiceProcessing
+                        ? null
+                        : _submit,
+                    borderRadius: BorderRadius.circular(
+                      Responsive.w(context, 13),
+                    ),
+                    child: SizedBox(
+                      width: Responsive.w(context, 48),
+                      height: Responsive.w(context, 48),
+                      child: widget.isLoading
+                          ? Center(
+                              child: SizedBox(
+                                width: Responsive.w(context, 20),
+                                height: Responsive.w(context, 20),
+                                child: const CircularProgressIndicator(
+                                  strokeWidth: 2.2,
+                                  color: AppColors.deepEmerald,
+                                ),
+                              ),
+                            )
+                          : Icon(
+                              Icons.bolt_rounded,
+                              size: Responsive.w(context, 28),
+                              color: AppColors.deepEmerald,
+                            ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

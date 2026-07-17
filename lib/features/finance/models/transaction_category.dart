@@ -121,21 +121,6 @@ class TransactionCategory {
       orElse: () => all.last, // "Other"
     );
   }
-
-  /// Resolves both built-in and user-created categories.
-  /// Unknown keys still fall back to "Other" for backward compatibility.
-  static TransactionCategory resolve(String key) {
-    final custom = CustomCategoryStore.instance.findByKey(key);
-    if (custom != null) {
-      return TransactionCategory(
-        key: custom.name,
-        label: custom.name,
-        icon: custom.iconData,
-        color: custom.color,
-      );
-    }
-    return fromKey(key);
-  }
 }
 
 /// In-memory store for user-defined custom categories.

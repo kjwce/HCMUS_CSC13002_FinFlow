@@ -360,7 +360,7 @@ class _TransactionHistoryScreenState
 
   Widget _buildTopCategoryCard(TransactionService ts) {
     final category = _topMonthlyExpenseCategory(ts);
-    final cat = TransactionCategory.resolve(category?.key ?? 'Other');
+    final cat = TransactionCategory.fromKey(category?.key ?? 'Other');
     return _insightCard(
       title: 'Top Category',
       value: category == null ? 'No expense' : cat.label,
@@ -526,16 +526,29 @@ class _TransactionHistoryScreenState
               ),
             ),
           ),
-          Column(
-            children: group.value.asMap().entries.map((entry) {
-              return Column(
-                children: [
-                  _buildTransactionRow(entry.value),
-                  if (entry.key != group.value.length - 1)
-                    SizedBox(height: Responsive.h(context, 10)),
-                ],
-              );
-            }).toList(),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: AppColors.borderGray.withValues(alpha: 0.25),
+              ),
+            ),
+            child: Column(
+              children: group.value.asMap().entries.map((entry) {
+                return Column(
+                  children: [
+                    _buildTransactionRow(entry.value),
+                    if (entry.key != group.value.length - 1)
+                      Divider(
+                        height: 1,
+                        indent: Responsive.w(context, 68),
+                        color: AppColors.borderGray.withValues(alpha: 0.25),
+                      ),
+                  ],
+                );
+              }).toList(),
+            ),
           ),
         ],
       ),
@@ -543,142 +556,120 @@ class _TransactionHistoryScreenState
   }
 
   Widget _buildTransactionRow(TransactionModel tx) {
-    final cat = TransactionCategory.resolve(tx.category);
+    final cat = TransactionCategory.fromKey(tx.category);
     final isIncome = tx.amount > 0;
     final wallet = WalletService.instance.byId(tx.walletId);
     final method = _walletLabel(wallet);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFFF3F7F5),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x2600523C),
-            blurRadius: 18,
-            spreadRadius: 1,
-            offset: Offset(0, 7),
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => EditTransactionScreen(transaction: tx),
           ),
-          BoxShadow(
-            color: Color(0x16000000),
-            blurRadius: 5,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Material(
-        color: const Color(0xFFF3F7F5),
-        borderRadius: BorderRadius.circular(16),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => EditTransactionScreen(transaction: tx),
+        );
+      },
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: Responsive.w(context, 12),
+          vertical: Responsive.h(context, 12),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: Responsive.w(context, 44),
+              height: Responsive.w(context, 44),
+              decoration: BoxDecoration(
+                color: cat.color.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(14),
               ),
-            );
-          },
-          child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: Responsive.w(context, 12),
-              vertical: Responsive.h(context, 12),
+              child: Icon(
+                cat.icon,
+                color: cat.color,
+                size: Responsive.w(context, 22),
+              ),
             ),
-            child: Row(
-              children: [
-                Container(
-                  width: Responsive.w(context, 44),
-                  height: Responsive.w(context, 44),
-                  decoration: BoxDecoration(
-                    color: cat.color,
-                    borderRadius: BorderRadius.circular(10),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x20000000),
-                        blurRadius: 6,
-                        offset: Offset(0, 3),
-                      ),
-                    ],
+            SizedBox(width: Responsive.w(context, 12)),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    tx.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: _bodyFont,
+                      fontSize: Responsive.sp(context, 15),
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.darkText,
+                    ),
                   ),
-                  child: Icon(
-                    cat.icon,
-                    color: Colors.white,
-                    size: Responsive.w(context, 22),
+                  SizedBox(height: Responsive.h(context, 3)),
+                  Text(
+                    '${_timeLabel(tx.date)} - $method',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: _bodyFont,
+                      fontSize: Responsive.sp(context, 12),
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.blueAccent,
+                    ),
                   ),
-                ),
-                SizedBox(width: Responsive.w(context, 12)),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        tx.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontFamily: _bodyFont,
-                          fontSize: Responsive.sp(context, 15),
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.darkText,
-                        ),
+                  SizedBox(height: Responsive.h(context, 6)),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: Responsive.w(context, 8),
+                        vertical: Responsive.h(context, 3),
                       ),
-                      SizedBox(height: Responsive.h(context, 3)),
-                      Text(
-                        '${_timeLabel(tx.date)} - $method',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontFamily: _bodyFont,
-                          fontSize: Responsive.sp(context, 12),
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.blueAccent,
-                        ),
+                      decoration: BoxDecoration(
+                        color: cat.color.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(999),
                       ),
-                    ],
-                  ),
-                ),
-                SizedBox(width: Responsive.w(context, 10)),
-                SizedBox(
-                  width: Responsive.w(context, 112),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerRight,
-                        child: Text(
-                          _formatSignedMoney(tx.amount),
-                          maxLines: 1,
-                          softWrap: false,
-                          textAlign: TextAlign.right,
-                          style: TextStyle(
-                            fontFamily: _headlineFont,
-                            fontSize: Responsive.sp(context, 14),
-                            fontWeight: FontWeight.w800,
-                            color: isIncome ? _incomeColor : _expenseColor,
-                          ),
-                        ),
-                      ),
-                      SizedBox(height: Responsive.h(context, 4)),
-                      Text(
+                      child: Text(
                         cat.label,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.right,
                         style: TextStyle(
                           fontFamily: _bodyFont,
                           fontSize: Responsive.sp(context, 11),
-                          fontWeight: FontWeight.w400,
-                          color: const Color(0xFF70827C),
+                          fontWeight: FontWeight.w700,
+                          color: cat.color,
                         ),
                       ),
-                    ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(width: Responsive.w(context, 10)),
+            SizedBox(
+              width: Responsive.w(context, 112),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    _formatSignedMoney(tx.amount),
+                    maxLines: 1,
+                    softWrap: false,
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                      fontFamily: _headlineFont,
+                      fontSize: Responsive.sp(context, 14),
+                      fontWeight: FontWeight.w800,
+                      color: isIncome ? _incomeColor : _expenseColor,
+                    ),
                   ),
                 ),
-              ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );

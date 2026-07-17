@@ -7,7 +7,6 @@ import '../../../app/screens/community_post_detail_screen.dart';
 import '../models/notification_model.dart';
 import '../providers/notification_provider.dart';
 import '../utils/community_date_format.dart';
-import '../utils/rich_text_formatter.dart';
 
 class NotificationScreen extends ConsumerStatefulWidget {
   const NotificationScreen({super.key});
@@ -233,11 +232,11 @@ class _NotificationTile extends StatelessWidget {
   IconData get _icon {
     switch (notification.type) {
       case 'post':
-        return Icons.share_rounded;
+        return Icons.article_outlined;
       case 'like':
-        return Icons.favorite_rounded;
+        return Icons.favorite;
       case 'comment':
-        return Icons.chat_bubble_rounded;
+        return Icons.chat_bubble_outline;
       default:
         return Icons.notifications_outlined;
     }
@@ -266,161 +265,64 @@ class _NotificationTile extends StatelessWidget {
     return formatCommunityDate(notification.createdAt);
   }
 
-  String get _displayMessage =>
-      stripFormattingForNotificationPreview(notification.message);
-
-  String get _initials {
-    final words = notification.actorDisplayName
-        .trim()
-        .split(RegExp(r'\s+'))
-        .where((word) => word.isNotEmpty)
-        .toList(growable: false);
-    if (words.isEmpty) return 'F';
-    if (words.length == 1) return words.first.substring(0, 1).toUpperCase();
-    return '${words.first[0]}${words.last[0]}'.toUpperCase();
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(bottom: Responsive.h(context, 10)),
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: EdgeInsets.symmetric(
-            horizontal: Responsive.w(context, 14),
-            vertical: Responsive.h(context, 13),
-          ),
-          decoration: BoxDecoration(
-            color: notification.isRead ? Colors.white : const Color(0xFFF0F8F4),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: notification.isRead
-                  ? const Color(0x1A006C46)
-                  : const Color(0x4000A77A),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.symmetric(vertical: Responsive.h(context, 10)),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: Responsive.w(context, 36),
+              height: Responsive.w(context, 36),
+              decoration: BoxDecoration(
+                color: _iconColor.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                _icon,
+                size: Responsive.w(context, 18),
+                color: _iconColor,
+              ),
             ),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x2600523C),
-                blurRadius: 18,
-                spreadRadius: 1,
-                offset: Offset(0, 7),
-              ),
-              BoxShadow(
-                color: Color(0x16000000),
-                blurRadius: 5,
-                offset: Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                width: Responsive.w(context, 46),
-                height: Responsive.w(context, 46),
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Positioned(left: 0, top: 0, child: _buildAvatar(context)),
-                    Positioned(
-                      right: 0,
-                      bottom: 0,
-                      child: Container(
-                        width: Responsive.w(context, 18),
-                        height: Responsive.w(context, 18),
-                        decoration: BoxDecoration(
-                          color: _iconColor,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 2),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Color(0x24000000),
-                              blurRadius: 3,
-                              offset: Offset(0, 1),
-                            ),
-                          ],
-                        ),
-                        child: Icon(
-                          _icon,
-                          size: Responsive.w(context, 9),
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(width: Responsive.w(context, 12)),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text.rich(
-                      TextSpan(
-                        style: TextStyle(
-                          fontFamily: 'Hanken Grotesk',
-                          fontSize: Responsive.sp(context, 13.5),
-                          color: const Color(0xFF404944),
-                          height: 1.3,
-                        ),
-                        children: [
-                          TextSpan(
-                            text: notification.actorDisplayName,
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                          TextSpan(text: ' $_displayMessage'),
-                        ],
-                      ),
-                    ),
-                    SizedBox(height: Responsive.h(context, 4)),
-                    Text(
-                      _timeAgo,
+            SizedBox(width: Responsive.w(context, 12)),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text.rich(
+                    TextSpan(
                       style: TextStyle(
                         fontFamily: 'Hanken Grotesk',
-                        fontSize: Responsive.sp(context, 11),
-                        color: const Color(0xFF8E918F),
+                        fontSize: Responsive.sp(context, 13.5),
+                        color: const Color(0xFF404944),
+                        height: 1.3,
                       ),
+                      children: [
+                        TextSpan(
+                          text: notification.actorDisplayName,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        TextSpan(text: ' ${notification.message}'),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                  SizedBox(height: Responsive.h(context, 4)),
+                  Text(
+                    _timeAgo,
+                    style: TextStyle(
+                      fontFamily: 'Hanken Grotesk',
+                      fontSize: Responsive.sp(context, 11),
+                      color: const Color(0xFF8E918F),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildAvatar(BuildContext context) {
-    final size = Responsive.w(context, 40);
-    final avatarUrl = notification.actorAvatarUrl?.trim();
-    final fallback = Container(
-      width: size,
-      height: size,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: _iconColor.withValues(alpha: 0.14),
-        shape: BoxShape.circle,
-      ),
-      child: Text(
-        _initials,
-        style: TextStyle(
-          fontFamily: 'Manrope',
-          fontSize: Responsive.sp(context, 12),
-          fontWeight: FontWeight.w700,
-          color: _iconColor,
-        ),
-      ),
-    );
-    if (avatarUrl == null || avatarUrl.isEmpty) return fallback;
-    return ClipOval(
-      child: Image.network(
-        avatarUrl,
-        width: size,
-        height: size,
-        fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => fallback,
       ),
     );
   }

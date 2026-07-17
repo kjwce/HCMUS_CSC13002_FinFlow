@@ -225,9 +225,6 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
 
   Widget _buildHeader() {
     final colors = context.finFlowColors;
-    final user = AuthService.instance.currentUser;
-    final avatarUrl = user?.avatarUrl;
-    final displayName = user?.fullName ?? 'User';
     return Container(
       color: _headerBg,
       padding: EdgeInsets.symmetric(
@@ -238,41 +235,16 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: Responsive.w(context, 15),
-                backgroundColor: AppColors.lightGreen,
-                backgroundImage:
-                    avatarUrl != null && avatarUrl.trim().isNotEmpty
-                    ? NetworkImage(avatarUrl)
-                    : null,
-                child: avatarUrl == null || avatarUrl.trim().isEmpty
-                    ? Text(
-                        displayName.trim().isEmpty
-                            ? '?'
-                            : displayName.trim().substring(0, 1).toUpperCase(),
-                        style: TextStyle(
-                          color: AppColors.primaryGreen,
-                          fontSize: Responsive.sp(context, 12),
-                          fontWeight: FontWeight.w800,
-                        ),
-                      )
-                    : null,
-              ),
-              SizedBox(width: Responsive.w(context, 10)),
-              Text(
-                'Financial Advices',
-                style: TextStyle(
-                  fontFamily: 'Manrope',
-                  fontWeight: FontWeight.w700,
-                  fontSize: Responsive.sp(context, 20),
-                  color: Theme.of(context).brightness == Brightness.dark
-                      ? colors.primaryText
-                      : _headerText,
-                ),
-              ),
-            ],
+          Text(
+            'Financial Advices',
+            style: TextStyle(
+              fontFamily: 'Manrope',
+              fontWeight: FontWeight.w700,
+              fontSize: Responsive.sp(context, 20),
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? colors.primaryText
+                  : _headerText,
+            ),
           ),
           GestureDetector(
             onTap: _openComposer,

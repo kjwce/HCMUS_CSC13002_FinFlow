@@ -2,7 +2,6 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/notification_model.dart';
-import '../utils/rich_text_formatter.dart';
 
 /// Service quản lý notification cho community.
 /// Singleton + ChangeNotifier để UI cập nhật realtime.
@@ -168,9 +167,14 @@ class NotificationService extends ChangeNotifier {
             .inFilter('id', postIds);
         for (final row in (postRes as List)) {
           final r = row as Map<String, dynamic>;
-          final text = stripFormattingForNotificationPreview(
-            r['content'] as String? ?? '',
-          );
+          final text =
+              (r['content'] as String?)
+                  ?.replaceAll(
+                    RegExp(r'\*\*(.+?)\*\*|_(.+?)_|~(.+?)~\|\|.+?\|\|'),
+                    '',
+                  )
+                  .trim() ??
+              '';
           postPreviews[r['id'] as String] = text.length > 60
               ? '${text.substring(0, 60)}…'
               : text;
@@ -211,9 +215,14 @@ class NotificationService extends ChangeNotifier {
             .select('content')
             .eq('id', notif.postId!)
             .single();
-        final text = stripFormattingForNotificationPreview(
-          postRes['content'] as String? ?? '',
-        );
+        final text =
+            (postRes['content'] as String?)
+                ?.replaceAll(
+                  RegExp(r'\*\*(.+?)\*\*|_(.+?)_|~(.+?)~\|\|.+?\|\|'),
+                  '',
+                )
+                .trim() ??
+            '';
         preview = text.length > 60 ? '${text.substring(0, 60)}…' : text;
       } catch (_) {}
     }
