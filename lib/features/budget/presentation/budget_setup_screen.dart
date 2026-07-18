@@ -17,6 +17,7 @@ class BudgetSetupScreen extends ConsumerStatefulWidget {
 
 class _BudgetSetupScreenState extends ConsumerState<BudgetSetupScreen> {
   final _controller = TextEditingController();
+  final _dailyController = TextEditingController();
   final _weeklyController = TextEditingController();
   bool _isSaving = false;
   var _isFormatting = false;
@@ -25,6 +26,7 @@ class _BudgetSetupScreenState extends ConsumerState<BudgetSetupScreen> {
   void initState() {
     super.initState();
     _controller.addListener(_formatAmount);
+    _dailyController.addListener(_formatDailyAmount);
     _weeklyController.addListener(_formatWeeklyAmount);
   }
 
@@ -34,6 +36,10 @@ class _BudgetSetupScreenState extends ConsumerState<BudgetSetupScreen> {
 
   void _formatWeeklyAmount() {
     _formatController(_weeklyController);
+  }
+
+  void _formatDailyAmount() {
+    _formatController(_dailyController);
   }
 
   void _formatController(TextEditingController controller) {
@@ -67,8 +73,10 @@ class _BudgetSetupScreenState extends ConsumerState<BudgetSetupScreen> {
   @override
   void dispose() {
     _controller.removeListener(_formatAmount);
+    _dailyController.removeListener(_formatDailyAmount);
     _weeklyController.removeListener(_formatWeeklyAmount);
     _controller.dispose();
+    _dailyController.dispose();
     _weeklyController.dispose();
     super.dispose();
   }
@@ -143,7 +151,7 @@ class _BudgetSetupScreenState extends ConsumerState<BudgetSetupScreen> {
                       ),
                       SizedBox(height: Responsive.h(context, 8)),
                       Text(
-                        'Set a monthly spending limit so we can\nhelp you stay on track.',
+                        'Set daily, weekly, and monthly limits so we can\nhelp you stay on track.',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: Responsive.sp(context, 14),
@@ -186,6 +194,46 @@ class _BudgetSetupScreenState extends ConsumerState<BudgetSetupScreen> {
                       SizedBox(height: Responsive.h(context, 8)),
                       Text(
                         'VND / month',
+                        style: TextStyle(
+                          fontSize: Responsive.sp(context, 13),
+                          color: AppColors.mutedGray,
+                        ),
+                      ),
+                      SizedBox(height: Responsive.h(context, 18)),
+
+                      Container(
+                        width: double.infinity,
+                        height: Responsive.h(context, 52),
+                        decoration: BoxDecoration(
+                          color: AppColors.lightGreen.withValues(alpha: 0.65),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: TextField(
+                          controller: _dailyController,
+                          keyboardType: TextInputType.number,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: Responsive.sp(context, 20),
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.darkText,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: '200,000',
+                            hintStyle: TextStyle(
+                              fontSize: Responsive.sp(context, 20),
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.mutedGray.withValues(alpha: 0.4),
+                            ),
+                            border: InputBorder.none,
+                            contentPadding: EdgeInsets.symmetric(
+                              vertical: Responsive.h(context, 13),
+                            ),
+                          ),
+                        ),
+                      ),
+                      SizedBox(height: Responsive.h(context, 8)),
+                      Text(
+                        'VND / day (optional)',
                         style: TextStyle(
                           fontSize: Responsive.sp(context, 13),
                           color: AppColors.mutedGray,
@@ -291,6 +339,8 @@ class _BudgetSetupScreenState extends ConsumerState<BudgetSetupScreen> {
   Future<void> _saveBudget() async {
     final raw = _controller.text.trim().replaceAll(',', '');
     final amount = int.tryParse(raw);
+    final dailyRaw = _dailyController.text.trim().replaceAll(',', '');
+    final dailyAmount = dailyRaw.isEmpty ? null : int.tryParse(dailyRaw);
     final weeklyRaw = _weeklyController.text.trim().replaceAll(',', '');
     final weeklyAmount = weeklyRaw.isEmpty ? null : int.tryParse(weeklyRaw);
     if (amount == null || amount <= 0) {
@@ -307,6 +357,9 @@ class _BudgetSetupScreenState extends ConsumerState<BudgetSetupScreen> {
       await AuthService.instance.updateProfile(
         fullName: user?.fullName ?? 'New FinFlow User',
         budgetLimit: amount,
+        dailyBudget: dailyAmount != null && dailyAmount > 0
+            ? dailyAmount
+            : null,
         weeklyBudget: weeklyAmount != null && weeklyAmount > 0
             ? weeklyAmount
             : null,

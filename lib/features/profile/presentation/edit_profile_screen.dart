@@ -20,7 +20,7 @@ import '../../finance/presentation/add_transaction_sheet.dart';
 ///     rendered on top of the white card so it's never clipped
 ///   - Username and ID below avatar
 ///   - "account settings" section header
-///   - Form fields (Username, phone, email, weekly budget) with light-green bg,
+///   - Form fields (Username, phone, email, daily/weekly budget) with light-green bg,
 ///     rounded 10px
 ///   - Toggle switches: "Turn dark Theme", "push notifications"
 ///   - "Update Profile" button (green, rounded 30px)
@@ -35,12 +35,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late TextEditingController _usernameController;
   late TextEditingController _phoneController;
   late TextEditingController _emailController;
+  late TextEditingController _dailyBudgetController;
   late TextEditingController _weeklyBudgetController;
 
   bool _darkTheme = false;
   bool _pushNotifications = true;
   bool _isSaving = false;
   bool _isPicking = false;
+  bool _isFormattingDailyBudget = false;
   bool _isFormattingWeeklyBudget = false;
   File? _avatarFile;
 
@@ -51,6 +53,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _usernameController = TextEditingController(text: u?.fullName ?? '');
     _phoneController = TextEditingController(text: u?.phone ?? '');
     _emailController = TextEditingController(text: u?.email ?? '');
+    final dailyBudget = AuthService.instance.dailyBudget;
+    _dailyBudgetController = TextEditingController(
+      text: dailyBudget > 0 ? _formatMoneyInput(dailyBudget.toString()) : '',
+    );
+    _dailyBudgetController.addListener(_formatDailyBudgetInput);
     final weeklyBudget = AuthService.instance.weeklyBudget;
     _weeklyBudgetController = TextEditingController(
       text: weeklyBudget > 0 ? _formatMoneyInput(weeklyBudget.toString()) : '',
@@ -63,6 +70,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _usernameController.dispose();
     _phoneController.dispose();
     _emailController.dispose();
+    _dailyBudgetController.removeListener(_formatDailyBudgetInput);
+    _dailyBudgetController.dispose();
     _weeklyBudgetController.removeListener(_formatWeeklyBudgetInput);
     _weeklyBudgetController.dispose();
     super.dispose();
@@ -182,6 +191,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           label: AppStrings.emailAddress,
                           controller: _emailController,
                           hint: 'example@example.com',
+                        ),
+                        SizedBox(height: Responsive.h(context, 20)),
+                        _buildFormField(
+                          label: 'Daily Budget',
+                          controller: _dailyBudgetController,
+                          hint: '200,000',
+                          keyboardType: TextInputType.number,
+                          suffixText: 'VND',
                         ),
                         SizedBox(height: Responsive.h(context, 20)),
                         _buildFormField(
@@ -455,6 +472,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         email: _emailController.text.trim(),
         phone: _phoneController.text.trim(),
         avatarUrl: avatarUrl,
+        dailyBudget: _parseMoneyInput(_dailyBudgetController.text),
         weeklyBudget: _parseMoneyInput(_weeklyBudgetController.text),
       );
       if (!mounted) return;
@@ -490,6 +508,22 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       );
     }
     _isFormattingWeeklyBudget = false;
+  }
+
+  void _formatDailyBudgetInput() {
+    if (_isFormattingDailyBudget) return;
+    _isFormattingDailyBudget = true;
+    final digits = _dailyBudgetController.text.replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) {
+      _dailyBudgetController.text = '';
+    } else {
+      final formatted = _formatMoneyInput(digits);
+      _dailyBudgetController.value = TextEditingValue(
+        text: formatted,
+        selection: TextSelection.collapsed(offset: formatted.length),
+      );
+    }
+    _isFormattingDailyBudget = false;
   }
 
   static int _parseMoneyInput(String value) {

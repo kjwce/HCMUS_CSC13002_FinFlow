@@ -21,6 +21,7 @@ class AuthService extends ChangeNotifier {
   /// In-memory fallback for selectedCategory when the DB column doesn't exist yet.
   /// Gets priority over [_currentUser.selectedCategory].
   String? _selectedCategoryOverride;
+  int? _dailyBudgetOverride;
   int? _weeklyBudgetOverride;
 
   UserModel? get currentUser => _currentUser;
@@ -28,6 +29,8 @@ class AuthService extends ChangeNotifier {
   /// Effective selected category: local override wins, then DB value.
   String? get selectedCategory =>
       _selectedCategoryOverride ?? _currentUser?.selectedCategory;
+
+  int get dailyBudget => _dailyBudgetOverride ?? _currentUser?.dailyBudget ?? 0;
 
   int get weeklyBudget =>
       _weeklyBudgetOverride ?? _currentUser?.weeklyBudget ?? 0;
@@ -214,12 +217,16 @@ class AuthService extends ChangeNotifier {
     int? budgetLimit,
     String? avatarUrl,
     String? selectedCategory,
+    int? dailyBudget,
     int? weeklyBudget,
   }) async {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) throw Exception('No authenticated user');
     if (selectedCategory != null) {
       _selectedCategoryOverride = selectedCategory;
+    }
+    if (dailyBudget != null) {
+      _dailyBudgetOverride = dailyBudget;
     }
     if (weeklyBudget != null) {
       _weeklyBudgetOverride = weeklyBudget;
@@ -232,9 +239,9 @@ class AuthService extends ChangeNotifier {
       'id': userId,
       'full_name': fullName,
       'email': email ?? currentEmail,
-      if (phone != null) 'phone': phone,
-      if (budgetLimit != null) 'budget_limit': budgetLimit,
-      if (avatarUrl != null) 'avatar_url': avatarUrl,
+      'phone': ?phone,
+      'budget_limit': ?budgetLimit,
+      'avatar_url': ?avatarUrl,
     });
 
     if (selectedCategory != null) {
@@ -247,6 +254,17 @@ class AuthService extends ChangeNotifier {
         debugPrint(
           'updateProfile: column selected_category not available yet: $e',
         );
+      }
+    }
+
+    if (dailyBudget != null) {
+      try {
+        await Supabase.instance.client
+            .from('profiles')
+            .update({'daily_budget': dailyBudget})
+            .eq('id', userId);
+      } catch (e) {
+        debugPrint('updateProfile: column daily_budget not available yet: $e');
       }
     }
 

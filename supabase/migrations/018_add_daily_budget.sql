@@ -1,0 +1,2 @@
+ALTER TABLE public.profiles
+ADD COLUMN IF NOT EXISTS daily_budget BIGINT NOT NULL DEFAULT 0;

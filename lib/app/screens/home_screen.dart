@@ -39,6 +39,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _selectedTab = 2; // Monthly
   var _summaryMetric = _SummaryMetric.revenue;
   var _summaryPeriod = _SummaryPeriod.week;
+  var _budgetPageIndex = 0;
+  final _budgetPageController = PageController(viewportFraction: 0.88);
   @override
   void initState() {
     super.initState();
@@ -70,6 +72,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void dispose() {
     TransactionService.instance.removeListener(_onTransactionsChanged);
     GoalService.instance.removeListener(_onTransactionsChanged);
+    _budgetPageController.dispose();
     super.dispose();
   }
 
@@ -250,7 +253,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ],
           ),
           SizedBox(height: Responsive.h(context, 12)),
-          _buildProgressBar(ts),
+          _buildBudgetCarousel(ts),
           SizedBox(height: Responsive.h(context, 12)),
           Semantics(
             button: true,
@@ -516,7 +519,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
                   SizedBox(height: Responsive.h(context, 12)),
                   // Progress Bar
-                  _buildProgressBar(ts),
+                  _buildBudgetCarousel(ts),
                   SizedBox(height: Responsive.h(context, 8)),
                   _buildExpenseMessage(ts),
                 ],
@@ -528,6 +531,205 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
+  Widget _buildBudgetCarousel(TransactionService ts) {
+    final authService = ref.watch(authServiceProvider);
+    final periods = <({String title, ChartPeriod period, int limit})>[
+      (
+        title: 'Daily budget',
+        period: ChartPeriod.day,
+        limit: authService.dailyBudget,
+      ),
+      (
+        title: 'Weekly budget',
+        period: ChartPeriod.week,
+        limit: authService.weeklyBudget,
+      ),
+      (
+        title: 'Monthly budget',
+        period: ChartPeriod.month,
+        limit: authService.currentUser?.budgetLimit ?? 0,
+      ),
+    ];
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          height: Responsive.h(context, 112),
+          child: PageView.builder(
+            controller: _budgetPageController,
+            padEnds: false,
+            physics: const BouncingScrollPhysics(),
+            itemCount: periods.length,
+            onPageChanged: (index) {
+              if (_budgetPageIndex != index) {
+                setState(() => _budgetPageIndex = index);
+              }
+            },
+            itemBuilder: (context, index) {
+              final item = periods[index];
+              final range = ts.dateRangeForPeriod(item.period);
+              final spent = ts.expenseBetween(range.start, range.end);
+              return Padding(
+                padding: EdgeInsets.only(
+                  right: index == periods.length - 1
+                      ? 0
+                      : Responsive.w(context, 12),
+                ),
+                child: _buildBudgetCard(
+                  title: item.title,
+                  spent: spent,
+                  budgetLimit: item.limit,
+                ),
+              );
+            },
+          ),
+        ),
+        SizedBox(height: Responsive.h(context, 10)),
+        Semantics(
+          label:
+              '${periods[_budgetPageIndex].title}, page ${_budgetPageIndex + 1} of ${periods.length}',
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(periods.length, (index) {
+              final isSelected = index == _budgetPageIndex;
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                width: Responsive.w(context, isSelected ? 20 : 10),
+                height: Responsive.h(context, 8),
+                margin: EdgeInsets.symmetric(
+                  horizontal: Responsive.w(context, 4),
+                ),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? const Color(0xFF00856A)
+                      : const Color(0xFFA9D5C5),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              );
+            }),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBudgetCard({
+    required String title,
+    required int spent,
+    required int budgetLimit,
+  }) {
+    final rawPercent = budgetLimit > 0 ? (spent / budgetLimit) * 100 : 0.0;
+    final budgetRatio = (rawPercent / 100).clamp(0.0, 1.0);
+    final progressColor = budgetLimit > 0 && rawPercent >= 100
+        ? const Color(0xFFBA1A1A)
+        : const Color(0xFF00C49A);
+
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: Responsive.w(context, 16),
+        vertical: Responsive.h(context, 10),
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.86),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.9)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x33002D22),
+            blurRadius: 24,
+            spreadRadius: 1,
+            offset: Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontFamily: _bodyFont,
+                  fontSize: Responsive.sp(context, 13),
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF052224),
+                ),
+              ),
+              Text(
+                '${rawPercent.clamp(0, 999).toStringAsFixed(0)}% used',
+                style: TextStyle(
+                  fontFamily: _headlineFont,
+                  fontSize: Responsive.sp(context, 13),
+                  fontWeight: FontWeight.w600,
+                  color: rawPercent >= 100
+                      ? const Color(0xFFBA1A1A)
+                      : const Color(0xFF052224),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: Responsive.h(context, 8)),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: SizedBox(
+              height: Responsive.h(context, 8),
+              child: Stack(
+                children: [
+                  Container(color: Colors.white),
+                  FractionallySizedBox(
+                    widthFactor: budgetRatio,
+                    child: Container(color: progressColor),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          SizedBox(height: Responsive.h(context, 8)),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '${_formatMoney(spent)} spent',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: _bodyFont,
+                    fontSize: Responsive.sp(context, 12),
+                    fontWeight: FontWeight.w500,
+                    color: const Color(0xFF052224),
+                  ),
+                ),
+              ),
+              SizedBox(width: Responsive.w(context, 12)),
+              Expanded(
+                child: Text(
+                  budgetLimit > 0
+                      ? '${_formatMoney(budgetLimit)} limit'
+                      : 'No limit',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                    fontFamily: _bodyFont,
+                    fontSize: Responsive.sp(context, 12),
+                    fontWeight: FontWeight.w500,
+                    color: const Color(0xFF052224),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Retained for the legacy stacked-header layout.
+  // ignore: unused_element
   Widget _buildProgressBar(TransactionService ts) {
     final authService = ref.watch(authServiceProvider);
     final budgetLimit = authService.currentUser?.budgetLimit ?? 0;
