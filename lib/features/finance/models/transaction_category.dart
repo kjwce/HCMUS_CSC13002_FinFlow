@@ -17,7 +17,7 @@ class TransactionCategory {
   final IconData icon;
   final Color color;
 
-  /// All 14 built-in categories.
+  /// All 15 built-in categories.
   static const List<TransactionCategory> all = [
     // ── Popular 8 (shown on main Add screen) ──
     TransactionCategory(
@@ -100,6 +100,12 @@ class TransactionCategory {
       color: Color(0xFF00897B),
     ),
     TransactionCategory(
+      key: 'Service',
+      label: 'Service',
+      icon: Icons.room_service_outlined,
+      color: Color(0xFF6C63FF),
+    ),
+    TransactionCategory(
       key: 'Other',
       label: 'Other',
       icon: Icons.receipt_long,
@@ -110,7 +116,7 @@ class TransactionCategory {
   /// Popular 8 — shown directly on Add screen.
   static List<TransactionCategory> get popular => all.sublist(0, 8);
 
-  /// Extended 6 — shown in "More" bottom sheet.
+  /// Extended 7 — shown in "More" bottom sheet.
   static List<TransactionCategory> get extended => all.sublist(8);
 
   /// Look up a built-in category by its [key].

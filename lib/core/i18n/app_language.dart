@@ -321,6 +321,7 @@ class AppStrings {
     'Health': 'Sức khoẻ',
     'Bills': 'Hoá đơn',
     'Salary': 'Lương',
+    'Service': 'Dịch vụ',
     'Other': 'Khác',
   };
 }
