@@ -186,6 +186,38 @@ class AuthService extends ChangeNotifier {
     );
   }
 
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final email = Supabase.instance.client.auth.currentUser?.email;
+    if (email == null) throw Exception('No authenticated user');
+    await Supabase.instance.client.auth.signInWithPassword(
+      email: email,
+      password: currentPassword,
+    );
+    await updatePassword(newPassword: newPassword);
+  }
+
+  Future<void> deleteAccount() async {
+    final response = await Supabase.instance.client.functions.invoke(
+      'delete-account',
+      body: const <String, dynamic>{},
+    );
+    if (response.status < 200 || response.status >= 300) {
+      throw Exception('Account deletion failed (${response.status})');
+    }
+
+    _currentUser = null;
+    _selectedCategoryOverride = null;
+    _dailyBudgetOverride = null;
+    _weeklyBudgetOverride = null;
+    notifyListeners();
+    try {
+      await Supabase.instance.client.auth.signOut();
+    } catch (_) {}
+  }
+
   /// Whether the current user still needs to set their budget limit.
   bool get needsBudgetSetup {
     final u = _currentUser;

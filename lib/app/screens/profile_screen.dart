@@ -24,7 +24,6 @@ class ProfileScreen extends ConsumerWidget {
     final authService = ref.watch(authServiceProvider);
     final user = authService.currentUser;
     final displayName = user?.fullName ?? AppStrings.noActiveUser;
-    final userId = user?.id ?? '-';
 
     return Scaffold(
       backgroundColor: context.finFlowColors.pageBackground,
@@ -58,17 +57,7 @@ class ProfileScreen extends ConsumerWidget {
                         color: _profileText,
                       ),
                     ),
-                    SizedBox(height: Responsive.h(context, 4)),
-                    Text(
-                      'ID: $userId',
-                      style: TextStyle(
-                        fontFamily: 'Poppins',
-                        fontWeight: FontWeight.w600,
-                        fontSize: Responsive.sp(context, 13),
-                        color: _profileText,
-                      ),
-                    ),
-                    SizedBox(height: Responsive.h(context, 32)),
+                    SizedBox(height: Responsive.h(context, 18)),
                     _MenuItems(onTabChanged: onTabChanged),
                     SizedBox(height: Responsive.h(context, 40)),
                   ],
@@ -254,7 +243,10 @@ class _MenuItems extends ConsumerWidget {
         bgColor: const Color(0xFFE6F7EF),
         label: AppStrings.security,
         onTap: () {
-          // TODO: navigate to security screen
+          Navigator.of(
+            context,
+            rootNavigator: true,
+          ).pushNamed(AppRoutes.security);
         },
       ),
       _MenuItemData(

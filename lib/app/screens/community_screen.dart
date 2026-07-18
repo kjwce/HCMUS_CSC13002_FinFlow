@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/responsive.dart';
+import '../../features/auth/providers/auth_provider.dart';
 import '../../features/auth/services/auth_service.dart';
 import '../../features/community/models/community_post_model.dart';
 import '../../features/community/presentation/community_composer_screen.dart';
@@ -155,6 +156,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
   @override
   Widget build(BuildContext context) {
     final service = ref.watch(communityServiceProvider);
+    final user = ref.watch(authServiceProvider).currentUser;
     final colors = context.finFlowColors;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final posts = switch (_selectedTab) {
@@ -182,7 +184,12 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
       child: SafeArea(
         child: Column(
           children: [
-            _buildHeader(),
+            _buildHeader(
+              avatarUrl: user?.avatarUrl?.trim(),
+              displayName: user?.fullName.trim().isNotEmpty == true
+                  ? user!.fullName.trim()
+                  : 'FinFlow User',
+            ),
             _buildSegmentedTabs(),
             SizedBox(height: Responsive.h(context, 4)),
             Expanded(
@@ -223,11 +230,8 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader({required String displayName, String? avatarUrl}) {
     final colors = context.finFlowColors;
-    final user = AuthService.instance.currentUser;
-    final avatarUrl = user?.avatarUrl;
-    final displayName = user?.fullName ?? 'User';
     return Container(
       color: _headerBg,
       padding: EdgeInsets.symmetric(
@@ -240,25 +244,24 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
         children: [
           Row(
             children: [
-              CircleAvatar(
-                radius: Responsive.w(context, 15),
-                backgroundColor: AppColors.lightGreen,
-                backgroundImage:
-                    avatarUrl != null && avatarUrl.trim().isNotEmpty
-                    ? NetworkImage(avatarUrl)
-                    : null,
-                child: avatarUrl == null || avatarUrl.trim().isEmpty
-                    ? Text(
-                        displayName.trim().isEmpty
-                            ? '?'
-                            : displayName.trim().substring(0, 1).toUpperCase(),
-                        style: TextStyle(
-                          color: AppColors.primaryGreen,
-                          fontSize: Responsive.sp(context, 12),
-                          fontWeight: FontWeight.w800,
-                        ),
-                      )
-                    : null,
+              Container(
+                width: Responsive.w(context, 42),
+                height: Responsive.w(context, 42),
+                padding: const EdgeInsets.all(2),
+                decoration: const BoxDecoration(
+                  color: Color(0xFF8DE6C4),
+                  shape: BoxShape.circle,
+                ),
+                child: ClipOval(
+                  child: avatarUrl != null && avatarUrl.isNotEmpty
+                      ? Image.network(
+                          avatarUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) =>
+                              _headerAvatarFallback(displayName),
+                        )
+                      : _headerAvatarFallback(displayName),
+                ),
               ),
               SizedBox(width: Responsive.w(context, 10)),
               Text(
@@ -298,6 +301,24 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _headerAvatarFallback(String displayName) {
+    return ColoredBox(
+      color: AppColors.lightGreen,
+      child: Center(
+        child: Text(
+          displayName.trim().isEmpty
+              ? '?'
+              : displayName.trim().substring(0, 1).toUpperCase(),
+          style: TextStyle(
+            color: const Color(0xFF006C52),
+            fontSize: Responsive.sp(context, 16),
+            fontWeight: FontWeight.w800,
+          ),
+        ),
       ),
     );
   }

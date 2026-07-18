@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Supported languages
 enum AppLocale {
@@ -17,13 +20,28 @@ class AppLanguage extends ChangeNotifier {
 
   static final AppLanguage instance = AppLanguage._();
 
+  static const _preferenceKey = 'finflow_language';
+  final SharedPreferencesAsync _preferences = SharedPreferencesAsync();
+
   AppLocale _locale = AppLocale.english;
   AppLocale get locale => _locale;
+
+  Future<void> init() async {
+    try {
+      final saved = await _preferences.getString(_preferenceKey);
+      _locale = saved == AppLocale.vietnamese.code
+          ? AppLocale.vietnamese
+          : AppLocale.english;
+    } catch (_) {
+      _locale = AppLocale.english;
+    }
+  }
 
   void setLocale(AppLocale locale) {
     if (_locale == locale) return;
     _locale = locale;
     notifyListeners();
+    unawaited(_preferences.setString(_preferenceKey, locale.code));
   }
 
   void toggle() {

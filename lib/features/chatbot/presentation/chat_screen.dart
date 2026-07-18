@@ -9,6 +9,7 @@ import '../../../core/i18n/app_language.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/notification_bell.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../models/chat_model.dart';
 import '../providers/chat_provider.dart';
 import '../services/chat_service.dart';
@@ -150,13 +151,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(chatControllerProvider);
+    final user = ref.watch(authServiceProvider).currentUser;
+    final displayName = user?.fullName.trim().isNotEmpty == true
+        ? user!.fullName.trim()
+        : 'FinFlow User';
+    final avatarUrl = user?.avatarUrl?.trim();
     final showTyping = state.isSending && !state.isReceivingText;
     ref.listen(chatControllerProvider, (_, _) => _scrollToBottom());
 
     return Scaffold(
       backgroundColor: context.finFlowColors.pageBackground,
       resizeToAvoidBottomInset: true,
-      appBar: _buildAppBar(context),
+      appBar: _buildAppBar(
+        context,
+        displayName: displayName,
+        avatarUrl: avatarUrl,
+      ),
       body: Column(
         children: [
           Expanded(
@@ -207,7 +217,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
-  PreferredSizeWidget _buildAppBar(BuildContext context) {
+  PreferredSizeWidget _buildAppBar(
+    BuildContext context, {
+    required String displayName,
+    String? avatarUrl,
+  }) {
     final colors = context.finFlowColors;
     return AppBar(
       automaticallyImplyLeading: false,
@@ -222,6 +236,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           : null,
       title: Row(
         children: [
+          Container(
+            width: Responsive.w(context, 42),
+            height: Responsive.w(context, 42),
+            padding: const EdgeInsets.all(2),
+            decoration: const BoxDecoration(
+              color: Color(0xFF8DE6C4),
+              shape: BoxShape.circle,
+            ),
+            child: ClipOval(
+              child: avatarUrl != null && avatarUrl.isNotEmpty
+                  ? Image.network(
+                      avatarUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => _avatarFallback(displayName),
+                    )
+                  : _avatarFallback(displayName),
+            ),
+          ),
+          SizedBox(width: Responsive.w(context, 10)),
           Flexible(
             child: Text(
               'AI Assistant',
@@ -249,6 +282,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         const NotificationBell(),
         const SizedBox(width: 10),
       ],
+    );
+  }
+
+  Widget _avatarFallback(String displayName) {
+    return ColoredBox(
+      color: AppColors.lightGreen,
+      child: Center(
+        child: Text(
+          displayName.trim().isEmpty
+              ? '?'
+              : displayName.trim().substring(0, 1).toUpperCase(),
+          style: TextStyle(
+            color: const Color(0xFF006C52),
+            fontSize: Responsive.sp(context, 16),
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ),
     );
   }
 }

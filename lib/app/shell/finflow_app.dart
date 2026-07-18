@@ -5,6 +5,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme_manager.dart';
 import '../../features/auth/presentation/forgot_password_screen.dart';
+import '../../features/auth/presentation/change_password_screen.dart';
 import '../../features/auth/presentation/new_password_screen.dart';
 import '../../features/auth/presentation/sign_in_screen.dart';
 import '../../features/auth/presentation/sign_up_screen.dart';
@@ -20,6 +21,8 @@ import '../../features/launch/presentation/launch_screen.dart';
 import '../../features/launch/presentation/onboarding_screen.dart';
 import '../../features/scan/presentation/scan_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
+import '../../features/settings/presentation/budget_limits_screen.dart';
+import '../../features/settings/presentation/security_screen.dart';
 import 'main_shell.dart';
 import '../../main.dart';
 
@@ -33,6 +36,9 @@ class AppRoutes {
   static const newPassword = '/new-password';
   static const dashboard = '/dashboard';
   static const settings = '/settings';
+  static const budgetLimits = '/budget-limits';
+  static const security = '/security';
+  static const changePassword = '/change-password';
   static const chat = '/chat';
   static const scan = '/scan';
   static const community = '/community';
@@ -95,6 +101,9 @@ class FinFlowApp extends StatelessWidget {
               AppRoutes.newPassword: (_) => const NewPasswordScreen(),
               AppRoutes.dashboard: (_) => const MainShell(),
               AppRoutes.settings: (_) => const SettingsScreen(),
+              AppRoutes.budgetLimits: (_) => const BudgetLimitsScreen(),
+              AppRoutes.security: (_) => const SecurityScreen(),
+              AppRoutes.changePassword: (_) => const ChangePasswordScreen(),
               AppRoutes.chat: (_) => const ChatScreen(),
               AppRoutes.scan: (_) => const ScanScreen(),
               AppRoutes.community: (_) => const CommunityScreen(),

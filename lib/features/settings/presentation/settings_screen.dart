@@ -1,5 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../app/shell/bottom_nav_bar.dart';
 import '../../../app/shell/finflow_app.dart';
@@ -7,414 +9,253 @@ import '../../../core/i18n/app_language.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme_manager.dart';
 import '../../../core/utils/responsive.dart';
-import '../../../core/widgets/notification_bell.dart';
 import '../../auth/services/auth_service.dart';
 import '../../finance/presentation/add_transaction_sheet.dart';
 
-/// Settings screen with cover image, back arrow + title, menu rows
-/// matching Figma node 1:1314 "settings".
-class SettingsScreen extends ConsumerWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final themeColors = context.finFlowColors;
-    return Scaffold(
-      backgroundColor: themeColors.pageBackground,
-      bottomNavigationBar: AppBottomNavBar(
-        selectedIndex: 4,
-        onAddTap: () => AddTransactionSheet.show(context),
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Stack(
-            clipBehavior: Clip.none,
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  static const _notificationsKey = 'finflow_push_notifications';
+  final _preferences = SharedPreferencesAsync();
+  var _notificationsEnabled = true;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadNotifications());
+  }
+
+  Future<void> _loadNotifications() async {
+    try {
+      final saved = await _preferences.getBool(_notificationsKey);
+      if (mounted && saved != null) {
+        setState(() => _notificationsEnabled = saved);
+      }
+    } catch (_) {}
+  }
+
+  void _setNotifications(bool value) {
+    setState(() => _notificationsEnabled = value);
+    unawaited(_preferences.setBool(_notificationsKey, value));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: Listenable.merge([
+        AppThemeManager.instance,
+        AppLanguage.instance,
+        AuthService.instance,
+      ]),
+      builder: (context, _) {
+        final colors = context.finFlowColors;
+        final user = AuthService.instance.currentUser;
+        final isVietnamese =
+            AppLanguage.instance.locale == AppLocale.vietnamese;
+
+        return Scaffold(
+          backgroundColor: colors.pageBackground,
+          bottomNavigationBar: AppBottomNavBar(
+            selectedIndex: 4,
+            onAddTap: () => AddTransactionSheet.show(context),
+          ),
+          appBar: AppBar(
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            backgroundColor: colors.pageBackground,
+            foregroundColor: colors.primaryText,
+            leading: IconButton(
+              onPressed: () => Navigator.of(context).pop(),
+              icon: const Icon(Icons.arrow_back_rounded),
+            ),
+            title: const Text(
+              'Settings',
+              style: TextStyle(
+                fontFamily: 'Hanken Grotesk',
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            actions: [
+              Padding(
+                padding: EdgeInsets.only(right: Responsive.w(context, 16)),
+                child: CircleAvatar(
+                  radius: Responsive.w(context, 16),
+                  backgroundColor: const Color(0xFFDDF4EC),
+                  backgroundImage: user?.avatarUrl?.trim().isNotEmpty == true
+                      ? NetworkImage(user!.avatarUrl!)
+                      : null,
+                  child: user?.avatarUrl?.trim().isNotEmpty == true
+                      ? null
+                      : Text(
+                          (user?.fullName.trim().isNotEmpty ?? false)
+                              ? user!.fullName.trim()[0].toUpperCase()
+                              : '?',
+                          style: const TextStyle(
+                            color: Color(0xFF006B52),
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                ),
+              ),
+            ],
+          ),
+          body: ListView(
+            physics: const BouncingScrollPhysics(),
+            padding: EdgeInsets.fromLTRB(
+              Responsive.w(context, 16),
+              Responsive.h(context, 10),
+              Responsive.w(context, 16),
+              Responsive.h(context, 28),
+            ),
             children: [
-              // ── Cover image ──
-              SizedBox(
-                height: Responsive.h(context, 206),
-                width: double.infinity,
-                child: Image.asset(
-                  'assets/settings_cover.png',
-                  fit: BoxFit.cover,
+              _SettingsCard(
+                icon: Icons.account_balance_wallet_outlined,
+                title: 'Budget Limit',
+                onTap: () =>
+                    Navigator.of(context).pushNamed(AppRoutes.budgetLimits),
+              ),
+              SizedBox(height: Responsive.h(context, 12)),
+              _SettingsCard(
+                icon: Icons.notifications_none_rounded,
+                title: 'Push Notifications',
+                switchValue: _notificationsEnabled,
+                onSwitchChanged: _setNotifications,
+              ),
+              SizedBox(height: Responsive.h(context, 12)),
+              _SettingsCard(
+                icon: Icons.dark_mode_outlined,
+                title: 'Dark Mode',
+                switchValue: AppThemeManager.instance.isDark,
+                onSwitchChanged: (value) => AppThemeManager.instance.setMode(
+                  value ? ThemeMode.dark : ThemeMode.light,
                 ),
               ),
+              SizedBox(height: Responsive.h(context, 12)),
+              _SettingsCard(
+                icon: Icons.language_rounded,
+                title: 'Language',
+                subtitle: isVietnamese
+                    ? 'Tiếng Việt / English'
+                    : 'English / Tiếng Việt',
+                switchValue: isVietnamese,
+                onSwitchChanged: (value) => AppLanguage.instance.setLocale(
+                  value ? AppLocale.vietnamese : AppLocale.english,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
 
-              // ── Back arrow (trên cùng) ──
-              Positioned(
-                top: Responsive.h(context, 12),
-                left: Responsive.w(context, 20),
-                child: GestureDetector(
-                  onTap: () => Navigator.of(context).pop(),
-                  child: const Icon(
-                    Icons.arrow_back,
-                    color: _settingsText,
-                    size: 24,
-                  ),
-                ),
-              ),
-              // ── Notification bell (phải) ──
-              const Positioned(top: 12, right: 20, child: NotificationBell()),
-              // ── Title "Settings" ở giữa cover ──
-              Positioned(
-                top: Responsive.h(context, 80),
-                left: 0,
-                right: 0,
-                child: Text(
-                  'Settings',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: 'Poppins',
-                    fontWeight: FontWeight.w600,
-                    fontSize: Responsive.sp(context, 20),
-                    color: _settingsText,
-                  ),
-                ),
-              ),
+class _SettingsCard extends StatelessWidget {
+  const _SettingsCard({
+    required this.icon,
+    required this.title,
+    this.subtitle,
+    this.onTap,
+    this.switchValue,
+    this.onSwitchChanged,
+  });
 
-              // ── White card ──
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final VoidCallback? onTap;
+  final bool? switchValue;
+  final ValueChanged<bool>? onSwitchChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.finFlowColors;
+    return Material(
+      color: colors.surface,
+      elevation: 0,
+      shadowColor: const Color(0x16002820),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          constraints: BoxConstraints(minHeight: Responsive.h(context, 70)),
+          padding: EdgeInsets.symmetric(
+            horizontal: Responsive.w(context, 14),
+            vertical: Responsive.h(context, 12),
+          ),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: colors.divider),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x10002F24),
+                blurRadius: 16,
+                offset: Offset(0, 5),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
               Container(
-                margin: EdgeInsets.only(top: Responsive.h(context, 180)),
+                width: Responsive.w(context, 42),
+                height: Responsive.w(context, 42),
                 decoration: BoxDecoration(
-                  color: themeColors.surface,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(40),
-                    topRight: Radius.circular(40),
-                  ),
+                  color: const Color(0xFFE7F5F0),
+                  borderRadius: BorderRadius.circular(11),
                 ),
+                child: Icon(
+                  icon,
+                  size: Responsive.w(context, 21),
+                  color: const Color(0xFF00785D),
+                ),
+              ),
+              SizedBox(width: Responsive.w(context, 14)),
+              Expanded(
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    SizedBox(height: Responsive.h(context, 60)),
-                    // Menu items
-                    _buildMenuList(context),
-                    SizedBox(height: Responsive.h(context, 40)),
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontFamily: 'Hanken Grotesk',
+                        fontSize: Responsive.sp(context, 15),
+                        fontWeight: FontWeight.w600,
+                        color: colors.primaryText,
+                      ),
+                    ),
+                    if (subtitle != null) ...[
+                      SizedBox(height: Responsive.h(context, 2)),
+                      Text(
+                        subtitle!,
+                        style: TextStyle(
+                          fontSize: Responsive.sp(context, 11),
+                          color: colors.secondaryText,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
+              if (switchValue != null)
+                Switch.adaptive(
+                  value: switchValue!,
+                  onChanged: onSwitchChanged,
+                  activeTrackColor: const Color(0xFF00A77D),
+                )
+              else
+                Icon(Icons.chevron_right_rounded, color: colors.secondaryText),
             ],
           ),
         ),
       ),
     );
   }
-
-  Widget _buildMenuList(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 38)),
-      child: Column(
-        children: [
-          const _SettingsMenuRow(
-            icon: Icons.notifications_outlined,
-            label: 'Notification Settings',
-            action: ActionType.comingSoon,
-          ),
-          SizedBox(height: Responsive.h(context, 48)),
-          const _SettingsMenuRow(
-            icon: Icons.lock_outline,
-            label: 'Password Settings',
-            action: ActionType.navigatePassword,
-          ),
-          SizedBox(height: Responsive.h(context, 48)),
-          const _SettingsMenuRow(
-            icon: Icons.account_balance_wallet_outlined,
-            label: 'Budget Limit',
-            action: ActionType.editBudget,
-          ),
-          SizedBox(height: Responsive.h(context, 48)),
-          const _DarkModeToggle(),
-          SizedBox(height: Responsive.h(context, 48)),
-          const _SettingsMenuRow(
-            icon: Icons.delete_outline,
-            label: 'Delete Account',
-            iconColor: Colors.red,
-            labelColor: Colors.red,
-            action: ActionType.deleteAccount,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────
-//  Dark Mode toggle row
-// ─────────────────────────────────────────────────────────────────────
-
-class _DarkModeToggle extends StatelessWidget {
-  const _DarkModeToggle();
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = AppThemeManager.instance.isDark;
-    final colors = context.finFlowColors;
-    return GestureDetector(
-      onTap: () => AppThemeManager.instance.toggle(),
-      behavior: HitTestBehavior.opaque,
-      child: Row(
-        children: [
-          SizedBox(
-            width: Responsive.w(context, 31),
-            height: Responsive.w(context, 31),
-            child: Icon(
-              isDark ? Icons.dark_mode : Icons.light_mode,
-              color: colors.primaryText,
-              size: Responsive.w(context, 22),
-            ),
-          ),
-          SizedBox(width: Responsive.w(context, 16)),
-          Expanded(
-            child: Text(
-              isDark ? 'Dark Mode (ON)' : 'Dark Mode (OFF)',
-              style: TextStyle(
-                fontFamily: 'Poppins',
-                fontWeight: FontWeight.w500,
-                fontSize: Responsive.sp(context, 15),
-                color: colors.primaryText,
-              ),
-            ),
-          ),
-          Icon(
-            isDark ? Icons.toggle_on : Icons.toggle_off_outlined,
-            color: colors.primaryText,
-            size: Responsive.w(context, 28),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────
-//  Action types for menu items
-// ─────────────────────────────────────────────────────────────────────
-
-enum ActionType { comingSoon, navigatePassword, deleteAccount, editBudget }
-
-// ─────────────────────────────────────────────────────────────────────
-//  Individual menu row
-// ─────────────────────────────────────────────────────────────────────
-
-class _SettingsMenuRow extends StatelessWidget {
-  const _SettingsMenuRow({
-    required this.icon,
-    required this.label,
-    required this.action,
-    this.iconColor,
-    this.labelColor,
-  });
-
-  final IconData icon;
-  final String label;
-  final ActionType action;
-  final Color? iconColor;
-  final Color? labelColor;
-
-  @override
-  Widget build(BuildContext context) {
-    final effectiveColor = iconColor ?? const Color(0xFF093030);
-
-    return GestureDetector(
-      onTap: () => _handleTap(context),
-      behavior: HitTestBehavior.opaque,
-      child: Row(
-        children: [
-          SizedBox(
-            width: Responsive.w(context, 31),
-            height: Responsive.w(context, 31),
-            child: Icon(
-              icon,
-              color: effectiveColor,
-              size: Responsive.w(context, 22),
-            ),
-          ),
-          SizedBox(width: Responsive.w(context, 16)),
-          Expanded(
-            child: Text(
-              label,
-              style: TextStyle(
-                fontFamily: 'Poppins',
-                fontWeight: FontWeight.w500,
-                fontSize: Responsive.sp(context, 15),
-                color: labelColor ?? const Color(0xFF363130),
-              ),
-            ),
-          ),
-          Icon(
-            Icons.chevron_right,
-            color: const Color(0xFF093030),
-            size: Responsive.w(context, 24),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _handleTap(BuildContext context) {
-    switch (action) {
-      case ActionType.comingSoon:
-        _showComingSoonDialog(context);
-      case ActionType.navigatePassword:
-        Navigator.of(context).pushNamed(AppRoutes.newPassword);
-      case ActionType.deleteAccount:
-        _showDeleteConfirmation(context);
-      case ActionType.editBudget:
-        _showBudgetDialog(context);
-    }
-  }
-
-  void _showComingSoonDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        content: Text(AppStrings.comingSoon),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showBudgetDialog(BuildContext context) {
-    final user = AuthService.instance.currentUser;
-    final currentLimit = user?.budgetLimit ?? 0;
-    final controller = TextEditingController(
-      text: currentLimit > 0 ? _addCommas(currentLimit.toString()) : '',
-    );
-    var isFormatting = false;
-
-    void formatAmount() {
-      if (isFormatting) return;
-      isFormatting = true;
-      final text = controller.text.replaceAll(',', '');
-      final digits = text.replaceAll(RegExp(r'\D'), '');
-      if (digits.isEmpty) {
-        controller.text = '';
-      } else {
-        final formatted = _addCommas(digits);
-        controller.value = TextEditingValue(
-          text: formatted,
-          selection: TextSelection.collapsed(offset: formatted.length),
-        );
-      }
-      isFormatting = false;
-    }
-
-    controller.addListener(formatAmount);
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Budget Limit'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Set your monthly spending limit:',
-              style: TextStyle(fontSize: 14),
-            ),
-            SizedBox(height: Responsive.h(context, 12)),
-            TextField(
-              controller: controller,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                hintText: '5,000,000',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-              ),
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              controller.removeListener(formatAmount);
-              controller.dispose();
-              Navigator.of(ctx).pop();
-            },
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () async {
-              final raw = controller.text.trim().replaceAll(',', '');
-              final amount = int.tryParse(raw);
-              if (amount == null || amount <= 0) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Please enter a valid amount')),
-                );
-                return;
-              }
-              try {
-                await AuthService.instance.updateProfile(
-                  fullName: user?.fullName ?? 'User',
-                  budgetLimit: amount,
-                );
-                if (!ctx.mounted) return;
-                Navigator.of(ctx).pop();
-                if (!context.mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Budget limit updated')),
-                );
-              } catch (e) {
-                if (!ctx.mounted) return;
-                ScaffoldMessenger.of(
-                  ctx,
-                ).showSnackBar(SnackBar(content: Text('Failed: $e')));
-              }
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showDeleteConfirmation(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(AppStrings.confirmClearTitle),
-        content: const Text(
-          'Are you sure you want to delete your account? '
-          'This action cannot be undone.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(AppStrings.cancel),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              // TODO: implement account deletion flow
-            },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-const _settingsText = Color(0xFF093030);
-
-/// Format a numeric string with thousand-separator commas.
-String _addCommas(String digits) {
-  final buffer = StringBuffer();
-  int count = 0;
-  for (int i = digits.length - 1; i >= 0; i--) {
-    if (count > 0 && count % 3 == 0) buffer.write(',');
-    buffer.write(digits[i]);
-    count++;
-  }
-  return buffer.toString().split('').reversed.join();
 }

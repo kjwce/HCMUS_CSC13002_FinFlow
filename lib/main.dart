@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app/shell/finflow_app.dart';
+import 'core/i18n/app_language.dart';
 import 'core/services/app_init_notifier.dart';
 import 'core/theme/app_theme_manager.dart';
 import 'features/auth/services/auth_service.dart';
@@ -22,6 +23,7 @@ void main() {
     () async {
       WidgetsFlutterBinding.ensureInitialized();
       await AppThemeManager.instance.init();
+      await AppLanguage.instance.init();
 
       // Render the FinFlow UI immediately — no waiting for network.
       runApp(const ProviderScope(child: FinFlowApp()));
