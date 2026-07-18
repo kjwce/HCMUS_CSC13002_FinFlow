@@ -7,6 +7,7 @@ import '../../../core/i18n/app_language.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/responsive.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../scan/presentation/scan_screen.dart';
 import '../models/bank_preset.dart';
 import '../models/ewallet_preset.dart';
 import '../models/quick_add_draft_model.dart';
@@ -213,7 +214,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                         child: switch (_mode) {
                           _AddMode.manual => _buildManualMode(),
                           _AddMode.quick => _buildQuickMode(),
-                          _AddMode.scan => _buildScanPlaceholder(),
+                          _AddMode.scan => _buildScanMode(),
                         },
                       ),
                     ],
@@ -417,40 +418,8 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     );
   }
 
-  Widget _buildScanPlaceholder() {
-    return Container(
-      key: const ValueKey(_AddMode.scan),
-      padding: EdgeInsets.symmetric(
-        horizontal: Responsive.w(context, 24),
-        vertical: Responsive.h(context, 52),
-      ),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF1F4F9),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFC3C7CF)),
-      ),
-      child: const Column(
-        children: [
-          Icon(
-            Icons.document_scanner_outlined,
-            size: 48,
-            color: Color(0xFF006C46),
-          ),
-          SizedBox(height: 16),
-          Text(
-            'Scan mode is coming soon',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-          ),
-          SizedBox(height: 8),
-          Text(
-            'Receipt OCR will be connected here in a later update.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Color(0xFF5F6368)),
-          ),
-        ],
-      ),
-    );
+  Widget _buildScanMode() {
+    return const ScanScreen(key: ValueKey(_AddMode.scan), embedded: true);
   }
 
   Widget _buildSelectionField({

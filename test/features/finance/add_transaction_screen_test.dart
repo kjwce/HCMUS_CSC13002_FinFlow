@@ -91,4 +91,17 @@ void main() {
     expect(find.text('Interpret & Save'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('scan mode embeds the receipt capture UI', (tester) async {
+    await pumpAddScreen(tester, size: const Size(320, 568));
+
+    await tester.tap(find.text('SCAN'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Scan mode is coming soon'), findsNothing);
+    expect(find.byKey(const Key('scan_camera_button')), findsOneWidget);
+    expect(find.byKey(const Key('scan_gallery_button')), findsOneWidget);
+    expect(find.text('Phân tích hóa đơn'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 }
