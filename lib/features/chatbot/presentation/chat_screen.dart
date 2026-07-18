@@ -784,15 +784,18 @@ class _ChatHistorySheet extends ConsumerWidget {
     ChatController controller,
     ChatConversation conversation,
   ) async {
-    final textController = TextEditingController(text: conversation.title);
+    var draftTitle = conversation.title;
     final title = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Rename conversation'),
-        content: TextField(
-          controller: textController,
+        content: TextFormField(
+          initialValue: conversation.title,
           autofocus: true,
           maxLength: 60,
+          onChanged: (value) => draftTitle = value,
+          onFieldSubmitted: (value) =>
+              Navigator.pop(dialogContext, value.trim()),
         ),
         actions: [
           TextButton(
@@ -800,14 +803,13 @@ class _ChatHistorySheet extends ConsumerWidget {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, textController.text),
+            onPressed: () => Navigator.pop(dialogContext, draftTitle.trim()),
             child: const Text('Save'),
           ),
         ],
       ),
     );
-    textController.dispose();
-    if (title != null) {
+    if (title != null && title.isNotEmpty) {
       await controller.renameConversation(conversation.id, title);
     }
   }

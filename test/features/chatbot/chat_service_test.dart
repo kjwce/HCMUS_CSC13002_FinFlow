@@ -4,6 +4,34 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('ChatService', () {
+    test('sorts persisted messages by ascending sequence number', () {
+      final rows = sortChatMessageRows([
+        {
+          'id': 'assistant',
+          'role': 'assistant',
+          'message': 'Answer',
+          'sequence_number': 2,
+        },
+        {
+          'id': 'user',
+          'role': 'user',
+          'message': 'Question',
+          'sequence_number': 1,
+        },
+      ]);
+
+      expect(rows.map((row) => row['role']), ['user', 'assistant']);
+    });
+
+    test('puts user before assistant when legacy timestamps match', () {
+      final rows = sortChatMessageRows([
+        {'role': 'assistant', 'created_at': '2026-07-18T01:00:00Z'},
+        {'role': 'user', 'created_at': '2026-07-18T01:00:00Z'},
+      ]);
+
+      expect(rows.map((row) => row['role']), ['user', 'assistant']);
+    });
+
     test('parses a grounded reply and insight', () async {
       Map<String, dynamic>? capturedBody;
       final service = ChatService(

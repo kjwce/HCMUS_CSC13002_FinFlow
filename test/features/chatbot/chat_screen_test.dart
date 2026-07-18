@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:finflow/core/theme/app_theme.dart';
+import 'package:finflow/features/chatbot/models/chat_model.dart';
 import 'package:finflow/features/chatbot/presentation/chat_screen.dart';
 import 'package:finflow/features/chatbot/providers/chat_provider.dart';
 import 'package:finflow/features/chatbot/services/chat_service.dart';
@@ -135,4 +136,62 @@ void main() {
     expect(find.text('Có mình đây!'), findsOneWidget);
     expect(find.byKey(const Key('chat-typing-indicator')), findsNothing);
   });
+
+  testWidgets('renames a conversation without a disposed controller error', (
+    tester,
+  ) async {
+    final service = _HistoryChatService();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [chatServiceProvider.overrideWithValue(service)],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChatScreen(showBackButton: false),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('chat-history-button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Rename'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextFormField), 'Updated chat');
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    expect(service.renamedTitle, 'Updated chat');
+    expect(tester.takeException(), isNull);
+  });
+}
+
+class _HistoryChatService extends ChatService {
+  _HistoryChatService()
+    : super(
+        invokeFunction: (_) async => throw UnimplementedError(),
+        persistenceEnabled: false,
+      );
+
+  String? renamedTitle;
+
+  @override
+  Future<List<ChatConversation>> fetchConversations() async => [
+    ChatConversation(
+      id: 'conversation-1',
+      title: 'Original chat',
+      createdAt: DateTime(2026, 7, 18),
+      updatedAt: DateTime(2026, 7, 18),
+    ),
+  ];
+
+  @override
+  Future<List<ChatModel>> fetchMessages(String conversationId) async => [];
+
+  @override
+  Future<void> renameConversation(String id, String title) async {
+    renamedTitle = title;
+  }
 }

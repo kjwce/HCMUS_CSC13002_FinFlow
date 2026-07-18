@@ -131,10 +131,10 @@ class ChatService {
         .select()
         .eq('conversation_id', conversationId)
         .eq('user_id', userId)
-        .order('created_at');
+        .order('sequence_number', ascending: true);
+    final orderedRows = sortChatMessageRows(response as List);
     return Future.wait(
-      (response as List).map((item) async {
-        final json = Map<String, dynamic>.from(item as Map);
+      orderedRows.map((json) async {
         final path = json['image_path'];
         if (path is String && path.isNotEmpty) {
           json['image_url'] = await _supabase.storage
@@ -154,6 +154,7 @@ class ChatService {
       'user_id': userId,
       'role': message.role.name,
       'message': message.message,
+      'created_at': message.createdAt.toUtc().toIso8601String(),
       if (message.insight != null)
         'insight': {
           'title': message.insight!.title,
@@ -489,4 +490,28 @@ class ChatService {
       );
     }
   }
+}
+
+List<Map<String, dynamic>> sortChatMessageRows(List<dynamic> items) {
+  final rows = items
+      .map((item) => Map<String, dynamic>.from(item as Map))
+      .toList(growable: false);
+  rows.sort((left, right) {
+    final leftSequence = left['sequence_number'];
+    final rightSequence = right['sequence_number'];
+    if (leftSequence is num && rightSequence is num) {
+      return leftSequence.compareTo(rightSequence);
+    }
+
+    final leftDate = DateTime.tryParse(left['created_at']?.toString() ?? '');
+    final rightDate = DateTime.tryParse(right['created_at']?.toString() ?? '');
+    if (leftDate != null && rightDate != null) {
+      final dateOrder = leftDate.compareTo(rightDate);
+      if (dateOrder != 0) return dateOrder;
+    }
+
+    if (left['role'] == right['role']) return 0;
+    return left['role'] == 'user' ? -1 : 1;
+  });
+  return rows;
 }
