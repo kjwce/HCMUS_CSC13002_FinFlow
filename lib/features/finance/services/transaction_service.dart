@@ -81,7 +81,7 @@ class TransactionService extends ChangeNotifier {
     super.notifyListeners();
   }
 
-  /// Income transactions across ALL time (cached).
+  /// Income in the current calendar month (cached).
   int get monthlyIncome {
     _cachedMonthlyIncome ??= _computeMonthlyIncome();
     return _cachedMonthlyIncome!;
@@ -92,7 +92,7 @@ class TransactionService extends ChangeNotifier {
     return incomeBetween(range.start, range.end);
   }
 
-  /// Expense transactions across ALL time (cached).
+  /// Expense in the current calendar month (cached).
   int get monthlyExpense {
     _cachedMonthlyExpense ??= _computeMonthlyExpense();
     return _cachedMonthlyExpense!;

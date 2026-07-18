@@ -1453,27 +1453,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 SizedBox(height: Responsive.h(context, 10)),
             itemBuilder: (context, index) {
               final transaction = visibleTransactions[index];
-              return Semantics(
-                button: true,
-                label:
-                    '${transaction.name}, ${_formatSignedMoney(transaction.amount)}',
-                child: _PressableScale(
-                  pressedOverlayColor: const Color(0x14000000),
-                  borderRadius: BorderRadius.circular(16),
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          EditTransactionScreen(transaction: transaction),
+              return _SwipeToDeleteTransaction(
+                key: ValueKey('swipe-transaction-${transaction.id}'),
+                onDelete: () => _deleteTransactionWithUndo(transaction),
+                child: Semantics(
+                  button: true,
+                  label:
+                      '${transaction.name}, ${_formatSignedMoney(transaction.amount)}',
+                  child: _PressableScale(
+                    pressedOverlayColor: const Color(0x14000000),
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            EditTransactionScreen(transaction: transaction),
+                      ),
                     ),
-                  ),
-                  child: _buildTransactionItem(
-                    _iconForCategory(transaction.category),
-                    transaction.name,
-                    _formatTransactionTime(transaction.date),
-                    transaction.category,
-                    _formatSignedMoney(transaction.amount),
-                    _iconColorForCategory(transaction.category),
-                    transaction.amount > 0,
+                    child: _buildTransactionItem(
+                      _iconForCategory(transaction.category),
+                      transaction.name,
+                      _formatTransactionTime(transaction.date),
+                      transaction.category,
+                      _formatSignedMoney(transaction.amount),
+                      _iconColorForCategory(transaction.category),
+                      transaction.amount > 0,
+                    ),
                   ),
                 ),
               );
@@ -1481,6 +1485,99 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
       ],
     );
+  }
+
+  Future<void> _deleteTransactionWithUndo(TransactionModel transaction) async {
+    try {
+      await ref.read(transactionServiceProvider).delete(transaction.id);
+      if (!mounted) return;
+      _showDeletedSnackBar(transaction);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Unable to delete transaction: $error')),
+        );
+      }
+      rethrow;
+    }
+  }
+
+  void _showDeletedSnackBar(TransactionModel transaction) {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger
+      ..removeCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          key: const Key('transaction-deleted-snackbar'),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: const Color(0xFFE7EBE9),
+          elevation: 8,
+          margin: EdgeInsets.fromLTRB(
+            Responsive.w(context, 12),
+            0,
+            Responsive.w(context, 12),
+            Responsive.h(context, 10),
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          duration: const Duration(seconds: 5),
+          content: Row(
+            children: [
+              Container(
+                width: Responsive.w(context, 24),
+                height: Responsive.w(context, 24),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFFE4E0),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.delete_outline,
+                  size: Responsive.w(context, 14),
+                  color: const Color(0xFFBA1A1A),
+                ),
+              ),
+              SizedBox(width: Responsive.w(context, 9)),
+              Expanded(
+                child: Text(
+                  'Transaction Deleted',
+                  style: TextStyle(
+                    fontFamily: _bodyFont,
+                    fontSize: Responsive.sp(context, 12),
+                    fontWeight: FontWeight.w500,
+                    color: const Color(0xFF313936),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          action: SnackBarAction(
+            key: const Key('undo-delete-transaction-button'),
+            label: 'Undo',
+            textColor: const Color(0xFF006C53),
+            onPressed: () => _restoreDeletedTransaction(transaction),
+          ),
+        ),
+      );
+  }
+
+  Future<void> _restoreDeletedTransaction(TransactionModel transaction) async {
+    try {
+      await ref.read(transactionServiceProvider).add(transaction);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Text('Transaction restored'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Unable to restore transaction: $error')),
+      );
+    }
   }
 
   Widget _buildViewAllButton() {
@@ -1840,6 +1937,173 @@ class _HomeIconPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _HomeIconPainter oldDelegate) => false;
+}
+
+class _SwipeToDeleteTransaction extends StatefulWidget {
+  const _SwipeToDeleteTransaction({
+    required super.key,
+    required this.child,
+    required this.onDelete,
+  });
+
+  final Widget child;
+  final Future<void> Function() onDelete;
+
+  @override
+  State<_SwipeToDeleteTransaction> createState() =>
+      _SwipeToDeleteTransactionState();
+}
+
+class _SwipeToDeleteTransactionState extends State<_SwipeToDeleteTransaction>
+    with TickerProviderStateMixin {
+  static const _actionExtent = 58.0;
+  late final AnimationController _slideController;
+  late final AnimationController _removeController;
+  var _isDeleting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _slideController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 220),
+    );
+    _removeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 260),
+      value: 1,
+    );
+  }
+
+  @override
+  void dispose() {
+    _slideController.dispose();
+    _removeController.dispose();
+    super.dispose();
+  }
+
+  void _handleDragUpdate(DragUpdateDetails details) {
+    if (_isDeleting) return;
+    _slideController.value =
+        (_slideController.value - details.primaryDelta! / _actionExtent).clamp(
+          0.0,
+          1.0,
+        );
+  }
+
+  void _handleDragEnd(DragEndDetails details) {
+    if (_isDeleting) return;
+    final velocity = details.primaryVelocity ?? 0;
+    final shouldOpen =
+        velocity < -250 || (velocity <= 250 && _slideController.value >= 0.38);
+    _slideController.animateTo(shouldOpen ? 1 : 0, curve: Curves.easeOutCubic);
+  }
+
+  Future<void> _delete() async {
+    if (_isDeleting) return;
+    setState(() => _isDeleting = true);
+    await _removeController.animateTo(0, curve: Curves.easeInOutCubic);
+    try {
+      await widget.onDelete();
+    } catch (_) {
+      if (!mounted) return;
+      await _removeController.animateTo(1, curve: Curves.easeOutCubic);
+      await _slideController.animateBack(0, curve: Curves.easeOutCubic);
+      if (mounted) setState(() => _isDeleting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizeTransition(
+      sizeFactor: CurvedAnimation(
+        parent: _removeController,
+        curve: Curves.easeInOutCubic,
+      ),
+      alignment: Alignment.topCenter,
+      child: FadeTransition(
+        opacity: _removeController,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: AnimatedBuilder(
+                  animation: _slideController,
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: SizedBox(
+                      width: _actionExtent,
+                      child: Material(
+                        color: const Color(0xFFBA1A1A),
+                        child: InkWell(
+                          key: const Key('swipe-delete-transaction-button'),
+                          onTap: _isDeleting ? null : _delete,
+                          child: Semantics(
+                            button: true,
+                            label: 'Delete transaction',
+                            child: Center(
+                              child: _isDeleting
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Icon(
+                                      Icons.delete_outline,
+                                      color: Colors.white,
+                                      size: 24,
+                                    ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  builder: (context, child) => Align(
+                    alignment: Alignment.centerRight,
+                    child: ClipRect(
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        widthFactor: _slideController.value,
+                        child: IgnorePointer(
+                          ignoring: _slideController.value < 0.9,
+                          child: child,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              AnimatedBuilder(
+                animation: _slideController,
+                child: widget.child,
+                builder: (context, child) => Transform.translate(
+                  offset: Offset(-_actionExtent * _slideController.value, 0),
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onHorizontalDragUpdate: _handleDragUpdate,
+                    onHorizontalDragEnd: _handleDragEnd,
+                    child: PhysicalModel(
+                      shape: BoxShape.rectangle,
+                      color: const Color(0xFFF3F7F5),
+                      elevation: 0,
+                      borderRadius: BorderRadius.circular(20),
+                      clipBehavior: Clip.antiAliasWithSaveLayer,
+                      child: child,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _PressableScale extends StatefulWidget {
