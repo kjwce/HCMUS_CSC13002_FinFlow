@@ -5,6 +5,7 @@ class UserModel {
     required this.email,
     required this.createdAt,
     required this.budgetLimit,
+    this.dailyBudget = 0,
     this.weeklyBudget = 0,
     this.phone,
     this.avatarUrl,
@@ -18,6 +19,7 @@ class UserModel {
       email: json['email'] as String,
       createdAt: DateTime.parse(json['created_at'] as String),
       budgetLimit: json['budget_limit'] as int? ?? 0,
+      dailyBudget: json['daily_budget'] as int? ?? 0,
       weeklyBudget: json['weekly_budget'] as int? ?? 0,
       phone: json['phone'] as String?,
       avatarUrl: json['avatar_url'] as String?,
@@ -31,6 +33,7 @@ class UserModel {
     'email': email,
     'created_at': createdAt.toIso8601String(),
     'budget_limit': budgetLimit,
+    'daily_budget': dailyBudget,
     'weekly_budget': weeklyBudget,
     if (phone != null) 'phone': phone,
     if (avatarUrl != null) 'avatar_url': avatarUrl,
@@ -42,6 +45,7 @@ class UserModel {
   final String email;
   final DateTime createdAt;
   final int budgetLimit;
+  final int dailyBudget;
   final int weeklyBudget;
   final String? phone;
   final String? avatarUrl;
