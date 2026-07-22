@@ -363,6 +363,21 @@ class QuickAddService {
         if (wallet.type == WalletType.cash) return wallet;
       }
     }
+    const transferAliases = {
+      'chuyen khoan',
+      'transfer',
+      'bank transfer',
+      'ngan hang',
+      'bank',
+      'vi dien tu',
+      'e wallet',
+      'ewallet',
+    };
+    if (transferAliases.contains(normalizedHint)) {
+      for (final wallet in wallets) {
+        if (wallet.type == WalletType.transfer) return wallet;
+      }
+    }
 
     return null;
   }

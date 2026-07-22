@@ -179,7 +179,7 @@ class _EditTransactionScreenState extends ConsumerState<EditTransactionScreen> {
                     SizedBox(height: Responsive.h(context, 12)),
                     _buildSelectionField(
                       fieldKey: const Key('edit_source_field'),
-                      label: 'SELECTION SOURCE',
+                      label: 'PAYMENT METHOD',
                       value: _sourceName(wallet),
                       leading: wallet == null
                           ? Icon(
@@ -478,7 +478,7 @@ class _EditTransactionScreenState extends ConsumerState<EditTransactionScreen> {
       return;
     }
     if (_selectedWalletId == null) {
-      _showMessage('Please select a source');
+      _showMessage('Please select a payment method');
       return;
     }
     setState(() => _isSaving = true);
@@ -574,8 +574,8 @@ class _EditTransactionScreenState extends ConsumerState<EditTransactionScreen> {
   }
 
   String _sourceName(WalletModel? wallet) {
-    if (wallet == null) return 'Select Source';
-    return wallet.name == 'Tiền mặt' ? 'Cash' : wallet.name;
+    if (wallet == null) return 'Select payment method';
+    return wallet.name;
   }
 
   String _formatDate(DateTime value) {
@@ -722,7 +722,7 @@ class _EditSourceSelectionSheetState extends State<_EditSourceSelectionSheet> {
                   children: [
                     const Expanded(
                       child: Text(
-                        'Select Source',
+                        'Select Payment Method',
                         style: TextStyle(
                           fontFamily: 'Manrope',
                           fontSize: 22,
@@ -739,13 +739,12 @@ class _EditSourceSelectionSheetState extends State<_EditSourceSelectionSheet> {
               ),
               Expanded(
                 child: widget.wallets.isEmpty
-                    ? const Center(child: Text('No sources available'))
+                    ? const Center(child: Text('No payment methods available'))
                     : ListView(
                         padding: const EdgeInsets.symmetric(horizontal: 14),
                         children: [
-                          _section('CASH', WalletType.cash),
-                          _section('BANK', WalletType.bank),
-                          _section('E-WALLET', WalletType.ewallet),
+                          _section('PAYMENT METHOD', WalletType.cash),
+                          _section('', WalletType.transfer),
                         ],
                       ),
               ),
@@ -780,18 +779,19 @@ class _EditSourceSelectionSheetState extends State<_EditSourceSelectionSheet> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(0, 10, 0, 7),
-          child: Text(
-            title,
-            style: const TextStyle(
-              fontFamily: 'JetBrains Mono',
-              fontSize: 10,
-              letterSpacing: 0.8,
-              color: Color(0xFF5F6368),
+        if (title.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(0, 10, 0, 7),
+            child: Text(
+              title,
+              style: const TextStyle(
+                fontFamily: 'JetBrains Mono',
+                fontSize: 10,
+                letterSpacing: 0.8,
+                color: Color(0xFF5F6368),
+              ),
             ),
           ),
-        ),
         ...wallets.map(_walletRow),
       ],
     );
@@ -832,7 +832,7 @@ class _EditSourceSelectionSheetState extends State<_EditSourceSelectionSheet> {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  wallet.name == 'Tiền mặt' ? 'Cash' : wallet.name,
+                  wallet.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontWeight: FontWeight.w600),
@@ -863,7 +863,6 @@ class _EditSourceSelectionSheetState extends State<_EditSourceSelectionSheet> {
 }
 
 IconData _walletIcon(WalletType type) => switch (type) {
-  WalletType.bank => Icons.account_balance_rounded,
-  WalletType.ewallet => Icons.account_balance_wallet_rounded,
   WalletType.cash => Icons.payments_outlined,
+  WalletType.transfer => Icons.swap_horiz_rounded,
 };

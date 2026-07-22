@@ -21,7 +21,7 @@ The app is currently a mobile-first Flutter project backed by:
 
 ### Core Features
 - Launch, onboarding, full auth flow (email/password, OTP, password reset).
-- Wallet onboarding for 27 banks, 9 e-wallets, and cash.
+- Payment-source onboarding for cash and a shared transfer source.
 - Monthly budget setup and weekly budget editing.
 - Transaction CRUD with wallet awareness.
 - Transaction History screen with day grouping, filters, and quick insights.
@@ -123,7 +123,7 @@ lib/
     debug/            # Database viewer
     finance/          # FINANCE CORE
       models/         # TransactionModel, WalletModel, GoalModel, QuickAddDraft,
-                      # TransactionCategory, BankPreset, EwalletPreset, QuickAddDraftModel
+                      # TransactionCategory, WalletModel, QuickAddDraftModel
       presentation/   # AddTransactionSheet, DashboardPage, GoalSetupSheet,
                       # QuickAddReviewSheet, TransactionSavedScreen,
                       # WalletOnboardingScreen, TransactionHistoryScreen,
@@ -203,7 +203,7 @@ Supabase provides authentication, PostgreSQL database, storage, and Edge Functio
 Tables:
 - `profiles`: public user profile linked to `auth.users`.
 - `transactions`: user transactions with name, category, amount, date, optional wallet_id.
-- `wallets`: user wallets/banks/e-wallets/cash with initial_balance.
+- `wallets`: exactly two system sources per user (`cash`, `transfer`) with initial balances.
 - `goals`: saving goals with target_amount.
 - `budgets`: per-category budget table (schema only, not used by app UI).
 - `community_posts`: posts with content, category, anonymous/spoiler flags, likes_count, comments_count.
@@ -315,7 +315,7 @@ Assets include:
 - 9 e-wallet logos + cash + other under `assets/logos/ewallets/`.
 - Fonts: Manrope, Hanken Grotesk, Poppins, Roboto.
 
-Bank and e-wallet presets reference these asset paths.
+Legacy bank and e-wallet logo assets remain available but are no longer selected by the UI.
 
 ## Current Completed Features
 
@@ -324,7 +324,7 @@ Bank and e-wallet presets reference these asset paths.
 - Supabase initialization (background, non-blocking).
 - Full auth flow (email/password, OTP, password reset, OAuth stubs).
 - Profile fetch/update/avatar upload.
-- Wallet onboarding (27 banks, 9 e-wallets, cash).
+- Payment-source onboarding (cash and transfer).
 - Budget setup and editing (monthly + weekly).
 - Transaction CRUD with wallet awareness.
 - Transaction History with daily grouping and quick insights.

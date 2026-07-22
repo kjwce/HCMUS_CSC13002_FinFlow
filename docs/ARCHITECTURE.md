@@ -75,11 +75,11 @@ Finance is the largest domain and includes:
 - Transaction category definitions (14 built-in + custom in-memory categories).
 - Quick Add natural language input (text + voice).
 - Quick Add review sheet with warnings and missing-field detection.
-- Add/edit transaction UI with account selector (Bank/E-Wallet/Cash) and category grid.
+- Add/edit transaction UI with payment-method selector (Cash/Transfer) and category grid.
 - Transaction history UI with period grouping, filters, and quick insights.
 - Transaction Saved screen (confirmation after saving).
 - Dashboard chart UI with 5 chart types using `fl_chart`.
-- Wallet onboarding UI (27 banks, 9 e-wallets, cash).
+- Payment-source onboarding UI (cash and transfer).
 - Goal summary with configurable metric (revenue/expense by period) and category tracking.
 - On-device speech recognition (`QuickAddSpeechRecognitionService`) using `speech_to_text` for direct voice-to-text input (separate from the Deepgram Edge Function recording flow).
 
@@ -230,7 +230,7 @@ Responsibilities:
 
 - Fetch user wallets.
 - Insert onboarding wallets.
-- Delete wallets.
+- Save the opening balances of the two system wallets.
 - Compute total initial balance.
 - Lookup wallet by id (`byId`).
 - Expose current user wallets.
@@ -419,6 +419,8 @@ Community features use Supabase Realtime for live updates:
 | `004_add_selected_category.sql` | Add selected_category column to profiles |
 | `005_create_goals_table.sql` | Goals table |
 | `006_add_wallets_and_wallet_id.sql` | Wallets table + wallet_id on transactions |
+| `019_simplify_wallets_to_cash_and_transfer.sql` | Merge wallets into cash and transfer system sources |
+| `020_normalize_transaction_user_id.sql` | Normalize transaction ownership to UUID + cascading FK and rebuild RLS |
 | `007_create_profile_trigger.sql` | Auto-create profile on user signup |
 | `008_add_weekly_budget.sql` | Add weekly_budget column to profiles |
 | `009_rename_transaction_title_to_name.sql` | Rename title column to name |
@@ -511,9 +513,8 @@ AddTransactionSheet (modal bottom sheet)
   Segmented income/expense tabs
   Amount input (formatted with commas)
   Transaction name field
-  Account category selector (Bank / E-Wallet / Cash)
-    → Preset picker for banks/ewallets
-    → Auto-creates Cash wallet
+  Payment method selector (Cash / Transfer)
+    → Uses the user's two system wallets
   Category grid (popular + custom + "More" for extended/custom)
   Confirm button
 ```

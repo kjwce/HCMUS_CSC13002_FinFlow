@@ -1003,10 +1003,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
   Color _walletTypeColor(String type) {
     switch (type) {
-      case 'bank':
+      case 'transfer':
         return AppColors.ingBlue;
-      case 'ewallet':
-        return AppColors.primaryGreen;
       case 'cash':
         return AppColors.chartOrangeBorder;
       default:
@@ -1022,8 +1020,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     final income = ts.incomeByWalletTypeForPeriod(_period, offset: _offset);
     final expense = ts.expenseByWalletTypeForPeriod(_period, offset: _offset);
     final sources = [
-      'bank',
-      'ewallet',
+      'transfer',
       'cash',
     ].where((s) => (income[s] ?? 0) > 0 || (expense[s] ?? 0) > 0).toList();
     final hasData = sources.isNotEmpty;
@@ -1182,12 +1179,10 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
   String _sourceLabel(String source) {
     switch (source) {
-      case 'bank':
-        return 'Bank';
-      case 'ewallet':
-        return 'E-Wallet';
+      case 'transfer':
+        return 'Chuyển khoản';
       case 'cash':
-        return 'Cash';
+        return 'Tiền mặt';
       default:
         return source;
     }

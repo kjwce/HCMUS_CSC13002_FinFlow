@@ -15,7 +15,7 @@
 - Profile loading from Supabase `profiles`.
 - Profile update.
 - Avatar image picking and upload to Supabase storage.
-- Wallet onboarding for 27 banks, 9 e-wallets, and cash.
+- Payment-source onboarding for cash and transfer.
 - Budget setup after onboarding.
 - Budget limit editing in settings.
 - Weekly budget editing from both profile settings and transaction history.
@@ -64,7 +64,7 @@
   1. Income, Expense & Balance Line Chart.
   2. Income by Category Donut.
   3. Expense by Category Donut.
-  4. Income & Expense by Source (horizontal grouped bar: bank/ewallet/cash).
+  4. Income & Expense by Source (horizontal grouped bar: transfer/cash).
   5. Total Income vs Expense (grouped bar with surplus/deficit).
 - Scrollable wide charts with period navigation.
 - Touch tooltips, animated entry (850ms ease-out).
@@ -123,7 +123,7 @@
   - `012_add_community_like_notifications.sql`: Like notification trigger + historical backfill.
 - Profile auto-create trigger migration.
 - RLS policies for user-owned data.
-- Bank and e-wallet logo assets (27+9+2 logos).
+- Legacy bank/e-wallet logo assets plus the active cash/transfer assets.
 
 ### Testing
 - **`quick_add_service_test.dart`** — 15+ unit tests for response validation, category/wallet resolution, transfer detection, draft conversion.

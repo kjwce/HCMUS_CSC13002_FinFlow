@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-/// Supported wallet types.
-enum WalletType { bank, ewallet, cash }
+/// The two payment sources supported by FinFlow.
+enum WalletType { cash, transfer }
 
 /// A lightweight preset used in the onboarding picker.
 class WalletPreset {
@@ -17,8 +17,7 @@ class WalletPreset {
   final Color brandColor;
   final WalletType type;
 
-  /// Whether this preset acts as a "bank-like" wallet for limit purposes.
-  bool get isBankLike => type == WalletType.bank;
+  bool get isTransfer => type == WalletType.transfer;
 }
 
 /// Persistent wallet model stored in Supabase.
@@ -42,7 +41,7 @@ class WalletModel {
       name: name,
       logoAssetPath: _stringValue(json['logo_asset_path']),
       brandColor: _parseColor(json['brand_color']),
-      type: _parseType(_stringValue(json['type'], fallback: 'bank')),
+      type: _parseType(_stringValue(json['type'], fallback: 'transfer')),
       initialBalance: (json['initial_balance'] as num?)?.toInt() ?? 0,
       isActive: json['is_active'] as bool? ?? true,
     );
@@ -69,11 +68,15 @@ class WalletModel {
   final int initialBalance;
   final bool isActive;
 
+  /// Stable id used for the two system wallets belonging to a user.
+  static String systemId(String userId, WalletType type) {
+    return 'wallet_${type.name}_${userId.replaceAll('-', '')}';
+  }
+
   static WalletType _parseType(String s) {
-    return WalletType.values.firstWhere(
-      (t) => t.name == s,
-      orElse: () => WalletType.bank,
-    );
+    // Keep old databases readable before migration 019 is deployed.
+    if (s == 'cash') return WalletType.cash;
+    return WalletType.transfer;
   }
 
   static String _stringValue(dynamic value, {String fallback = ''}) {

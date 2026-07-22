@@ -1,52 +1,28 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 
 import '../../../app/shell/finflow_app.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/responsive.dart';
-import '../../auth/services/auth_service.dart';
-import '../models/bank_preset.dart';
-import '../models/ewallet_preset.dart';
-import '../models/wallet_model.dart';
 import '../services/wallet_service.dart';
 
-/// Onboarding screen shown after sign-up for the user to pick their wallets
-/// and enter initial balances.
-class WalletOnboardingScreen extends ConsumerStatefulWidget {
+/// Collects the opening balances for FinFlow's two system payment sources.
+class WalletOnboardingScreen extends StatefulWidget {
   const WalletOnboardingScreen({super.key});
 
   @override
-  ConsumerState<WalletOnboardingScreen> createState() =>
-      _WalletOnboardingScreenState();
+  State<WalletOnboardingScreen> createState() => _WalletOnboardingScreenState();
 }
 
-class _WalletOnboardingScreenState
-    extends ConsumerState<WalletOnboardingScreen> {
-  int _step = 1; // 1 = pick wallets, 2 = enter balances
-
-  // Selected wallet presets (step 1)
-  final List<WalletPreset> _selectedBanks = [];
-  WalletPreset? _selectedEwallet;
-  bool _hasCash = true;
-
-  // Balance controllers keyed by preset name (step 2)
-  final Map<String, TextEditingController> _balanceControllers = {};
+class _WalletOnboardingScreenState extends State<WalletOnboardingScreen> {
+  final _cashController = TextEditingController();
+  final _transferController = TextEditingController();
   bool _isSaving = false;
-
-  List<WalletPreset> get _selectedPresets {
-    final list = <WalletPreset>[..._selectedBanks];
-    if (_selectedEwallet != null) list.add(_selectedEwallet!);
-    if (_hasCash) {
-      list.add(ewalletPresets.firstWhere((p) => p.type == WalletType.cash));
-    }
-    return list;
-  }
 
   @override
   void dispose() {
-    for (final c in _balanceControllers.values) {
-      c.dispose();
-    }
+    _cashController.dispose();
+    _transferController.dispose();
     super.dispose();
   }
 
@@ -59,433 +35,192 @@ class _WalletOnboardingScreenState
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Color(0xFF093030)),
-          onPressed: () {
-            if (_step == 1) {
-              Navigator.of(context).pop();
-            } else {
-              setState(() => _step = 1);
-            }
-          },
+          onPressed: () => Navigator.of(context).pop(),
         ),
-        title: Text(
-          _step == 1
-              ? 'Chọn tài khoản (${_selectedBanks.length + (_selectedEwallet != null ? 1 : 0)}/3)'
-              : 'Nhập số dư',
-          style: const TextStyle(
+        title: const Text(
+          'Thiết lập nguồn tiền',
+          style: TextStyle(
             color: Color(0xFF093030),
             fontWeight: FontWeight.w600,
             fontSize: 18,
           ),
         ),
       ),
-      body: _step == 1 ? _buildStep1() : _buildStep2(),
-    );
-  }
-
-  // =========================================================================
-  // STEP 1 — Pick wallets
-  // =========================================================================
-  Widget _buildStep1() {
-    // Groups: banks, ewallets, cash
-    return Column(
-      children: [
-        Expanded(
-          child: SingleChildScrollView(
-            padding: EdgeInsets.symmetric(
-              horizontal: Responsive.w(context, 20),
-              vertical: Responsive.h(context, 12),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildSectionHeader('Ngân hàng (tối đa 2)'),
-                SizedBox(height: Responsive.h(context, 8)),
-                _buildPresetGrid(
-                  presets: bankPresets,
-                  maxSelect: 2,
-                  selectedList: _selectedBanks,
-                  onToggle: (p) {
-                    setState(() {
-                      final idx = _selectedBanks.indexOf(p);
-                      if (idx >= 0) {
-                        _selectedBanks.removeAt(idx);
-                      } else if (_selectedBanks.length < 2) {
-                        _selectedBanks.add(p);
-                      }
-                    });
-                  },
-                ),
-                SizedBox(height: Responsive.h(context, 24)),
-                _buildSectionHeader('Ví điện tử (tối đa 1)'),
-                SizedBox(height: Responsive.h(context, 8)),
-                _buildPresetGrid(
-                  presets: ewalletPresets
-                      .where((p) => p.type == WalletType.ewallet)
-                      .toList(),
-                  maxSelect: 1,
-                  selectedList: _selectedEwallet != null
-                      ? [_selectedEwallet!]
-                      : [],
-                  onToggle: (p) {
-                    setState(() {
-                      if (_selectedEwallet == p) {
-                        _selectedEwallet = null;
-                      } else {
-                        _selectedEwallet = p;
-                      }
-                    });
-                  },
-                ),
-                SizedBox(height: Responsive.h(context, 24)),
-                _buildSectionHeader('Tiền mặt'),
-                SizedBox(height: Responsive.h(context, 8)),
-                _buildCashToggle(),
-              ],
-            ),
+      body: SafeArea(
+        top: false,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(
+            Responsive.w(context, 20),
+            Responsive.h(context, 16),
+            Responsive.w(context, 20),
+            Responsive.h(context, 20),
           ),
-        ),
-        _buildStep1BottomBar(),
-      ],
-    );
-  }
-
-  Widget _buildSectionHeader(String title) {
-    return Text(
-      title,
-      style: const TextStyle(
-        fontFamily: 'Poppins',
-        fontWeight: FontWeight.w600,
-        fontSize: 15,
-        color: Color(0xFF093030),
-      ),
-    );
-  }
-
-  Widget _buildPresetGrid({
-    required List<WalletPreset> presets,
-    required int maxSelect,
-    required List<WalletPreset> selectedList,
-    required void Function(WalletPreset) onToggle,
-  }) {
-    return Wrap(
-      spacing: Responsive.w(context, 10),
-      runSpacing: Responsive.h(context, 10),
-      children: presets.map((p) {
-        final isSelected = selectedList.contains(p);
-        final isDisabled = !isSelected && selectedList.length >= maxSelect;
-        return GestureDetector(
-          onTap: isDisabled ? null : () => onToggle(p),
-          child: AnimatedOpacity(
-            duration: const Duration(milliseconds: 200),
-            opacity: isDisabled ? 0.35 : 1.0,
-            child: Container(
-              width: Responsive.w(context, 76),
-              padding: EdgeInsets.symmetric(vertical: Responsive.h(context, 8)),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? p.brandColor.withValues(alpha: 0.12)
-                    : Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: isSelected ? p.brandColor : const Color(0xFFE0E0E0),
-                  width: isSelected ? 2 : 1,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Nhập số dư hiện tại',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF052224),
                 ),
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Image.asset(
-                    p.logoAssetPath,
-                    width: Responsive.w(context, 32),
-                    height: Responsive.w(context, 32),
-                    errorBuilder: (_, __, ___) => Container(
-                      width: Responsive.w(context, 32),
-                      height: Responsive.w(context, 32),
-                      decoration: BoxDecoration(
-                        color: p.brandColor,
-                        borderRadius: BorderRadius.circular(8),
+              SizedBox(height: Responsive.h(context, 6)),
+              const Text(
+                'FinFlow sử dụng hai nguồn tiền chung. Bạn có thể nhập 0 và cập nhật lại sau.',
+                style: TextStyle(color: Color(0xFF5F6F6B), height: 1.45),
+              ),
+              SizedBox(height: Responsive.h(context, 24)),
+              _BalanceCard(
+                controller: _cashController,
+                title: 'Tiền mặt',
+                description: 'Tiền bạn đang giữ và chi tiêu trực tiếp',
+                icon: Icons.payments_outlined,
+                color: const Color(0xFF4CAF50),
+              ),
+              SizedBox(height: Responsive.h(context, 14)),
+              _BalanceCard(
+                controller: _transferController,
+                title: 'Chuyển khoản',
+                description: 'Các khoản thanh toán không dùng tiền mặt',
+                icon: Icons.swap_horiz_rounded,
+                color: const Color(0xFF2878D0),
+              ),
+              const Spacer(),
+              FilledButton(
+                onPressed: _isSaving ? null : _save,
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.primaryGreen,
+                  foregroundColor: const Color(0xFF002112),
+                  minimumSize: Size.fromHeight(Responsive.h(context, 52)),
+                  shape: const StadiumBorder(),
+                ),
+                child: _isSaving
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text(
+                        'Tiếp tục',
+                        style: TextStyle(fontWeight: FontWeight.w700),
                       ),
-                      child: Center(
-                        child: Text(
-                          p.name.substring(0, 1),
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: Responsive.sp(context, 14),
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: Responsive.h(context, 4)),
-                  Text(
-                    p.name,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontFamily: 'Poppins',
-                      fontSize: Responsive.sp(context, 10),
-                      fontWeight: isSelected
-                          ? FontWeight.w600
-                          : FontWeight.w400,
-                      color: const Color(0xFF052224),
-                    ),
-                  ),
-                ],
               ),
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _buildCashToggle() {
-    return GestureDetector(
-      onTap: () => setState(() => _hasCash = !_hasCash),
-      child: Container(
-        padding: EdgeInsets.symmetric(
-          horizontal: Responsive.w(context, 16),
-          vertical: Responsive.h(context, 12),
-        ),
-        decoration: BoxDecoration(
-          color: _hasCash
-              ? const Color(0xFF4CAF50).withValues(alpha: 0.12)
-              : Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: _hasCash ? const Color(0xFF4CAF50) : const Color(0xFFE0E0E0),
-            width: _hasCash ? 2 : 1,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Image.asset(
-              'assets/logos/ewallets/cash.png',
-              width: 32,
-              height: 32,
-              errorBuilder: (_, __, ___) => Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF4CAF50),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.money, color: Colors.white, size: 18),
-              ),
-            ),
-            SizedBox(width: Responsive.w(context, 12)),
-            const Text(
-              'Tiền mặt',
-              style: TextStyle(
-                fontFamily: 'Poppins',
-                fontWeight: FontWeight.w500,
-                fontSize: 14,
-                color: Color(0xFF052224),
-              ),
-            ),
-            const Spacer(),
-            Icon(
-              _hasCash ? Icons.check_circle : Icons.radio_button_unchecked,
-              color: _hasCash
-                  ? const Color(0xFF4CAF50)
-                  : const Color(0xFF9E9E9E),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStep1BottomBar() {
-    final canProceed = _selectedBanks.isNotEmpty || _selectedEwallet != null;
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.all(Responsive.w(context, 20)),
-        child: SizedBox(
-          width: double.infinity,
-          height: Responsive.h(context, 48),
-          child: ElevatedButton(
-            onPressed: canProceed ? _goToStep2 : null,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryGreen,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(30),
-              ),
-            ),
-            child: Text(
-              'Tiếp theo',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: Responsive.sp(context, 16),
-              ),
-            ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  void _goToStep2() {
-    // Create controllers for each selected wallet
-    for (final p in _selectedPresets) {
-      if (!_balanceControllers.containsKey(p.name)) {
-        _balanceControllers[p.name] = TextEditingController();
-      }
-    }
-    setState(() => _step = 2);
-  }
-
-  // =========================================================================
-  // STEP 2 — Enter balances
-  // =========================================================================
-  Widget _buildStep2() {
-    return Column(
-      children: [
-        Expanded(
-          child: SingleChildScrollView(
-            padding: EdgeInsets.symmetric(
-              horizontal: Responsive.w(context, 24),
-              vertical: Responsive.h(context, 16),
-            ),
-            child: Column(
-              children: _selectedPresets.map((p) {
-                final ctrl = _balanceControllers[p.name]!;
-                return Padding(
-                  padding: EdgeInsets.only(bottom: Responsive.h(context, 16)),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Image.asset(
-                            p.logoAssetPath,
-                            width: 28,
-                            height: 28,
-                            errorBuilder: (_, __, ___) => Container(
-                              width: 28,
-                              height: 28,
-                              decoration: BoxDecoration(
-                                color: p.brandColor,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Center(
-                                child: Text(
-                                  p.name.substring(0, 1),
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          SizedBox(width: Responsive.w(context, 10)),
-                          Text(
-                            p.name,
-                            style: const TextStyle(
-                              fontFamily: 'Poppins',
-                              fontWeight: FontWeight.w500,
-                              fontSize: 15,
-                              color: Color(0xFF052224),
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: Responsive.h(context, 8)),
-                      TextField(
-                        controller: ctrl,
-                        keyboardType: TextInputType.number,
-                        decoration: InputDecoration(
-                          hintText: '0',
-                          prefixText: 'VNĐ ',
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          contentPadding: EdgeInsets.symmetric(
-                            horizontal: Responsive.w(context, 16),
-                            vertical: Responsive.h(context, 12),
-                          ),
-                        ),
-                        style: const TextStyle(fontSize: 16),
-                      ),
-                    ],
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-        ),
-        _buildStep2BottomBar(),
-      ],
-    );
-  }
-
-  Widget _buildStep2BottomBar() {
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.all(Responsive.w(context, 20)),
-        child: SizedBox(
-          width: double.infinity,
-          height: Responsive.h(context, 48),
-          child: ElevatedButton(
-            onPressed: _isSaving ? null : _saveWallets,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryGreen,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(30),
-              ),
-            ),
-            child: _isSaving
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Text(
-                    'Hoàn tất',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: Responsive.sp(context, 16),
-                    ),
-                  ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _saveWallets() async {
+  Future<void> _save() async {
     setState(() => _isSaving = true);
     try {
-      final userId = AuthService.instance.currentUser!.id;
-      final wallets = _selectedPresets.map((p) {
-        final raw = _balanceControllers[p.name]?.text.trim() ?? '';
-        final balance = int.tryParse(raw.replaceAll(',', '')) ?? 0;
-        return WalletModel(
-          id: 'w_${DateTime.now().millisecondsSinceEpoch}_${p.name.hashCode.abs()}',
-          userId: userId,
-          name: p.name,
-          logoAssetPath: p.logoAssetPath,
-          brandColor: p.brandColor,
-          type: p.type,
-          initialBalance: balance,
-        );
-      }).toList();
-
-      await WalletService.instance.insertWallets(wallets);
+      await WalletService.instance.saveSystemWallets(
+        cashInitialBalance: _parseBalance(_cashController.text),
+        transferInitialBalance: _parseBalance(_transferController.text),
+      );
       if (!mounted) return;
-      // Navigate to budget setup
       Navigator.of(
         context,
       ).pushNamedAndRemoveUntil(AppRoutes.budgetSetup, (route) => false);
-    } catch (e) {
+    } catch (error) {
       if (!mounted) return;
       setState(() => _isSaving = false);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
+      ).showSnackBar(SnackBar(content: Text('Không thể lưu: $error')));
     }
+  }
+
+  static int _parseBalance(String value) {
+    return int.tryParse(value.replaceAll(RegExp(r'\D'), '')) ?? 0;
+  }
+}
+
+class _BalanceCard extends StatelessWidget {
+  const _BalanceCard({
+    required this.controller,
+    required this.title,
+    required this.description,
+    required this.icon,
+    required this.color,
+  });
+
+  final TextEditingController controller;
+  final String title;
+  final String description;
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: color),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                      ),
+                    ),
+                    Text(
+                      description,
+                      style: const TextStyle(
+                        color: Color(0xFF6D7B74),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: controller,
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            decoration: InputDecoration(
+              labelText: 'Số dư ban đầu',
+              hintText: '0',
+              suffixText: 'VND',
+              filled: true,
+              fillColor: const Color(0xFFF6FAF8),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

@@ -5,22 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  const momo = WalletModel(
-    id: 'wallet-momo',
+  const transfer = WalletModel(
+    id: 'wallet-transfer',
     userId: 'user-1',
-    name: 'MoMo',
-    logoAssetPath: '',
-    brandColor: Colors.pink,
-    type: WalletType.ewallet,
-    initialBalance: 0,
-  );
-  const mb = WalletModel(
-    id: 'wallet-mb',
-    userId: 'user-1',
-    name: 'MB Bank',
+    name: 'Chuyển khoản',
     logoAssetPath: '',
     brandColor: Colors.blue,
-    type: WalletType.bank,
+    type: WalletType.transfer,
     initialBalance: 0,
   );
   const cash = WalletModel(
@@ -38,7 +29,7 @@ void main() {
     name: 'Old Wallet',
     logoAssetPath: '',
     brandColor: Colors.grey,
-    type: WalletType.bank,
+    type: WalletType.transfer,
     initialBalance: 0,
     isActive: false,
   );
@@ -48,7 +39,7 @@ void main() {
     dynamic amount = 50000,
     dynamic name = 'Lunch',
     dynamic categoryKey = 'Food',
-    dynamic walletName = 'MoMo',
+    dynamic walletName = 'Chuyển khoản',
     dynamic date = '2026-07-11T12:00:00',
     dynamic confidence = 0.95,
     dynamic warnings = const <String>[],
@@ -70,7 +61,7 @@ void main() {
 
   QuickAddService service(
     dynamic result, {
-    List<WalletModel> wallets = const [momo, mb, cash, inactive],
+    List<WalletModel> wallets = const [transfer, cash, inactive],
     List<String> categories = const ['Food', 'Salary', 'Other'],
   }) => QuickAddService.forTesting(
     invoker: (_) async => result,
@@ -80,8 +71,8 @@ void main() {
 
   Future<QuickAddDraft> parse(
     dynamic result, {
-    String text = 'Lunch 50k with MoMo',
-    List<WalletModel> wallets = const [momo, mb, cash, inactive],
+    String text = 'Lunch 50k by bank transfer',
+    List<WalletModel> wallets = const [transfer, cash, inactive],
     List<String> categories = const ['Food', 'Salary', 'Other'],
   }) => service(
     result,
@@ -95,7 +86,7 @@ void main() {
       expect(draft.type, QuickAddTransactionType.expense);
       expect(draft.amount, 50000);
       expect(draft.categoryKey, 'Food');
-      expect(draft.walletId, momo.id);
+      expect(draft.walletId, transfer.id);
       expect(draft.canConfirm, isTrue);
     });
 
@@ -208,9 +199,9 @@ void main() {
     });
 
     test('wallet resolves by exact name', () async {
-      final draft = await parse(response(walletName: 'MoMo'));
-      expect(draft.walletId, momo.id);
-      expect(draft.walletName, momo.name);
+      final draft = await parse(response(walletName: 'Chuyển khoản'));
+      expect(draft.walletId, transfer.id);
+      expect(draft.walletName, transfer.name);
     });
 
     test('abbreviated wallet name is not used as an identifier', () async {
@@ -294,7 +285,7 @@ void main() {
       () async {
         final draft = await parse(
           response(walletName: null),
-          wallets: const [momo, mb, inactive],
+          wallets: const [transfer, inactive],
         );
         expect(draft.walletId, isNull);
         expect(draft.walletName, isNull);
@@ -324,7 +315,7 @@ void main() {
   group('transfer and conversion', () {
     test('unsupported transfer cannot be directly confirmed', () async {
       final draft = await parse(
-        response(type: 'expense', walletName: 'MoMo'),
+        response(type: 'expense', walletName: 'Chuyển khoản'),
         text: 'Chuyển 500k từ MoMo sang MB',
       );
       expect(draft.type, isNull);
@@ -375,7 +366,7 @@ void main() {
         captured = body;
         return response();
       },
-      wallets: () => const [momo, inactive],
+      wallets: () => const [transfer, inactive],
       categoryKeys: () => const ['Food', 'Other'],
     );
     await quickAdd.parse(

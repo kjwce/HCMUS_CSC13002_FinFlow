@@ -8,8 +8,6 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/responsive.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../scan/presentation/scan_screen.dart';
-import '../models/bank_preset.dart';
-import '../models/ewallet_preset.dart';
 import '../models/quick_add_draft_model.dart';
 import '../models/transaction_category.dart';
 import '../models/transaction_model.dart';
@@ -106,7 +104,7 @@ class AddTransactionSheet extends ConsumerStatefulWidget {
 
 enum _AddMode { manual, quick, scan }
 
-enum _AccountCategory { bank, ewallet, cash }
+enum _AccountCategory { cash, transfer }
 
 enum _QuickAddVoiceState {
   idle,
@@ -358,7 +356,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
         SizedBox(height: Responsive.h(context, 12)),
         _buildSelectionField(
           fieldKey: const Key('manual_source_field'),
-          label: 'SOURCE',
+          label: 'PAYMENT METHOD',
           value: _sourceDisplayName(wallet?.name ?? _selectedWalletName),
           leading: wallet == null
               ? Icon(Icons.account_balance_rounded, color: accent, size: 22)
@@ -402,8 +400,8 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   }
 
   String _sourceDisplayName(String? name) {
-    if (name == null || name.isEmpty) return 'Select Source';
-    return name == 'Tiền mặt' ? 'Cash' : name;
+    if (name == null || name.isEmpty) return 'Select payment method';
+    return name;
   }
 
   Widget _buildQuickMode() {
@@ -684,7 +682,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       return;
     }
     if (_selectedWalletId == null) {
-      _showMessage('Please select an account');
+      _showMessage('Please select a payment method');
       return;
     }
     try {
@@ -770,9 +768,8 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
 
   static _AccountCategory _accountCategoryFor(WalletType type) {
     return switch (type) {
-      WalletType.bank => _AccountCategory.bank,
-      WalletType.ewallet => _AccountCategory.ewallet,
       WalletType.cash => _AccountCategory.cash,
+      WalletType.transfer => _AccountCategory.transfer,
     };
   }
 
@@ -1305,16 +1302,6 @@ class _SourceSelectionSheet extends StatefulWidget {
 class _SourceSelectionSheetState extends State<_SourceSelectionSheet> {
   WalletPreset? _selected;
 
-  static const _availableEwalletAssetPaths = {
-    'assets/logos/ewallets/momo.png',
-    'assets/logos/ewallets/zalopay.png',
-    'assets/logos/ewallets/vnpay.png',
-    'assets/logos/ewallets/viettelmoney.png',
-    'assets/logos/ewallets/grabpay.png',
-    'assets/logos/ewallets/onepay.png',
-    'assets/logos/ewallets/paypal.png',
-  };
-
   static const _cash = WalletPreset(
     name: 'Tiền mặt',
     logoAssetPath: 'assets/logos/ewallets/cash.png',
@@ -1322,10 +1309,17 @@ class _SourceSelectionSheetState extends State<_SourceSelectionSheet> {
     type: WalletType.cash,
   );
 
+  static const _transfer = WalletPreset(
+    name: 'Chuyển khoản',
+    logoAssetPath: 'assets/logos/ewallets/other.png',
+    brandColor: Color(0xFF2878D0),
+    type: WalletType.transfer,
+  );
+
   @override
   void initState() {
     super.initState();
-    final all = [_cash, ...bankPresets, ..._ewallets];
+    const all = [_cash, _transfer];
     for (final preset in all) {
       if (preset.name == widget.selectedName &&
           _AddTransactionSheetState._accountCategoryFor(preset.type) ==
@@ -1335,14 +1329,6 @@ class _SourceSelectionSheetState extends State<_SourceSelectionSheet> {
       }
     }
   }
-
-  static List<WalletPreset> get _ewallets => ewalletPresets
-      .where(
-        (preset) =>
-            preset.type == WalletType.ewallet &&
-            _availableEwalletAssetPaths.contains(preset.logoAssetPath),
-      )
-      .toList(growable: false);
 
   @override
   Widget build(BuildContext context) {
@@ -1358,16 +1344,14 @@ class _SourceSelectionSheetState extends State<_SourceSelectionSheet> {
             children: [
               const _SheetHandle(),
               _SheetHeader(
-                title: 'Select Source',
+                title: 'Select Payment Method',
                 onClose: () => Navigator.of(context).pop(),
               ),
               Expanded(
                 child: ListView(
                   padding: const EdgeInsets.symmetric(horizontal: 14),
                   children: [
-                    _section('CASH', const [_cash]),
-                    _section('BANK', bankPresets),
-                    _section('E-WALLET', _ewallets),
+                    _section('PAYMENT METHOD', const [_cash, _transfer]),
                   ],
                 ),
               ),
@@ -1440,9 +1424,7 @@ class _SourceSelectionSheetState extends State<_SourceSelectionSheet> {
                     errorBuilder: (_, _, _) => Icon(
                       preset.type == WalletType.cash
                           ? Icons.payments_outlined
-                          : preset.type == WalletType.ewallet
-                          ? Icons.account_balance_wallet_outlined
-                          : Icons.account_balance_outlined,
+                          : Icons.swap_horiz_rounded,
                       color: preset.brandColor,
                     ),
                   ),
@@ -1454,16 +1436,15 @@ class _SourceSelectionSheetState extends State<_SourceSelectionSheet> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        preset.name == 'Tiền mặt' ? 'Cash' : preset.name,
+                        preset.name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(fontWeight: FontWeight.w600),
                       ),
                       Text(
                         switch (preset.type) {
-                          WalletType.bank => 'Bank account',
-                          WalletType.ewallet => 'E-wallet',
-                          WalletType.cash => 'Manual tracking',
+                          WalletType.cash => 'Cash payment',
+                          WalletType.transfer => 'Cashless payment',
                         },
                         style: const TextStyle(
                           fontSize: 11,

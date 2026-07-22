@@ -59,7 +59,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('source field opens grouped source rows with asset images', (
+  testWidgets('source field shows cash and transfer payment methods', (
     tester,
   ) async {
     await pumpAddScreen(tester);
@@ -67,12 +67,10 @@ void main() {
     await tester.tap(find.byKey(const Key('manual_source_field')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Select Source'), findsWidgets);
-    expect(find.text('CASH'), findsOneWidget);
-    expect(find.text('BANK'), findsOneWidget);
-    await tester.drag(find.byType(ListView).last, const Offset(0, -1800));
-    await tester.pumpAndSettle();
-    expect(find.text('E-WALLET'), findsOneWidget);
+    expect(find.text('Select Payment Method'), findsOneWidget);
+    expect(find.text('PAYMENT METHOD'), findsOneWidget);
+    expect(find.text('Tiền mặt'), findsOneWidget);
+    expect(find.text('Chuyển khoản'), findsOneWidget);
     expect(find.byType(Image), findsWidgets);
     expect(tester.takeException(), isNull);
   });

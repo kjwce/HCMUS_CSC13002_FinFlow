@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/wallet_model.dart';
@@ -55,19 +55,39 @@ class WalletService extends ChangeNotifier {
     if (userId == null) throw Exception('Not authenticated');
 
     final payload = wallets.map((w) => w.toJson()).toList();
-    await Supabase.instance.client.from('wallets').insert(payload);
+    await Supabase.instance.client
+        .from('wallets')
+        .upsert(payload, onConflict: 'id');
     await fetchWallets();
   }
 
-  Future<void> deleteWallet(String walletId) async {
+  /// Creates or updates the user's two canonical payment sources.
+  Future<void> saveSystemWallets({
+    required int cashInitialBalance,
+    required int transferInitialBalance,
+  }) async {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) throw Exception('Not authenticated');
 
-    await Supabase.instance.client
-        .from('wallets')
-        .delete()
-        .eq('id', walletId)
-        .eq('user_id', userId);
-    await fetchWallets();
+    await insertWallets([
+      WalletModel(
+        id: WalletModel.systemId(userId, WalletType.cash),
+        userId: userId,
+        name: 'Tiền mặt',
+        logoAssetPath: 'assets/logos/ewallets/cash.png',
+        brandColor: const Color(0xFF4CAF50),
+        type: WalletType.cash,
+        initialBalance: cashInitialBalance,
+      ),
+      WalletModel(
+        id: WalletModel.systemId(userId, WalletType.transfer),
+        userId: userId,
+        name: 'Chuyển khoản',
+        logoAssetPath: 'assets/logos/ewallets/other.png',
+        brandColor: const Color(0xFF2878D0),
+        type: WalletType.transfer,
+        initialBalance: transferInitialBalance,
+      ),
+    ]);
   }
 }

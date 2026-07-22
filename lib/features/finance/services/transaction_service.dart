@@ -37,10 +37,6 @@ class TransactionService extends ChangeNotifier {
 
   static final TransactionService instance = TransactionService._();
   List<TransactionModel> _transactions = [];
-  bool _fetchedOnce = false;
-
-  /// Whether initial fetch has been done.
-  bool get hasFetched => _fetchedOnce;
 
   List<TransactionModel> get transactions => List.unmodifiable(_transactions);
 
@@ -500,7 +496,7 @@ class TransactionService extends ChangeNotifier {
     return result;
   }
 
-  /// Income breakdown by wallet type (bank / ewallet / cash) for [period] (cached).
+  /// Income breakdown by payment source (cash / transfer) for [period].
   Map<String, int> incomeByWalletTypeForPeriod(
     ChartPeriod period, {
     int offset = 0,
@@ -510,14 +506,14 @@ class TransactionService extends ChangeNotifier {
     if (inner.containsKey(cacheKey)) return inner[cacheKey]!;
 
     final range = dateRangeForPeriod(period, offset: offset);
-    final map = <String, int>{'bank': 0, 'ewallet': 0, 'cash': 0};
+    final map = <String, int>{'cash': 0, 'transfer': 0};
     final ws = WalletService.instance;
 
     for (final t in currentUserTransactions) {
       if (t.amount <= 0) continue;
       if (!_isWithinRange(t.date, range.start, range.end)) continue;
       final wallet = ws.byId(t.walletId);
-      final type = wallet?.type.name ?? 'bank';
+      final type = wallet?.type.name ?? 'transfer';
       map[type] = (map[type] ?? 0) + t.amount;
     }
 
@@ -526,7 +522,7 @@ class TransactionService extends ChangeNotifier {
     return map;
   }
 
-  /// Expense breakdown by wallet type (bank / ewallet / cash) for [period] (cached).
+  /// Expense breakdown by payment source (cash / transfer) for [period].
   Map<String, int> expenseByWalletTypeForPeriod(
     ChartPeriod period, {
     int offset = 0,
@@ -536,14 +532,14 @@ class TransactionService extends ChangeNotifier {
     if (inner.containsKey(cacheKey)) return inner[cacheKey]!;
 
     final range = dateRangeForPeriod(period, offset: offset);
-    final map = <String, int>{'bank': 0, 'ewallet': 0, 'cash': 0};
+    final map = <String, int>{'cash': 0, 'transfer': 0};
     final ws = WalletService.instance;
 
     for (final t in currentUserTransactions) {
       if (t.amount >= 0) continue;
       if (!_isWithinRange(t.date, range.start, range.end)) continue;
       final wallet = ws.byId(t.walletId);
-      final type = wallet?.type.name ?? 'bank';
+      final type = wallet?.type.name ?? 'transfer';
       map[type] = (map[type] ?? 0) + t.amount.abs();
     }
 
