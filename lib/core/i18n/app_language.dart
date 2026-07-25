@@ -21,14 +21,16 @@ class AppLanguage extends ChangeNotifier {
   static final AppLanguage instance = AppLanguage._();
 
   static const _preferenceKey = 'finflow_language';
-  final SharedPreferencesAsync _preferences = SharedPreferencesAsync();
+  SharedPreferencesAsync? _preferences;
+  SharedPreferencesAsync get _preferenceStore =>
+      _preferences ??= SharedPreferencesAsync();
 
   AppLocale _locale = AppLocale.english;
   AppLocale get locale => _locale;
 
   Future<void> init() async {
     try {
-      final saved = await _preferences.getString(_preferenceKey);
+      final saved = await _preferenceStore.getString(_preferenceKey);
       _locale = saved == AppLocale.vietnamese.code
           ? AppLocale.vietnamese
           : AppLocale.english;
@@ -41,7 +43,7 @@ class AppLanguage extends ChangeNotifier {
     if (_locale == locale) return;
     _locale = locale;
     notifyListeners();
-    unawaited(_preferences.setString(_preferenceKey, locale.code));
+    unawaited(_saveLocale(locale));
   }
 
   void toggle() {
@@ -49,6 +51,14 @@ class AppLanguage extends ChangeNotifier {
         ? AppLocale.vietnamese
         : AppLocale.english;
     notifyListeners();
+  }
+
+  Future<void> _saveLocale(AppLocale locale) async {
+    try {
+      await _preferenceStore.setString(_preferenceKey, locale.code);
+    } catch (_) {
+      // Persistence is best-effort while platform plugins are unavailable.
+    }
   }
 }
 

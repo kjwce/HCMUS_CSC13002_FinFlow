@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../app/shell/bottom_nav_bar.dart';
 import '../../../core/theme/app_colors.dart';
@@ -149,10 +148,10 @@ class _BudgetLimitsScreenState extends State<BudgetLimitsScreen> {
           ),
           SizedBox(height: Responsive.h(context, 18)),
           _BudgetLimitCard(
-            icon: SvgPicture.asset(
-              'assets/icons/icon_weekly_budget.svg',
-              width: Responsive.w(context, 20),
-              height: Responsive.w(context, 20),
+            icon: const Icon(
+              Icons.calendar_today_rounded,
+              color: Color(0xFF00785D),
+              size: 20,
             ),
             title: 'Weekly Budget',
             subtitle: 'Set goals for the week',
@@ -276,9 +275,11 @@ class _BudgetLimitCard extends StatelessWidget {
                   keyboardType: TextInputType.number,
                   inputFormatters: const [_ThousandsFormatter()],
                   style: TextStyle(
-                    fontSize: Responsive.sp(context, 25),
-                    fontWeight: FontWeight.w500,
+                    fontFamily: 'Manrope',
+                    fontSize: Responsive.sp(context, 44),
+                    fontWeight: FontWeight.w700,
                     color: colors.primaryText,
+                    fontFeatures: const [FontFeature.tabularFigures()],
                   ),
                   decoration: const InputDecoration(
                     isDense: true,

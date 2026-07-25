@@ -408,7 +408,7 @@ void main() {
           ),
         ),
       );
-      expect(find.text('NEW EXPENSE'), findsOneWidget);
+      expect(find.text('New Expense'), findsOneWidget);
       expect(find.text('From Quick Add'), findsOneWidget);
       final fields = tester
           .widgetList<TextField>(find.byType(TextField))
@@ -457,7 +457,10 @@ void main() {
           ),
         ),
       );
-      expect(find.text('NEW INCOME'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('add_mode_manual')));
+      await tester.pump(const Duration(milliseconds: 190));
+      await tester.pumpAndSettle();
+      expect(find.text('New Income'), findsOneWidget);
       expect(find.text('From Quick Add'), findsNothing);
       final fields = tester
           .widgetList<TextField>(find.byType(TextField))

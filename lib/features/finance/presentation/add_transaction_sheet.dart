@@ -7,6 +7,7 @@ import '../../../core/i18n/app_language.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/responsive.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../auth/services/auth_service.dart';
 import '../../scan/presentation/scan_screen.dart';
 import '../models/quick_add_draft_model.dart';
 import '../models/transaction_category.dart';
@@ -15,6 +16,7 @@ import '../models/wallet_model.dart';
 import '../providers/transaction_provider.dart';
 import '../services/quick_add_service.dart';
 import '../services/quick_add_speech_recognition_service.dart';
+import '../services/transaction_service.dart';
 import '../services/wallet_service.dart';
 import 'quick_add_review_sheet.dart';
 import 'transaction_saved_screen.dart';
@@ -119,7 +121,8 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   final _amountController = TextEditingController();
   final _nameController = TextEditingController();
   final _quickAddController = TextEditingController();
-  var _mode = _AddMode.manual;
+  _AddMode? _mode;
+  _AddMode? _selectedInputMode;
   var _isExpense = false;
   var _isSavingTransaction = false;
   String? _selectedWalletId;
@@ -137,6 +140,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   var _voiceFinalHandled = false;
   var _latestVoiceTranscript = '';
   Timer? _voiceTimeout;
+  Timer? _modeNavigationTimer;
 
   bool get _isVoiceRecording => _voiceState == _QuickAddVoiceState.listening;
   bool get _isVoiceProcessing =>
@@ -146,6 +150,15 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   @override
   void initState() {
     super.initState();
+    final hasInitialDraft =
+        widget.fromQuickAdd ||
+        widget.initialIsExpense != null ||
+        widget.initialAmount != null ||
+        widget.initialName != null ||
+        widget.initialCategoryKey != null ||
+        widget.initialWalletId != null ||
+        widget.initialDate != null;
+    _mode = hasInitialDraft ? _AddMode.manual : null;
     _isExpense = widget.initialIsExpense ?? false;
     _selectedCategory = widget.initialCategoryKey ?? 'Food';
     _selectedWalletId = widget.initialWalletId;
@@ -171,6 +184,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     _nameController.dispose();
     _quickAddController.dispose();
     _voiceTimeout?.cancel();
+    _modeNavigationTimer?.cancel();
     if (_voiceState != _QuickAddVoiceState.idle) {
       unawaited(QuickAddSpeechRecognitionService.instance.cancelListening());
     }
@@ -179,44 +193,54 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final transactionService = ref.read(transactionServiceProvider);
     return PopScope(
       canPop: _allowPop,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) unawaited(_requestClose());
+        if (!didPop) {
+          if (_mode != null && !widget.fromQuickAdd) {
+            setState(() => _mode = null);
+          } else {
+            unawaited(_requestClose());
+          }
+        }
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFFFDFCFF),
+        backgroundColor: const Color(0xFFF7FBF9),
         body: SafeArea(
           child: Column(
             children: [
               _buildHeader(),
               Expanded(
-                child: SingleChildScrollView(
-                  keyboardDismissBehavior:
-                      ScrollViewKeyboardDismissBehavior.onDrag,
-                  padding: EdgeInsets.fromLTRB(
-                    Responsive.w(context, 16),
-                    Responsive.h(context, 24),
-                    Responsive.w(context, 16),
-                    MediaQuery.viewInsetsOf(context).bottom +
-                        Responsive.h(context, 24),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _buildModeSelector(),
-                      SizedBox(height: Responsive.h(context, 24)),
-                      AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 260),
-                        switchInCurve: Curves.easeOutCubic,
-                        child: switch (_mode) {
-                          _AddMode.manual => _buildManualMode(),
-                          _AddMode.quick => _buildQuickMode(),
-                          _AddMode.scan => _buildScanMode(),
-                        },
-                      ),
-                    ],
-                  ),
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 220),
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeInCubic,
+                  transitionBuilder: _buildHorizontalPageTransition,
+                  child: _mode == null
+                      ? ListenableBuilder(
+                          key: const ValueKey('add-mode-picker'),
+                          listenable: transactionService,
+                          builder: (_, _) =>
+                              _buildModePicker(transactionService),
+                        )
+                      : SingleChildScrollView(
+                          key: ValueKey(_mode),
+                          keyboardDismissBehavior:
+                              ScrollViewKeyboardDismissBehavior.onDrag,
+                          padding: EdgeInsets.fromLTRB(
+                            Responsive.w(context, 20),
+                            Responsive.h(context, 20),
+                            Responsive.w(context, 20),
+                            MediaQuery.viewInsetsOf(context).bottom +
+                                Responsive.h(context, 24),
+                          ),
+                          child: switch (_mode!) {
+                            _AddMode.manual => _buildManualMode(),
+                            _AddMode.quick => _buildQuickMode(),
+                            _AddMode.scan => _buildScanMode(),
+                          },
+                        ),
                 ),
               ),
             ],
@@ -227,20 +251,23 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   }
 
   Widget _buildHeader() {
+    final title = switch (_mode) {
+      _AddMode.manual => 'Manual Entry',
+      _AddMode.quick => 'Voice',
+      _AddMode.scan => 'Scan',
+      _ => 'Add transaction',
+    };
     return Container(
       height: Responsive.h(context, 64),
-      padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 12)),
-      decoration: const BoxDecoration(
-        color: Color(0xFFFDFCFF),
-        border: Border(bottom: BorderSide(color: Color(0xFFC3C7CF))),
-      ),
+      padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 10)),
+      decoration: const BoxDecoration(color: Color(0xFFF7FBF9)),
       child: Stack(
         alignment: Alignment.center,
         children: [
           Align(
             alignment: Alignment.centerLeft,
             child: IconButton(
-              onPressed: _requestClose,
+              onPressed: _handleHeaderBack,
               tooltip: 'Back',
               icon: const Icon(
                 Icons.arrow_back_rounded,
@@ -250,7 +277,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
             ),
           ),
           Text(
-            'Add Transaction',
+            title,
             style: TextStyle(
               fontFamily: 'Manrope',
               fontSize: Responsive.sp(context, 18),
@@ -258,28 +285,717 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
               color: const Color(0xFF1A1C1E),
             ),
           ),
+          const Align(
+            alignment: Alignment.centerRight,
+            child: Icon(Icons.more_horiz_rounded, color: Color(0xFF43474E)),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildModeSelector() {
-    return _StitchSegmentedControl<_AddMode>(
-      entries: const [
-        (_AddMode.manual, 'MANUAL'),
-        (_AddMode.quick, 'QUICK'),
-        (_AddMode.scan, 'SCAN'),
-      ],
-      selected: _mode,
-      selectedColor: const Color(0xFF006C46),
-      onSelected: (value) => setState(() => _mode = value),
+  void _handleHeaderBack() {
+    if (_mode != null && !widget.fromQuickAdd) {
+      setState(() {
+        _mode = null;
+        _selectedInputMode = null;
+      });
+      return;
+    }
+    unawaited(_requestClose());
+  }
+
+  Widget _buildHorizontalPageTransition(
+    Widget child,
+    Animation<double> animation,
+  ) {
+    final isModePicker = child.key == const ValueKey('add-mode-picker');
+    final begin = isModePicker ? const Offset(-1, 0) : const Offset(1, 0);
+    return ClipRect(
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: begin,
+          end: Offset.zero,
+        ).animate(animation),
+        child: child,
+      ),
     );
+  }
+
+  void _selectInputMode(_AddMode mode) {
+    if (_selectedInputMode != null) return;
+    setState(() => _selectedInputMode = mode);
+    _modeNavigationTimer?.cancel();
+    _modeNavigationTimer = Timer(const Duration(milliseconds: 180), () {
+      if (!mounted || _selectedInputMode != mode) return;
+      setState(() {
+        _mode = mode;
+        _selectedInputMode = null;
+      });
+    });
+  }
+
+  Widget _buildModePicker(TransactionService transactionService) {
+    final budgetLimit = AuthService.instance.currentUser?.budgetLimit ?? 0;
+    final spent = _safeMonthlyExpense(transactionService);
+    final remaining = budgetLimit - spent;
+    final now = DateTime.now();
+    final lastDay = DateTime(now.year, now.month + 1, 0).day;
+    final daysLeft = (lastDay - now.day + 1).clamp(1, lastDay);
+    final shouldSpend = remaining > 0 ? remaining ~/ daysLeft : 0;
+    final isOverBudget = budgetLimit > 0 && remaining < 0;
+    final recent = _safeCurrentUserTransactions(transactionService)
+      ..sort((a, b) => b.date.compareTo(a.date));
+
+    return SingleChildScrollView(
+      key: const ValueKey('add-transaction-mode-picker'),
+      padding: EdgeInsets.fromLTRB(
+        Responsive.w(context, 20),
+        Responsive.h(context, 4),
+        Responsive.w(context, 20),
+        Responsive.h(context, 28),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildPromptRow(isOverBudget: isOverBudget),
+          SizedBox(height: Responsive.h(context, 16)),
+          _buildBudgetInsightCard(
+            budgetLimit: budgetLimit,
+            remaining: remaining,
+            shouldSpend: shouldSpend,
+            daysLeft: daysLeft,
+            isOverBudget: isOverBudget,
+          ),
+          SizedBox(height: Responsive.h(context, 16)),
+          _buildHabitBanner(),
+          SizedBox(height: Responsive.h(context, 20)),
+          Text('CHOOSE INPUT METHOD', style: _labelStyle),
+          SizedBox(height: Responsive.h(context, 10)),
+          Row(
+            children: [
+              Expanded(
+                child: _buildInputModeCard(
+                  key: const Key('add_mode_manual'),
+                  mode: _AddMode.manual,
+                  icon: Icons.keyboard_alt_outlined,
+                  label: 'MANUAL ENTRY',
+                  tint: const Color(0xFFE5F5F0),
+                  foreground: const Color(0xFF006C53),
+                  selected: _selectedInputMode == _AddMode.manual,
+                ),
+              ),
+              SizedBox(width: Responsive.w(context, 10)),
+              Expanded(
+                child: _buildInputModeCard(
+                  key: const Key('add_mode_quick'),
+                  mode: _AddMode.quick,
+                  icon: Icons.mic_none_rounded,
+                  label: 'VOICE',
+                  tint: const Color(0xFFE5F5F0),
+                  foreground: const Color(0xFF006C53),
+                  selected: _selectedInputMode == _AddMode.quick,
+                  badge: 'FAST',
+                ),
+              ),
+              SizedBox(width: Responsive.w(context, 10)),
+              Expanded(
+                child: _buildInputModeCard(
+                  key: const Key('add_mode_scan'),
+                  mode: _AddMode.scan,
+                  icon: Icons.photo_camera_outlined,
+                  label: 'SCAN',
+                  tint: const Color(0xFFFFE7E1),
+                  foreground: const Color(0xFFBA4B3D),
+                  selected: _selectedInputMode == _AddMode.scan,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: Responsive.h(context, 22)),
+          Text('QUICK CATEGORIES', style: _labelStyle),
+          SizedBox(height: Responsive.h(context, 10)),
+          _buildQuickCategories(),
+          SizedBox(height: Responsive.h(context, 22)),
+          Text('RECENT TRANSACTIONS', style: _labelStyle),
+          SizedBox(height: Responsive.h(context, 10)),
+          if (recent.isEmpty)
+            _buildEmptyRecentTransactions()
+          else
+            ...recent.take(2).map(_buildRecentTransaction),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPromptRow({required bool isOverBudget}) {
+    return Row(
+      children: [
+        Container(
+          width: Responsive.w(context, 42),
+          height: Responsive.w(context, 42),
+          decoration: BoxDecoration(
+            color: isOverBudget ? Colors.transparent : const Color(0xFF64D2AE),
+            shape: BoxShape.circle,
+          ),
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 180),
+            switchInCurve: Curves.easeOut,
+            switchOutCurve: Curves.easeIn,
+            child: isOverBudget
+                ? Image.asset(
+                    'assets/images/over_budget_worried.png',
+                    key: const ValueKey('over-budget-worried-mood'),
+                    fit: BoxFit.contain,
+                    gaplessPlayback: true,
+                    cacheWidth: 128,
+                    errorBuilder: (_, _, _) => const Center(
+                      key: ValueKey('over-budget-worried-mood-fallback'),
+                      child: Text('😟', style: TextStyle(fontSize: 24)),
+                    ),
+                  )
+                : const Center(
+                    key: ValueKey('on-track-happy-mood'),
+                    child: Text('😊', style: TextStyle(fontSize: 21)),
+                  ),
+          ),
+        ),
+        SizedBox(width: Responsive.w(context, 10)),
+        Expanded(
+          child: Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: Responsive.w(context, 14),
+              vertical: Responsive.h(context, 12),
+            ),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE2F4EF),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Text(
+              'What did you spend money on today?',
+              style: TextStyle(
+                fontFamily: 'Hanken Grotesk',
+                fontSize: 13,
+                color: Color(0xFF34443F),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBudgetInsightCard({
+    required int budgetLimit,
+    required int remaining,
+    required int shouldSpend,
+    required int daysLeft,
+    required bool isOverBudget,
+  }) {
+    final hasBudget = budgetLimit > 0;
+    final cardColors = isOverBudget
+        ? const [Color(0xFF10182B), Color(0xFF172139)]
+        : const [Color(0xFF006C53), Color(0xFF008F70)];
+    final amountColor = isOverBudget ? const Color(0xFFFF777C) : Colors.white;
+
+    return Container(
+      constraints: BoxConstraints(minHeight: Responsive.h(context, 116)),
+      padding: EdgeInsets.all(Responsive.w(context, 16)),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: cardColors,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x26006C53),
+            blurRadius: 16,
+            offset: Offset(0, 7),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'REMAINING BALANCE',
+                  style: _labelStyle.copyWith(
+                    color: Colors.white.withValues(alpha: 0.72),
+                    fontSize: 9,
+                  ),
+                ),
+              ),
+              _buildDaysLeftChip(daysLeft),
+            ],
+          ),
+          const SizedBox(height: 3),
+          RichText(
+            text: TextSpan(
+              children: [
+                TextSpan(
+                  text: hasBudget
+                      ? _formatInsightMoney(remaining)
+                      : 'No budget set',
+                  style: TextStyle(
+                    fontFamily: 'Manrope',
+                    fontSize: Responsive.sp(context, hasBudget ? 27 : 21),
+                    height: 1.05,
+                    fontWeight: FontWeight.w700,
+                    color: amountColor,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+                if (hasBudget)
+                  TextSpan(
+                    text: ' VND',
+                    style: TextStyle(
+                      fontFamily: 'Hanken Grotesk',
+                      fontSize: Responsive.sp(context, 12),
+                      fontWeight: FontWeight.w500,
+                      color: amountColor.withValues(alpha: 0.8),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          SizedBox(height: Responsive.h(context, 16)),
+          Row(
+            children: [
+              Icon(
+                isOverBudget
+                    ? Icons.warning_amber_rounded
+                    : Icons.savings_outlined,
+                color: isOverBudget
+                    ? const Color(0xFFFF777C)
+                    : const Color(0xFFA6F2D7),
+                size: 19,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isOverBudget ? 'DEFICIT WARNING' : 'YOU SHOULD SPEND',
+                      style: _labelStyle.copyWith(
+                        color: isOverBudget
+                            ? const Color(0xFFFF777C)
+                            : Colors.white.withValues(alpha: 0.65),
+                        fontSize: 8,
+                      ),
+                    ),
+                    Text(
+                      isOverBudget
+                          ? 'Reduce spending to recover balance'
+                          : hasBudget
+                          ? '${_formatInsightMoney(shouldSpend)} VND/day'
+                          : 'Set a monthly budget to see insights',
+                      style: const TextStyle(
+                        fontFamily: 'Hanken Grotesk',
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _buildBudgetStatusChip(isOverBudget, hasBudget),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDaysLeftChip(int daysLeft) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.calendar_today_outlined,
+            size: 11,
+            color: Colors.white,
+          ),
+          const SizedBox(width: 5),
+          Text(
+            '$daysLeft DAYS LEFT',
+            style: _labelStyle.copyWith(color: Colors.white, fontSize: 8),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBudgetStatusChip(bool isOverBudget, bool hasBudget) {
+    final background = !hasBudget
+        ? Colors.white.withValues(alpha: 0.16)
+        : isOverBudget
+        ? const Color(0xFFFF3D4E)
+        : const Color(0xFFFFCF3F);
+    final foreground = !hasBudget
+        ? Colors.white
+        : isOverBudget
+        ? Colors.white
+        : const Color(0xFF594500);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Text(
+        !hasBudget
+            ? 'NO BUDGET'
+            : isOverBudget
+            ? 'OVER BUDGET'
+            : 'ON TRACK',
+        style: _labelStyle.copyWith(
+          color: foreground,
+          fontSize: 8,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHabitBanner() {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: Responsive.w(context, 14),
+        vertical: Responsive.h(context, 11),
+      ),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF0D9),
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: const Row(
+        children: [
+          Text('🔥', style: TextStyle(fontSize: 17)),
+          SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              "You're building a healthy money habit. Keep it up!",
+              style: TextStyle(
+                fontFamily: 'Hanken Grotesk',
+                fontSize: 11,
+                color: Color(0xFF704E24),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInputModeCard({
+    required Key key,
+    required _AddMode mode,
+    required IconData icon,
+    required String label,
+    required Color tint,
+    required Color foreground,
+    required bool selected,
+    String? badge,
+  }) {
+    return SizedBox(
+      height: Responsive.h(context, 104),
+      child: Stack(
+        clipBehavior: Clip.none,
+        fit: StackFit.expand,
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 90),
+            curve: Curves.easeOut,
+            key: key,
+            decoration: BoxDecoration(
+              color: selected ? const Color(0xFF00513E) : Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: selected
+                    ? const Color(0xFF00513E)
+                    : const Color(0xFFDDE5E1),
+              ),
+              boxShadow: selected
+                  ? const [
+                      BoxShadow(
+                        color: Color(0x3000513E),
+                        blurRadius: 12,
+                        offset: Offset(0, 5),
+                      ),
+                    ]
+                  : const [
+                      BoxShadow(
+                        color: Color(0x0D000000),
+                        blurRadius: 6,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(14),
+              child: InkWell(
+                onTap: _selectedInputMode == null
+                    ? () => _selectInputMode(mode)
+                    : null,
+                borderRadius: BorderRadius.circular(14),
+                child: Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: Responsive.w(context, 6),
+                    vertical: Responsive.h(context, 10),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 90),
+                        width: Responsive.w(context, 38),
+                        height: Responsive.w(context, 38),
+                        decoration: BoxDecoration(
+                          color: selected ? const Color(0xFF58CCA9) : tint,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          icon,
+                          color: selected ? Colors.white : foreground,
+                          size: 21,
+                        ),
+                      ),
+                      SizedBox(height: Responsive.h(context, 7)),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: AnimatedDefaultTextStyle(
+                          duration: const Duration(milliseconds: 90),
+                          style: _labelStyle.copyWith(
+                            color: selected ? Colors.white : foreground,
+                            fontSize: 8,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          child: Text(label),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          if (badge != null)
+            Positioned(
+              right: -3,
+              top: -7,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFC84B),
+                  borderRadius: BorderRadius.circular(99),
+                ),
+                child: Text(
+                  badge,
+                  style: _labelStyle.copyWith(
+                    color: const Color(0xFF5C4300),
+                    fontSize: 7,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickCategories() {
+    final categories = TransactionCategory.popular.take(4).toList();
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        ...categories.map(
+          (category) => _QuickCategoryButton(
+            category: category,
+            onTap: () {
+              setState(() {
+                _selectedCategory = category.key;
+                _mode = _AddMode.manual;
+              });
+            },
+          ),
+        ),
+        _QuickCategoryButton(
+          category: const TransactionCategory(
+            key: 'More',
+            label: 'More',
+            icon: Icons.add_rounded,
+            color: Color(0xFFE6F4EF),
+          ),
+          outlined: true,
+          onTap: () async {
+            final result = await showModalBottomSheet<String>(
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              builder: (_) => TransactionCategorySelectionSheet(
+                initialKey: _selectedCategory,
+              ),
+            );
+            if (result != null && mounted) {
+              setState(() {
+                _selectedCategory = result;
+                _mode = _AddMode.manual;
+              });
+            }
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRecentTransaction(TransactionModel transaction) {
+    final category = _categoryForKey(transaction.category);
+    final isExpense = transaction.amount < 0;
+    return Container(
+      margin: EdgeInsets.only(bottom: Responsive.h(context, 9)),
+      padding: EdgeInsets.symmetric(
+        horizontal: Responsive.w(context, 12),
+        vertical: Responsive.h(context, 11),
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE4EAE7)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: category.color.withValues(alpha: 0.16),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(category.icon, size: 18, color: category.color),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  transaction.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontFamily: 'Hanken Grotesk',
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF1A1C1E),
+                  ),
+                ),
+                Text(
+                  _formatRecentDate(transaction.date),
+                  style: const TextStyle(
+                    fontFamily: 'Hanken Grotesk',
+                    fontSize: 10,
+                    color: Color(0xFF74817B),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            '${isExpense ? '-' : '+'}${_formatInsightMoney(transaction.amount.abs())}đ',
+            style: TextStyle(
+              fontFamily: 'Manrope',
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: isExpense
+                  ? const Color(0xFFC24444)
+                  : const Color(0xFF006C53),
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyRecentTransactions() {
+    return Container(
+      padding: EdgeInsets.all(Responsive.w(context, 16)),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE4EAE7)),
+      ),
+      child: const Text(
+        'Your latest transactions will appear here.',
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontFamily: 'Hanken Grotesk',
+          fontSize: 12,
+          color: Color(0xFF74817B),
+        ),
+      ),
+    );
+  }
+
+  static String _formatInsightMoney(int value) {
+    final sign = value < 0 ? '-' : '';
+    return '$sign${_addCommas(value.abs().toString())}';
+  }
+
+  static int _safeMonthlyExpense(TransactionService transactionService) {
+    try {
+      return transactionService.monthlyExpense;
+    } catch (_) {
+      // Widget previews and tests can render before Supabase is initialized.
+      return 0;
+    }
+  }
+
+  static List<TransactionModel> _safeCurrentUserTransactions(
+    TransactionService transactionService,
+  ) {
+    try {
+      return transactionService.currentUserTransactions.toList();
+    } catch (_) {
+      // Widget previews and tests can render before Supabase is initialized.
+      return <TransactionModel>[];
+    }
+  }
+
+  static String _formatRecentDate(DateTime value) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final date = DateTime(value.year, value.month, value.day);
+    final difference = today.difference(date).inDays;
+    final prefix = difference == 0
+        ? 'Today'
+        : difference == 1
+        ? 'Yesterday'
+        : '${value.month}/${value.day}/${value.year}';
+    final hour = value.hour % 12 == 0 ? 12 : value.hour % 12;
+    final minute = value.minute.toString().padLeft(2, '0');
+    final period = value.hour >= 12 ? 'PM' : 'AM';
+    return '$prefix, $hour:$minute $period';
   }
 
   Widget _buildManualMode() {
     final accent = _isExpense
         ? const Color(0xFFBA1A1A)
-        : const Color(0xFF006C46);
+        : const Color(0xFF006C53);
     final category = _categoryForKey(_selectedCategory);
     final wallet = WalletService.instance.byId(_selectedWalletId);
     final date = _transactionDate ?? DateTime.now();
@@ -288,83 +1004,93 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       key: const ValueKey(_AddMode.manual),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _StitchSegmentedControl<bool>(
-          entries: const [(false, 'NEW INCOME'), (true, 'NEW EXPENSE')],
-          selected: _isExpense,
-          selectedColor: accent,
-          onSelected: (value) => setState(() => _isExpense = value),
-        ),
+        _buildTransactionTypeTabs(accent),
+        SizedBox(height: Responsive.h(context, 16)),
+        _buildRefinedAmountField(accent),
         SizedBox(height: Responsive.h(context, 22)),
-        Text('AMOUNT (VND)', style: _labelStyle),
-        SizedBox(height: Responsive.h(context, 4)),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Expanded(
-              child: TextField(
-                key: const Key('manual_amount_field'),
-                controller: _amountController,
-                keyboardType: TextInputType.number,
-                cursorColor: accent,
-                style: TextStyle(
-                  fontFamily: 'Manrope',
-                  fontSize: Responsive.sp(context, 44),
-                  fontWeight: FontWeight.w700,
-                  color: accent,
-                ),
-                decoration: InputDecoration(
-                  hintText: '0',
-                  hintStyle: TextStyle(color: accent.withValues(alpha: 0.28)),
-                  enabledBorder: const UnderlineInputBorder(
-                    borderSide: BorderSide(color: Color(0xFFC3C7CF), width: 2),
+        Material(
+          key: const Key('manual_source_field'),
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: _showSourceSelection,
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Payment method',
+                      style: _manualSectionTitleStyle,
+                    ),
                   ),
-                  focusedBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: accent, width: 2),
+                  Text(
+                    _sourceDisplayName(wallet?.name ?? _selectedWalletName),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'Hanken Grotesk',
+                      fontSize: 11,
+                      color: accent,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: Responsive.w(context, 6),
-                    vertical: Responsive.h(context, 8),
-                  ),
-                ),
+                  const SizedBox(width: 2),
+                  Icon(Icons.chevron_right_rounded, size: 18, color: accent),
+                ],
               ),
             ),
-            Padding(
-              padding: EdgeInsets.only(
-                left: Responsive.w(context, 8),
-                bottom: Responsive.h(context, 18),
+          ),
+        ),
+        SizedBox(height: Responsive.h(context, 10)),
+        Row(
+          children: [
+            Expanded(
+              child: _buildPaymentMethodChip(
+                type: WalletType.cash,
+                label: 'Cash',
+                icon: Icons.payments_outlined,
+                accent: accent,
+                selected:
+                    wallet?.type == WalletType.cash ||
+                    _selectedAcctCategory == _AccountCategory.cash,
               ),
-              child: Text(
-                'VND',
-                style: _labelStyle.copyWith(
-                  color: accent.withValues(alpha: 0.72),
-                  fontWeight: FontWeight.w700,
-                ),
+            ),
+            SizedBox(width: Responsive.w(context, 10)),
+            Expanded(
+              child: _buildPaymentMethodChip(
+                type: WalletType.transfer,
+                label: 'Transfer',
+                icon: Icons.swap_horiz_rounded,
+                accent: accent,
+                selected:
+                    wallet?.type == WalletType.transfer ||
+                    _selectedAcctCategory == _AccountCategory.transfer,
               ),
             ),
           ],
         ),
-        SizedBox(height: Responsive.h(context, 18)),
+        SizedBox(height: Responsive.h(context, 24)),
+        Text('From category', style: _manualSectionTitleStyle),
+        SizedBox(height: Responsive.h(context, 10)),
         _buildSelectionField(
           fieldKey: const Key('manual_category_field'),
           label: 'CATEGORY',
           value: category.label,
-          leading: Icon(category.icon, color: accent, size: 22),
+          leading: Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: category.color.withValues(alpha: 0.16),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(category.icon, color: category.color, size: 20),
+          ),
           onTap: _showCategorySelection,
           accent: accent,
-          highlighted: true,
+          highlighted: false,
         ),
-        SizedBox(height: Responsive.h(context, 12)),
-        _buildSelectionField(
-          fieldKey: const Key('manual_source_field'),
-          label: 'PAYMENT METHOD',
-          value: _sourceDisplayName(wallet?.name ?? _selectedWalletName),
-          leading: wallet == null
-              ? Icon(Icons.account_balance_rounded, color: accent, size: 22)
-              : _walletLogo(wallet.logoAssetPath, wallet.brandColor),
-          onTap: _showSourceSelection,
-          accent: accent,
-        ),
-        SizedBox(height: Responsive.h(context, 12)),
+        SizedBox(height: Responsive.h(context, 16)),
         _buildSelectionField(
           label: 'DATE',
           value: _formatDate(date),
@@ -390,13 +1116,206 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
         SizedBox(height: Responsive.h(context, 18)),
         _buildPrimaryButton(
           label: 'Save Transaction',
-          color: _isExpense ? const Color(0xFFBA1A1A) : AppColors.primaryGreen,
-          foregroundColor: _isExpense ? Colors.white : const Color(0xFF002112),
+          color: const Color(0xFF006C53),
+          foregroundColor: Colors.white,
           isLoading: _isSavingTransaction,
           onPressed: _saveManualTransaction,
         ),
       ],
     );
+  }
+
+  TextStyle get _manualSectionTitleStyle => const TextStyle(
+    fontFamily: 'Hanken Grotesk',
+    fontSize: 13,
+    fontWeight: FontWeight.w600,
+    color: Color(0xFF45534D),
+  );
+
+  Widget _buildTransactionTypeTabs(Color accent) {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildTransactionTypeTab(
+            label: 'New Income',
+            selected: !_isExpense,
+            accent: accent,
+            onTap: () => setState(() => _isExpense = false),
+          ),
+        ),
+        Expanded(
+          child: _buildTransactionTypeTab(
+            label: 'New Expense',
+            selected: _isExpense,
+            accent: accent,
+            onTap: () => setState(() => _isExpense = true),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTransactionTypeTab({
+    required String label,
+    required bool selected,
+    required Color accent,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.symmetric(vertical: Responsive.h(context, 11)),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: selected ? accent : const Color(0xFFDDE5E1),
+              width: selected ? 2 : 1,
+            ),
+          ),
+        ),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontFamily: 'Hanken Grotesk',
+            fontSize: 13,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+            color: selected ? accent : const Color(0xFF7A8781),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRefinedAmountField(Color accent) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('AMOUNT (VND)', style: _labelStyle),
+        SizedBox(height: Responsive.h(context, 4)),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(
+              child: TextField(
+                key: const Key('manual_amount_field'),
+                controller: _amountController,
+                keyboardType: TextInputType.number,
+                textAlign: TextAlign.end,
+                cursorColor: accent,
+                style: TextStyle(
+                  fontFamily: 'Manrope',
+                  fontSize: Responsive.sp(context, 44),
+                  fontWeight: FontWeight.w700,
+                  color: accent,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+                decoration: InputDecoration(
+                  hintText: '0',
+                  hintStyle: TextStyle(color: accent.withValues(alpha: 0.26)),
+                  border: const UnderlineInputBorder(
+                    borderSide: BorderSide(
+                      color: Color(0xFFC3C7CF),
+                      width: 1.5,
+                    ),
+                  ),
+                  enabledBorder: const UnderlineInputBorder(
+                    borderSide: BorderSide(
+                      color: Color(0xFFC3C7CF),
+                      width: 1.5,
+                    ),
+                  ),
+                  focusedBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: accent, width: 1.8),
+                  ),
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: Responsive.w(context, 6),
+                    vertical: Responsive.h(context, 8),
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.only(
+                left: Responsive.w(context, 8),
+                bottom: Responsive.h(context, 18),
+              ),
+              child: Text(
+                'VND',
+                style: _labelStyle.copyWith(
+                  color: accent.withValues(alpha: 0.72),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPaymentMethodChip({
+    required WalletType type,
+    required String label,
+    required IconData icon,
+    required Color accent,
+    required bool selected,
+  }) {
+    return Material(
+      color: selected ? accent : Colors.white,
+      borderRadius: BorderRadius.circular(99),
+      child: InkWell(
+        onTap: () => _selectWalletType(type),
+        borderRadius: BorderRadius.circular(99),
+        child: Container(
+          constraints: BoxConstraints(minHeight: Responsive.h(context, 42)),
+          padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 14)),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(99),
+            border: Border.all(
+              color: selected ? accent : const Color(0xFFDDE5E1),
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                selected ? Icons.check_rounded : icon,
+                size: 17,
+                color: selected ? Colors.white : const Color(0xFF56645E),
+              ),
+              const SizedBox(width: 7),
+              Text(
+                label,
+                style: TextStyle(
+                  fontFamily: 'Hanken Grotesk',
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: selected ? Colors.white : const Color(0xFF45534D),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _selectWalletType(WalletType type) async {
+    final matches = WalletService.instance.currentUserWallets
+        .where((wallet) => wallet.type == type && wallet.isActive)
+        .toList(growable: false);
+    if (matches.isEmpty) {
+      await _showSourceSelection();
+      return;
+    }
+    final wallet = matches.first;
+    if (!mounted) return;
+    setState(() {
+      _selectedWalletId = wallet.id;
+      _selectedWalletName = wallet.name;
+      _selectedAcctCategory = _accountCategoryFor(wallet.type);
+    });
   }
 
   String _sourceDisplayName(String? name) {
@@ -493,45 +1412,35 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   }
 
   Widget _buildNameField(Color accent) {
-    return Container(
-      constraints: BoxConstraints(minHeight: Responsive.h(context, 70)),
-      padding: EdgeInsets.symmetric(
-        horizontal: Responsive.w(context, 14),
-        vertical: Responsive.h(context, 7),
-      ),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFC3C7CF)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0D000000),
-            blurRadius: 8,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.edit_note_rounded, color: accent, size: 25),
-          SizedBox(width: Responsive.w(context, 12)),
-          Expanded(
-            child: TextField(
-              key: const Key('manual_name_field'),
-              controller: _nameController,
-              textInputAction: TextInputAction.done,
-              cursorColor: accent,
-              decoration: InputDecoration(
-                labelText: 'TRANSACTION NAME',
-                labelStyle: _labelStyle.copyWith(fontSize: 10),
-                hintText: 'Enter transaction name...',
-                border: InputBorder.none,
-                isDense: true,
-              ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('TRANSACTION NAME', style: _labelStyle),
+        SizedBox(height: Responsive.h(context, 4)),
+        TextField(
+          key: const Key('manual_name_field'),
+          controller: _nameController,
+          textInputAction: TextInputAction.done,
+          cursorColor: accent,
+          decoration: InputDecoration(
+            hintText: 'Enter transaction name...',
+            prefixIcon: Icon(Icons.edit_note_rounded, color: accent, size: 24),
+            border: const UnderlineInputBorder(
+              borderSide: BorderSide(color: Color(0xFFC3C7CF), width: 1.5),
+            ),
+            enabledBorder: const UnderlineInputBorder(
+              borderSide: BorderSide(color: Color(0xFFC3C7CF), width: 1.5),
+            ),
+            focusedBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: accent, width: 1.8),
+            ),
+            isDense: true,
+            contentPadding: EdgeInsets.symmetric(
+              vertical: Responsive.h(context, 12),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -771,24 +1680,6 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       WalletType.cash => _AccountCategory.cash,
       WalletType.transfer => _AccountCategory.transfer,
     };
-  }
-
-  Widget _walletLogo(String path, Color fallbackColor) {
-    return Container(
-      width: 40,
-      height: 40,
-      padding: const EdgeInsets.all(5),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Image.asset(
-        path,
-        fit: BoxFit.contain,
-        errorBuilder: (_, _, _) =>
-            Icon(Icons.account_balance_rounded, color: fallbackColor, size: 24),
-      ),
-    );
   }
 
   static String _formatDate(DateTime value) {
@@ -1084,72 +1975,66 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   }
 }
 
-class _StitchSegmentedControl<T> extends StatelessWidget {
-  const _StitchSegmentedControl({
-    required this.entries,
-    required this.selected,
-    required this.selectedColor,
-    required this.onSelected,
+class _QuickCategoryButton extends StatelessWidget {
+  const _QuickCategoryButton({
+    required this.category,
+    required this.onTap,
+    this.outlined = false,
   });
 
-  final List<(T, String)> entries;
-  final T selected;
-  final Color selectedColor;
-  final ValueChanged<T> onSelected;
+  final TransactionCategory category;
+  final VoidCallback onTap;
+  final bool outlined;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: Responsive.h(context, 44),
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF1F4F9),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFC3C7CF)),
-      ),
-      child: Row(
-        children: entries.map((entry) {
-          final active = entry.$1 == selected;
-          return Expanded(
-            child: Semantics(
-              button: true,
-              selected: active,
-              label: entry.$2,
-              child: InkWell(
-                onTap: () => onSelected(entry.$1),
-                borderRadius: BorderRadius.circular(9),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 220),
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: active ? selectedColor : Colors.transparent,
-                    borderRadius: BorderRadius.circular(9),
-                    boxShadow: active
-                        ? const [
-                            BoxShadow(
-                              color: Color(0x1F000000),
-                              blurRadius: 5,
-                              offset: Offset(0, 2),
-                            ),
-                          ]
-                        : null,
-                  ),
-                  child: Text(
-                    entry.$2,
-                    maxLines: 1,
-                    style: TextStyle(
-                      fontFamily: 'JetBrains Mono',
-                      fontSize: Responsive.sp(context, 10),
-                      letterSpacing: 0.4,
-                      fontWeight: FontWeight.w600,
-                      color: active ? Colors.white : const Color(0xFF43474E),
-                    ),
-                  ),
+    return Semantics(
+      button: true,
+      label: category.label,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(99),
+        child: SizedBox(
+          width: Responsive.w(context, 58),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: Responsive.w(context, 42),
+                height: Responsive.w(context, 42),
+                decoration: BoxDecoration(
+                  color: outlined
+                      ? Colors.transparent
+                      : category.color.withValues(alpha: 0.2),
+                  shape: BoxShape.circle,
+                  border: outlined
+                      ? Border.all(
+                          color: const Color(0xFF8CB3A7),
+                          style: BorderStyle.solid,
+                        )
+                      : null,
+                ),
+                child: Icon(
+                  category.icon,
+                  size: 20,
+                  color: outlined ? const Color(0xFF006C53) : category.color,
                 ),
               ),
-            ),
-          );
-        }).toList(),
+              const SizedBox(height: 5),
+              Text(
+                category.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontFamily: 'Hanken Grotesk',
+                  fontSize: 9,
+                  color: Color(0xFF617069),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
