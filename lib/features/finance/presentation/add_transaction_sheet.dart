@@ -1354,7 +1354,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     );
   }
 
-  void _applyScanResult(ScanResultModel result) {
+  Future<void> _applyScanResult(ScanResultModel result) async {
     final amount = result.totalAmount > 0
         ? result.totalAmount
         : result.calculatedTotal;
@@ -1376,6 +1376,21 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
           candidate.value > current.value ? candidate : current,
     );
     final merchantName = result.merchantName?.trim();
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final firstAllowedDate = DateTime(2000);
+    final detectedDate = result.receiptDate == null
+        ? today
+        : DateTime(
+            result.receiptDate!.year,
+            result.receiptDate!.month,
+            result.receiptDate!.day,
+          );
+    final selectedDate = detectedDate.isBefore(firstAllowedDate)
+        ? firstAllowedDate
+        : detectedDate.isAfter(today)
+        ? today
+        : detectedDate;
 
     setState(() {
       _isExpense = true;
@@ -1384,10 +1399,26 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
           ? merchantName!
           : 'Hóa đơn đã quét';
       _selectedCategory = TransactionCategory.fromKey(dominantCategory.key).key;
-      _transactionDate = result.receiptDate;
+      _transactionDate = DateTime(
+        selectedDate.year,
+        selectedDate.month,
+        selectedDate.day,
+        now.hour,
+        now.minute,
+        now.second,
+        now.millisecond,
+        now.microsecond,
+      );
       _mode = _AddMode.manual;
       _selectedInputMode = null;
     });
+
+    if (_selectedWalletId == null) {
+      await _showSourceSelection();
+    }
+    if (!mounted || _selectedWalletId == null) return;
+
+    await _saveManualTransaction();
   }
 
   Widget _buildSelectionField({
@@ -1558,11 +1589,16 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   }
 
   Future<void> _pickDate() async {
+    final today = DateTime.now();
+    final firstDate = DateTime(2000);
+    var initialDate = _transactionDate ?? today;
+    if (initialDate.isBefore(firstDate)) initialDate = firstDate;
+    if (initialDate.isAfter(today)) initialDate = today;
     final picked = await showDatePicker(
       context: context,
-      initialDate: _transactionDate ?? DateTime.now(),
-      firstDate: DateTime(2000),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
+      initialDate: initialDate,
+      firstDate: firstDate,
+      lastDate: today,
     );
     if (picked != null && mounted) setState(() => _transactionDate = picked);
   }

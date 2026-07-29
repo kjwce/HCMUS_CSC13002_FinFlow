@@ -31,7 +31,7 @@ class ScanScreen extends ConsumerStatefulWidget {
   final ReceiptFileParser? receiptParser;
 
   /// Hands the reviewed receipt back to the parent Add Transaction flow.
-  final ValueChanged<ScanResultModel>? onConfirmed;
+  final Future<void> Function(ScanResultModel result)? onConfirmed;
 
   @override
   ConsumerState<ScanScreen> createState() => _ScanScreenState();
@@ -473,11 +473,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
             ),
           ],
         ),
-        if (result.receiptDate != null)
-          Text(
-            _formatDate(result.receiptDate!),
-            style: TextStyle(color: context.finFlowColors.secondaryText),
-          ),
+        _buildReceiptDateField(context, result),
         SizedBox(height: Responsive.h(context, 14)),
         if (result.warnings.isNotEmpty || hasMismatch)
           _buildWarnings(context, result.warnings, hasMismatch),
@@ -501,10 +497,10 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
               key: const Key('scan_confirm_button'),
               onPressed: result.items.isEmpty || _confirmedAmount(result) <= 0
                   ? null
-                  : () => widget.onConfirmed!(result),
+                  : () async => widget.onConfirmed!(result),
               icon: const Icon(Icons.check_circle_outline_rounded),
               label: Text(
-                'Tiếp tục với ${_formatVnd(_confirmedAmount(result))}',
+                'Xác nhận & lưu ${_formatVnd(_confirmedAmount(result))}',
               ),
               style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xFF00513E),
@@ -555,6 +551,62 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                 child: Icon(Icons.broken_image_outlined, size: 44),
               ),
             ),
+    );
+  }
+
+  Widget _buildReceiptDateField(BuildContext context, ScanResultModel result) {
+    return Material(
+      key: const Key('scan_receipt_date_button'),
+      color: context.finFlowColors.surface,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: _editReceiptDate,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          width: double.infinity,
+          padding: EdgeInsets.symmetric(
+            horizontal: Responsive.w(context, 14),
+            vertical: Responsive.h(context, 11),
+          ),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: AppColors.primaryGreen.withValues(alpha: .2),
+            ),
+          ),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.calendar_month_outlined,
+                color: AppColors.primaryGreen,
+              ),
+              SizedBox(width: Responsive.w(context, 10)),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Ngày hóa đơn',
+                      style: TextStyle(
+                        color: context.finFlowColors.secondaryText,
+                        fontSize: Responsive.sp(context, 11),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      result.receiptDate == null
+                          ? 'Chọn ngày hóa đơn'
+                          : _formatDate(result.receiptDate!),
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.edit_calendar_outlined, size: 20),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -826,11 +878,12 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
     });
 
     try {
-      final result =
+      final parsedResult =
           await (widget.receiptParser ?? ReceiptScanService.instance.parseFile)(
             file,
           );
       if (!mounted || operationId != _operationId) return;
+      final result = _normalizeReceiptDate(parsedResult);
       setState(() {
         _result = result;
         _isProcessing = false;
@@ -868,6 +921,33 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
     final items = [...current.items]..[index] = edited;
     setState(() {
       _result = current.copyWith(items: items);
+      _error = null;
+    });
+  }
+
+  Future<void> _editReceiptDate() async {
+    final result = _result;
+    if (result == null) return;
+
+    final today = _dateOnly(DateTime.now());
+    final firstDate = DateTime(2000);
+    var initialDate = _dateOnly(result.receiptDate ?? today);
+    if (initialDate.isBefore(firstDate)) initialDate = firstDate;
+    if (initialDate.isAfter(today)) initialDate = today;
+
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: firstDate,
+      lastDate: today,
+      helpText: 'Chọn ngày hóa đơn',
+    );
+    if (!mounted || picked == null) return;
+
+    final current = _result;
+    if (current == null) return;
+    setState(() {
+      _result = current.copyWith(receiptDate: _dateOnly(picked));
       _error = null;
     });
   }
@@ -931,6 +1011,31 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
 
   static int _confirmedAmount(ScanResultModel result) {
     return result.totalAmount > 0 ? result.totalAmount : result.calculatedTotal;
+  }
+
+  static ScanResultModel _normalizeReceiptDate(ScanResultModel result) {
+    final receiptDate = result.receiptDate;
+    if (receiptDate == null) return result;
+
+    final today = _dateOnly(DateTime.now());
+    final firstDate = DateTime(2000);
+    final date = _dateOnly(receiptDate);
+    if (!date.isBefore(firstDate) && !date.isAfter(today)) return result;
+
+    final normalized = date.isBefore(firstDate) ? firstDate : today;
+    return result.copyWith(
+      receiptDate: normalized,
+      warnings: [
+        ...result.warnings,
+        date.isAfter(today)
+            ? 'Ngày trên hóa đơn nằm trong tương lai nên đã được đổi thành hôm nay.'
+            : 'Ngày trên hóa đơn quá cũ nên đã được giới hạn từ năm 2000.',
+      ],
+    );
+  }
+
+  static DateTime _dateOnly(DateTime date) {
+    return DateTime(date.year, date.month, date.day);
   }
 
   static String _formatDate(DateTime date) {

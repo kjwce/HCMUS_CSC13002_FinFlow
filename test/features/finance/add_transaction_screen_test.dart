@@ -182,7 +182,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('confirmed receipt prefills an expense in manual entry', (
+  testWidgets('confirmed receipt preserves its OCR date for the transaction', (
     tester,
   ) async {
     final imageFile = XFile.fromData(
@@ -190,7 +190,7 @@ void main() {
       mimeType: 'image/jpeg',
       name: 'receipt.jpg',
     );
-    final receiptDate = DateTime(2026, 7, 28);
+    final receiptDate = DateTime(2020, 1, 2);
     final scanResult = ScanResultModel(
       merchantName: 'FinFlow Cafe',
       receiptDate: receiptDate,
@@ -215,10 +215,14 @@ void main() {
     await tester.tap(find.byKey(const Key('scan_analyze_button')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Tiếp tục với 160.000 VND'), findsOneWidget);
+    expect(find.text('Xác nhận & lưu 160.000 VND'), findsOneWidget);
     await tester.ensureVisible(find.byKey(const Key('scan_confirm_button')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('scan_confirm_button')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Select Payment Method'), findsOneWidget);
+    await tester.tap(find.byTooltip('Close'));
     await tester.pumpAndSettle();
 
     expect(find.text('Manual Entry'), findsOneWidget);
@@ -232,7 +236,7 @@ void main() {
     expect(amountField.style?.color, const Color(0xFFBA1A1A));
     expect(nameField.controller?.text, 'FinFlow Cafe');
     expect(find.text('Service'), findsOneWidget);
-    expect(find.text('07/28/2026'), findsOneWidget);
+    expect(find.text('01/02/2020'), findsOneWidget);
     expect(find.text('Save Transaction'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
