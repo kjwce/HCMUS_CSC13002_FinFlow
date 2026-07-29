@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:torch_light/torch_light.dart';
 
 import '../../../core/i18n/app_language.dart';
 import '../../../core/theme/app_colors.dart';
@@ -14,8 +13,6 @@ import '../services/receipt_scan_service.dart';
 
 typedef ReceiptImagePicker = Future<XFile?> Function(ImageSource source);
 typedef ReceiptFileParser = Future<ScanResultModel> Function(XFile file);
-typedef ReceiptTorchAvailability = Future<bool> Function();
-typedef ReceiptTorchAction = Future<void> Function();
 
 class ScanScreen extends ConsumerStatefulWidget {
   const ScanScreen({
@@ -23,9 +20,7 @@ class ScanScreen extends ConsumerStatefulWidget {
     this.embedded = false,
     this.imagePicker,
     this.receiptParser,
-    this.torchAvailability,
-    this.torchEnabler,
-    this.torchDisabler,
+    this.onConfirmed,
   });
 
   /// Omits the page scaffold/header when Scan is shown inside Add Transaction.
@@ -34,9 +29,9 @@ class ScanScreen extends ConsumerStatefulWidget {
   /// Test seams for the platform picker and Supabase-backed parser.
   final ReceiptImagePicker? imagePicker;
   final ReceiptFileParser? receiptParser;
-  final ReceiptTorchAvailability? torchAvailability;
-  final ReceiptTorchAction? torchEnabler;
-  final ReceiptTorchAction? torchDisabler;
+
+  /// Hands the reviewed receipt back to the parent Add Transaction flow.
+  final ValueChanged<ScanResultModel>? onConfirmed;
 
   @override
   ConsumerState<ScanScreen> createState() => _ScanScreenState();
@@ -52,16 +47,11 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
   ScanResultModel? _result;
   String? _error;
   bool _isProcessing = false;
-  bool _isTorchOn = false;
-  bool _isTorchChanging = false;
   int _operationId = 0;
 
   @override
   void dispose() {
     _operationId++;
-    if (_isTorchOn) {
-      (widget.torchDisabler ?? TorchLight.disableTorch)().ignore();
-    }
     super.dispose();
   }
 
@@ -286,16 +276,6 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                 ),
               ),
             ),
-            Positioned(
-              left: frameRect.left - Responsive.w(context, 9),
-              top: frameRect.top - Responsive.h(context, 27),
-              child: _GlassControl(
-                key: const Key('scan_flash_button'),
-                isActive: _isTorchOn,
-                isLoading: _isTorchChanging,
-                onTap: _toggleTorch,
-              ),
-            ),
           ],
         );
       },
@@ -512,6 +492,30 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
         _buildTotalCard(context, result, calculatedTotal),
         SizedBox(height: Responsive.h(context, 14)),
         _buildNextStepCard(context),
+        if (widget.onConfirmed != null) ...[
+          SizedBox(height: Responsive.h(context, 14)),
+          SizedBox(
+            width: double.infinity,
+            height: Responsive.h(context, 52),
+            child: FilledButton.icon(
+              key: const Key('scan_confirm_button'),
+              onPressed: result.items.isEmpty || _confirmedAmount(result) <= 0
+                  ? null
+                  : () => widget.onConfirmed!(result),
+              icon: const Icon(Icons.check_circle_outline_rounded),
+              label: Text(
+                'Tiếp tục với ${_formatVnd(_confirmedAmount(result))}',
+              ),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF00513E),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            ),
+          ),
+        ],
         if (_error != null) _buildError(context),
       ],
     );
@@ -568,7 +572,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
         children: [
           SizedBox.square(dimension: 22, child: CircularProgressIndicator()),
           SizedBox(width: 14),
-          Flexible(child: Text('Gemini đang đọc hóa đơn...')),
+          Flexible(child: Text('FinFlow đang phân tích hóa đơn...')),
         ],
       ),
     );
@@ -790,58 +794,9 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
     );
   }
 
-  Future<void> _toggleTorch() async {
-    if (_isTorchChanging) return;
-    setState(() => _isTorchChanging = true);
-
-    try {
-      final isAvailable =
-          await (widget.torchAvailability ?? TorchLight.isTorchAvailable)();
-      if (!isAvailable) {
-        if (!mounted) return;
-        setState(() {
-          _isTorchChanging = false;
-          _error = 'Flash is unavailable on this device.';
-        });
-        return;
-      }
-
-      if (_isTorchOn) {
-        await (widget.torchDisabler ?? TorchLight.disableTorch)();
-      } else {
-        await (widget.torchEnabler ?? TorchLight.enableTorch)();
-      }
-      if (!mounted) return;
-      setState(() {
-        _isTorchOn = !_isTorchOn;
-        _isTorchChanging = false;
-        _error = null;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _isTorchChanging = false;
-        _error = 'Could not control the flash. Please try again.';
-      });
-    }
-  }
-
-  Future<void> _disableTorchBeforeLeavingScanner() async {
-    if (!_isTorchOn) return;
-    try {
-      await (widget.torchDisabler ?? TorchLight.disableTorch)();
-    } catch (_) {
-      // The camera picker may already own the camera; continue opening it.
-    }
-    if (mounted) {
-      setState(() => _isTorchOn = false);
-    }
-  }
-
   Future<void> _pickImage(ImageSource source) async {
     final operationId = ++_operationId;
     try {
-      await _disableTorchBeforeLeavingScanner();
       final file = await (widget.imagePicker ?? _pickFromPlatform)(source);
       if (file == null) return;
       final bytes = await file.readAsBytes();
@@ -864,7 +819,6 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
   Future<void> _scanImage() async {
     final file = _imageFile;
     if (file == null || _isProcessing) return;
-    await _disableTorchBeforeLeavingScanner();
     final operationId = ++_operationId;
     setState(() {
       _isProcessing = true;
@@ -975,6 +929,10 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
     return '$buffer VND';
   }
 
+  static int _confirmedAmount(ScanResultModel result) {
+    return result.totalAmount > 0 ? result.totalAmount : result.calculatedTotal;
+  }
+
   static String _formatDate(DateTime date) {
     return '${date.day.toString().padLeft(2, '0')}/'
         '${date.month.toString().padLeft(2, '0')}/${date.year}';
@@ -1040,63 +998,6 @@ class _AnimatedScanningLineState extends State<_AnimatedScanningLine>
               spreadRadius: 1,
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _GlassControl extends StatelessWidget {
-  const _GlassControl({
-    super.key,
-    required this.isActive,
-    required this.isLoading,
-    required this.onTap,
-  });
-
-  final bool isActive;
-  final bool isLoading;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      toggled: isActive,
-      label: isActive ? 'Turn flash off' : 'Turn flash on',
-      child: Material(
-        color: isActive
-            ? const Color(0xFF00C49A)
-            : Colors.white.withValues(alpha: .85),
-        shape: const CircleBorder(),
-        elevation: 5,
-        shadowColor: Colors.black.withValues(alpha: .35),
-        child: InkWell(
-          onTap: isLoading ? null : onTap,
-          customBorder: const CircleBorder(),
-          child: SizedBox(
-            width: Responsive.w(context, 44),
-            height: Responsive.w(context, 44),
-            child: Center(
-              child: isLoading
-                  ? SizedBox.square(
-                      dimension: Responsive.w(context, 18),
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: isActive
-                            ? Colors.white
-                            : const Color(0xFF1A1C1E),
-                      ),
-                    )
-                  : Icon(
-                      isActive
-                          ? Icons.flash_on_rounded
-                          : Icons.flash_off_rounded,
-                      color: isActive ? Colors.white : const Color(0xFF1A1C1E),
-                      size: 21,
-                    ),
-            ),
-          ),
         ),
       ),
     );

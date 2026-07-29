@@ -40,9 +40,7 @@ void main() {
     WidgetTester tester, {
     ReceiptImagePicker? imagePicker,
     ReceiptFileParser? receiptParser,
-    ReceiptTorchAvailability? torchAvailability,
-    ReceiptTorchAction? torchEnabler,
-    ReceiptTorchAction? torchDisabler,
+    ValueChanged<ScanResultModel>? onConfirmed,
   }) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(393, 852);
@@ -57,9 +55,7 @@ void main() {
                 embedded: true,
                 imagePicker: imagePicker,
                 receiptParser: receiptParser,
-                torchAvailability: torchAvailability,
-                torchEnabler: torchEnabler,
-                torchDisabler: torchDisabler,
+                onConfirmed: onConfirmed,
               ),
             ),
           ),
@@ -78,38 +74,10 @@ void main() {
     expect(find.byKey(const Key('scan_animated_line')), findsOneWidget);
     expect(find.byKey(const Key('scan_camera_overlay')), findsOneWidget);
     expect(find.byKey(const Key('scan_viewfinder')), findsOneWidget);
-    expect(find.byKey(const Key('scan_flash_button')), findsOneWidget);
+    expect(find.byKey(const Key('scan_flash_button')), findsNothing);
     expect(find.text('Place the receipt inside the frame'), findsOneWidget);
     expect(find.byKey(const Key('scan_analyze_button')), findsNothing);
     expect(find.text('Scan mode is coming soon'), findsNothing);
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('toggles the real torch action and updates the flash state', (
-    tester,
-  ) async {
-    var enableCount = 0;
-    var disableCount = 0;
-    await pumpScanner(
-      tester,
-      torchAvailability: () async => true,
-      torchEnabler: () async {
-        enableCount++;
-      },
-      torchDisabler: () async {
-        disableCount++;
-      },
-    );
-
-    await tester.tap(find.byKey(const Key('scan_flash_button')));
-    await tester.pump();
-    expect(enableCount, 1);
-    expect(find.byIcon(Icons.flash_on_rounded), findsOneWidget);
-
-    await tester.tap(find.byKey(const Key('scan_flash_button')));
-    await tester.pump();
-    expect(disableCount, 1);
-    expect(find.byIcon(Icons.flash_off_rounded), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -127,44 +95,52 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('picks an image, shows progress, and renders Gemini result', (
-    tester,
-  ) async {
-    ImageSource? selectedSource;
-    final response = Completer<ScanResultModel>();
-    await pumpScanner(
-      tester,
-      imagePicker: (source) async {
-        selectedSource = source;
-        return imageFile;
-      },
-      receiptParser: (_) => response.future,
-    );
+  testWidgets(
+    'picks an image, shows FinFlow progress, and confirms the result',
+    (tester) async {
+      ImageSource? selectedSource;
+      ScanResultModel? confirmedResult;
+      final response = Completer<ScanResultModel>();
+      await pumpScanner(
+        tester,
+        imagePicker: (source) async {
+          selectedSource = source;
+          return imageFile;
+        },
+        receiptParser: (_) => response.future,
+        onConfirmed: (result) => confirmedResult = result,
+      );
 
-    await tester.tap(find.byKey(const Key('scan_gallery_button')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
+      await tester.tap(find.byKey(const Key('scan_gallery_button')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
 
-    expect(selectedSource, ImageSource.gallery);
-    expect(find.byKey(const Key('scan_analyze_button')), findsOneWidget);
+      expect(selectedSource, ImageSource.gallery);
+      expect(find.byKey(const Key('scan_analyze_button')), findsOneWidget);
 
-    await tester.tap(find.byKey(const Key('scan_analyze_button')));
-    await tester.pump();
+      await tester.tap(find.byKey(const Key('scan_analyze_button')));
+      await tester.pump();
 
-    expect(find.byKey(const Key('scan_processing_card')), findsOneWidget);
-    expect(find.text('Gemini đang đọc hóa đơn...'), findsOneWidget);
+      expect(find.byKey(const Key('scan_processing_card')), findsOneWidget);
+      expect(find.text('FinFlow đang phân tích hóa đơn...'), findsOneWidget);
 
-    response.complete(scanResult);
-    await tester.pumpAndSettle();
+      response.complete(scanResult);
+      await tester.pumpAndSettle();
 
-    expect(find.text('FinFlow Cafe'), findsOneWidget);
-    expect(find.text('Cà phê'), findsOneWidget);
-    expect(find.text('Massage'), findsOneWidget);
-    expect(find.text('150.000 VND'), findsOneWidget);
-    expect(find.byKey(const Key('scan_total_card')), findsOneWidget);
-    expect(find.byKey(const Key('scan_next_step_card')), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
+      expect(find.text('FinFlow Cafe'), findsOneWidget);
+      expect(find.text('Cà phê'), findsOneWidget);
+      expect(find.text('Massage'), findsOneWidget);
+      expect(find.text('150.000 VND'), findsOneWidget);
+      expect(find.byKey(const Key('scan_total_card')), findsOneWidget);
+      expect(find.byKey(const Key('scan_next_step_card')), findsOneWidget);
+      expect(find.byKey(const Key('scan_confirm_button')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('scan_confirm_button')));
+      await tester.pump();
+      expect(confirmedResult, same(scanResult));
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('allows a scanned item to be reviewed and edited', (
     tester,

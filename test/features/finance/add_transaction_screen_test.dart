@@ -1,7 +1,11 @@
+import 'dart:typed_data';
+
+import 'package:finflow/features/scan/models/scan_result_model.dart';
 import 'package:finflow/features/finance/presentation/add_transaction_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -14,14 +18,13 @@ void main() {
   Future<void> pumpAddScreen(
     WidgetTester tester, {
     Size size = const Size(393, 852),
+    AddTransactionSheet screen = const AddTransactionSheet(),
   }) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = size;
     addTearDown(tester.view.resetDevicePixelRatio);
     addTearDown(tester.view.resetPhysicalSize);
-    await tester.pumpWidget(
-      const ProviderScope(child: MaterialApp(home: AddTransactionSheet())),
-    );
+    await tester.pumpWidget(ProviderScope(child: MaterialApp(home: screen)));
     await tester.pump();
   }
 
@@ -174,7 +177,63 @@ void main() {
     expect(find.byKey(const Key('scan_camera_button')), findsOneWidget);
     expect(find.byKey(const Key('scan_gallery_button')), findsOneWidget);
     expect(find.byKey(const Key('scan_animated_line')), findsOneWidget);
+    expect(find.byKey(const Key('scan_flash_button')), findsNothing);
     expect(find.text('Analyze receipt'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('confirmed receipt prefills an expense in manual entry', (
+    tester,
+  ) async {
+    final imageFile = XFile.fromData(
+      Uint8List.fromList([1, 2, 3]),
+      mimeType: 'image/jpeg',
+      name: 'receipt.jpg',
+    );
+    final receiptDate = DateTime(2026, 7, 28);
+    final scanResult = ScanResultModel(
+      merchantName: 'FinFlow Cafe',
+      receiptDate: receiptDate,
+      items: const [
+        ScannedItem(name: 'Cà phê', amount: 50000, category: 'Food'),
+        ScannedItem(name: 'Massage', amount: 100000, category: 'Service'),
+      ],
+      totalAmount: 160000,
+    );
+    await pumpAddScreen(
+      tester,
+      screen: AddTransactionSheet(
+        scanImagePicker: (_) async => imageFile,
+        scanReceiptParser: (_) async => scanResult,
+      ),
+    );
+    await openMode(tester, const Key('add_mode_scan'));
+
+    await tester.tap(find.byKey(const Key('scan_gallery_button')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(find.byKey(const Key('scan_analyze_button')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Tiếp tục với 160.000 VND'), findsOneWidget);
+    await tester.ensureVisible(find.byKey(const Key('scan_confirm_button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('scan_confirm_button')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Manual Entry'), findsOneWidget);
+    final amountField = tester.widget<TextField>(
+      find.byKey(const Key('manual_amount_field')),
+    );
+    final nameField = tester.widget<TextField>(
+      find.byKey(const Key('manual_name_field')),
+    );
+    expect(amountField.controller?.text, '160,000');
+    expect(amountField.style?.color, const Color(0xFFBA1A1A));
+    expect(nameField.controller?.text, 'FinFlow Cafe');
+    expect(find.text('Service'), findsOneWidget);
+    expect(find.text('07/28/2026'), findsOneWidget);
+    expect(find.text('Save Transaction'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

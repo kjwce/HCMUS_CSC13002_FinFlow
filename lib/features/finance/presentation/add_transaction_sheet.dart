@@ -8,6 +8,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/responsive.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../auth/services/auth_service.dart';
+import '../../scan/models/scan_result_model.dart';
 import '../../scan/presentation/scan_screen.dart';
 import '../models/quick_add_draft_model.dart';
 import '../models/transaction_category.dart';
@@ -64,6 +65,8 @@ class AddTransactionSheet extends ConsumerStatefulWidget {
     this.initialWalletId,
     this.initialDate,
     this.fromQuickAdd = false,
+    this.scanImagePicker,
+    this.scanReceiptParser,
   });
 
   final bool? initialIsExpense;
@@ -73,6 +76,10 @@ class AddTransactionSheet extends ConsumerStatefulWidget {
   final String? initialWalletId;
   final DateTime? initialDate;
   final bool fromQuickAdd;
+
+  /// Test seams for exercising the embedded receipt flow without platform I/O.
+  final ReceiptImagePicker? scanImagePicker;
+  final ReceiptFileParser? scanReceiptParser;
 
   static Future<bool?> show(
     BuildContext context, {
@@ -1338,7 +1345,49 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   }
 
   Widget _buildScanMode() {
-    return const ScanScreen(key: ValueKey(_AddMode.scan), embedded: true);
+    return ScanScreen(
+      key: const ValueKey(_AddMode.scan),
+      embedded: true,
+      imagePicker: widget.scanImagePicker,
+      receiptParser: widget.scanReceiptParser,
+      onConfirmed: _applyScanResult,
+    );
+  }
+
+  void _applyScanResult(ScanResultModel result) {
+    final amount = result.totalAmount > 0
+        ? result.totalAmount
+        : result.calculatedTotal;
+    if (result.items.isEmpty || amount <= 0) {
+      _showMessage('Không tìm thấy số tiền hợp lệ trên hóa đơn.');
+      return;
+    }
+
+    final categoryTotals = <String, int>{};
+    for (final item in result.items) {
+      categoryTotals.update(
+        item.category,
+        (current) => current + item.amount,
+        ifAbsent: () => item.amount,
+      );
+    }
+    final dominantCategory = categoryTotals.entries.reduce(
+      (current, candidate) =>
+          candidate.value > current.value ? candidate : current,
+    );
+    final merchantName = result.merchantName?.trim();
+
+    setState(() {
+      _isExpense = true;
+      _amountController.text = _addCommas(amount.toString());
+      _nameController.text = merchantName?.isNotEmpty == true
+          ? merchantName!
+          : 'Hóa đơn đã quét';
+      _selectedCategory = TransactionCategory.fromKey(dominantCategory.key).key;
+      _transactionDate = result.receiptDate;
+      _mode = _AddMode.manual;
+      _selectedInputMode = null;
+    });
   }
 
   Widget _buildSelectionField({
