@@ -34,7 +34,7 @@ void main() {
   Future<void> openMode(WidgetTester tester, Key key) async {
     await tester.tap(find.byKey(key));
     await tester.pump(const Duration(milliseconds: 190));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 230));
   }
 
   testWidgets('over-budget mood asset decodes successfully', (tester) async {
@@ -173,7 +173,8 @@ void main() {
     expect(find.text('Scan'), findsOneWidget);
     expect(find.byKey(const Key('scan_camera_button')), findsOneWidget);
     expect(find.byKey(const Key('scan_gallery_button')), findsOneWidget);
-    expect(find.text('Phân tích hóa đơn'), findsNothing);
+    expect(find.byKey(const Key('scan_animated_line')), findsOneWidget);
+    expect(find.text('Analyze receipt'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }

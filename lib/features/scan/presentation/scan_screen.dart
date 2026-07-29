@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:torch_light/torch_light.dart';
 
 import '../../../core/i18n/app_language.dart';
 import '../../../core/theme/app_colors.dart';
@@ -13,6 +14,8 @@ import '../services/receipt_scan_service.dart';
 
 typedef ReceiptImagePicker = Future<XFile?> Function(ImageSource source);
 typedef ReceiptFileParser = Future<ScanResultModel> Function(XFile file);
+typedef ReceiptTorchAvailability = Future<bool> Function();
+typedef ReceiptTorchAction = Future<void> Function();
 
 class ScanScreen extends ConsumerStatefulWidget {
   const ScanScreen({
@@ -20,6 +23,9 @@ class ScanScreen extends ConsumerStatefulWidget {
     this.embedded = false,
     this.imagePicker,
     this.receiptParser,
+    this.torchAvailability,
+    this.torchEnabler,
+    this.torchDisabler,
   });
 
   /// Omits the page scaffold/header when Scan is shown inside Add Transaction.
@@ -28,6 +34,9 @@ class ScanScreen extends ConsumerStatefulWidget {
   /// Test seams for the platform picker and Supabase-backed parser.
   final ReceiptImagePicker? imagePicker;
   final ReceiptFileParser? receiptParser;
+  final ReceiptTorchAvailability? torchAvailability;
+  final ReceiptTorchAction? torchEnabler;
+  final ReceiptTorchAction? torchDisabler;
 
   @override
   ConsumerState<ScanScreen> createState() => _ScanScreenState();
@@ -35,7 +44,7 @@ class ScanScreen extends ConsumerStatefulWidget {
 
 class _ScanScreenState extends ConsumerState<ScanScreen> {
   static const _darkText = Color(0xFF093030);
-  static const _blue = Color(0xFF3299FF);
+  static const _scanGreen = Color(0xFF00C49A);
 
   final _picker = ImagePicker();
   XFile? _imageFile;
@@ -43,38 +52,69 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
   ScanResultModel? _result;
   String? _error;
   bool _isProcessing = false;
+  bool _isTorchOn = false;
+  bool _isTorchChanging = false;
   int _operationId = 0;
 
   @override
   void dispose() {
     _operationId++;
+    if (_isTorchOn) {
+      (widget.torchDisabler ?? TorchLight.disableTorch)().ignore();
+    }
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final scanner = Padding(
-      padding: widget.embedded
-          ? EdgeInsets.zero
-          : EdgeInsets.fromLTRB(
-              Responsive.w(context, 20),
-              Responsive.h(context, 18),
-              Responsive.w(context, 20),
-              Responsive.h(context, 36),
-            ),
-      child: _result == null
-          ? _buildCaptureBody(context)
-          : _buildReviewBody(context, _result!),
-    );
+    if (widget.embedded) {
+      if (_result != null) {
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            Responsive.w(context, 20),
+            Responsive.h(context, 18),
+            Responsive.w(context, 20),
+            Responsive.h(context, 36),
+          ),
+          child: _buildReviewBody(context, _result!),
+        );
+      }
 
-    if (widget.embedded) return scanner;
+      final mediaQuery = MediaQuery.of(context);
+      final availableHeight =
+          mediaQuery.size.height -
+          mediaQuery.padding.vertical -
+          Responsive.h(context, 64);
+      return SizedBox(
+        height: availableHeight.clamp(
+          Responsive.h(context, 600),
+          Responsive.h(context, 820),
+        ),
+        child: _buildCaptureBody(context),
+      );
+    }
 
     return Scaffold(
-      backgroundColor: AppColors.dashboardBg,
+      backgroundColor: const Color(0xFFF9F9FC),
       body: SafeArea(
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          child: Column(children: [_buildHeader(context), scanner]),
+        child: Column(
+          children: [
+            _buildHeader(context),
+            Expanded(
+              child: _result == null
+                  ? _buildCaptureBody(context)
+                  : SingleChildScrollView(
+                      physics: const BouncingScrollPhysics(),
+                      padding: EdgeInsets.fromLTRB(
+                        Responsive.w(context, 20),
+                        Responsive.h(context, 18),
+                        Responsive.w(context, 20),
+                        Responsive.h(context, 36),
+                      ),
+                      child: _buildReviewBody(context, _result!),
+                    ),
+            ),
+          ],
         ),
       ),
     );
@@ -132,67 +172,291 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
   Widget _buildCaptureBody(BuildContext context) {
     return Column(
       children: [
-        _buildImagePreview(context),
-        SizedBox(height: Responsive.h(context, 18)),
-        if (_isProcessing)
-          _buildProcessingCard(context)
-        else ...[
-          Text(
-            AppStrings.scanDesc,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: context.finFlowColors.secondaryText,
-              fontSize: Responsive.sp(context, 15),
-            ),
-          ),
-          SizedBox(height: Responsive.h(context, 18)),
-          Row(
-            children: [
-              Expanded(
-                child: _actionButton(
-                  key: const Key('scan_camera_button'),
-                  context: context,
-                  icon: Icons.camera_alt_outlined,
-                  label: 'Chụp ảnh',
-                  onPressed: () => _pickImage(ImageSource.camera),
-                ),
-              ),
-              SizedBox(width: Responsive.w(context, 12)),
-              Expanded(
-                child: _actionButton(
-                  key: const Key('scan_gallery_button'),
-                  context: context,
-                  icon: Icons.photo_library_outlined,
-                  label: 'Chọn ảnh',
-                  filled: false,
-                  onPressed: () => _pickImage(ImageSource.gallery),
-                ),
-              ),
-            ],
-          ),
-          if (_imageFile != null) ...[
-            SizedBox(height: Responsive.h(context, 14)),
-            SizedBox(
-              width: double.infinity,
-              height: Responsive.h(context, 52),
-              child: ElevatedButton.icon(
-                key: const Key('scan_analyze_button'),
-                onPressed: _scanImage,
-                icon: const Icon(Icons.auto_awesome),
-                label: const Text('Phân tích hóa đơn'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _blue,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+        Expanded(child: _buildCameraViewport(context)),
+        _buildCaptureActions(context),
+      ],
+    );
+  }
+
+  Widget _buildCameraViewport(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        var frameWidth = constraints.maxWidth * .87;
+        var frameHeight = frameWidth * 4 / 3;
+        if (frameHeight > constraints.maxHeight * .82) {
+          frameHeight = constraints.maxHeight * .82;
+          frameWidth = frameHeight * 3 / 4;
+        }
+        final frameRect = Rect.fromCenter(
+          center: Offset(constraints.maxWidth / 2, constraints.maxHeight / 2),
+          width: frameWidth,
+          height: frameHeight,
+        );
+
+        return Stack(
+          key: const Key('scan_image_preview'),
+          fit: StackFit.expand,
+          children: [
+            if (_imageBytes == null)
+              Image.asset(
+                'assets/images/scan_receipt_camera_background.png',
+                fit: BoxFit.cover,
+                alignment: Alignment.center,
+              )
+            else
+              Image.memory(
+                _imageBytes!,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => const ColoredBox(
+                  color: Colors.black,
+                  child: Center(
+                    child: Icon(
+                      Icons.broken_image_outlined,
+                      color: Colors.white,
+                      size: 44,
+                    ),
                   ),
                 ),
               ),
+            Positioned.fill(
+              child: IgnorePointer(
+                child: CustomPaint(
+                  key: const Key('scan_camera_overlay'),
+                  painter: _CameraOverlayPainter(frameRect: frameRect),
+                ),
+              ),
             ),
+            Positioned.fromRect(
+              rect: frameRect,
+              child: ClipRRect(
+                key: const Key('scan_viewfinder'),
+                borderRadius: BorderRadius.circular(18),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: .4),
+                          width: 1.5,
+                        ),
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                    ),
+                    if (!_isProcessing) const _AnimatedScanningLine(),
+                    const IgnorePointer(
+                      child: CustomPaint(painter: _ViewfinderCornersPainter()),
+                    ),
+                    Positioned(
+                      left: Responsive.w(context, 16),
+                      right: Responsive.w(context, 16),
+                      bottom: Responsive.h(context, 38),
+                      child: Center(
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: Responsive.w(context, 16),
+                            vertical: Responsive.h(context, 8),
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: .55),
+                            borderRadius: BorderRadius.circular(30),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: .12),
+                            ),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Color(0x42000000),
+                                blurRadius: 12,
+                              ),
+                            ],
+                          ),
+                          child: Text(
+                            'Place the receipt inside the frame',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: Responsive.sp(context, 12),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Positioned(
+              left: frameRect.left - Responsive.w(context, 9),
+              top: frameRect.top - Responsive.h(context, 27),
+              child: _GlassControl(
+                key: const Key('scan_flash_button'),
+                isActive: _isTorchOn,
+                isLoading: _isTorchChanging,
+                onTap: _toggleTorch,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildCaptureActions(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.fromLTRB(
+        Responsive.w(context, 24),
+        Responsive.h(context, 20),
+        Responsive.w(context, 24),
+        Responsive.h(context, 18),
+      ),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x0D000000),
+            blurRadius: 24,
+            offset: Offset(0, -4),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_isProcessing)
+            _buildProcessingCard(context)
+          else ...[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _roundCaptureButton(
+                  key: const Key('scan_gallery_button'),
+                  context: context,
+                  icon: Icons.image_outlined,
+                  label: 'Gallery',
+                  filled: false,
+                  onPressed: () => _pickImage(ImageSource.gallery),
+                ),
+                SizedBox(width: Responsive.w(context, 42)),
+                _roundCaptureButton(
+                  key: const Key('scan_camera_button'),
+                  context: context,
+                  icon: Icons.photo_camera_outlined,
+                  label: 'Capture',
+                  onPressed: () => _pickImage(ImageSource.camera),
+                ),
+              ],
+            ),
+            if (_imageFile == null)
+              Padding(
+                padding: EdgeInsets.only(top: Responsive.h(context, 12)),
+                child: Text(
+                  'AI system will automatically analyze and add\n'
+                  'transactions from your receipt.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: context.finFlowColors.secondaryText.withValues(
+                      alpha: .75,
+                    ),
+                    fontSize: Responsive.sp(context, 11),
+                    height: 1.3,
+                  ),
+                ),
+              )
+            else
+              Padding(
+                padding: EdgeInsets.only(top: Responsive.h(context, 12)),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: Responsive.h(context, 48),
+                  child: ElevatedButton.icon(
+                    key: const Key('scan_analyze_button'),
+                    onPressed: _scanImage,
+                    icon: const Icon(Icons.auto_awesome_rounded),
+                    label: const Text('Analyze receipt'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF00513E),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
           ],
           if (_error != null) _buildError(context),
         ],
-      ],
+      ),
+    );
+  }
+
+  Widget _roundCaptureButton({
+    required Key key,
+    required BuildContext context,
+    required IconData icon,
+    required String label,
+    required VoidCallback onPressed,
+    bool filled = true,
+  }) {
+    return Semantics(
+      button: true,
+      label: label,
+      child: InkWell(
+        key: key,
+        onTap: onPressed,
+        customBorder: const CircleBorder(),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: const Color(0xFF00513E).withValues(alpha: .2),
+                  width: 3,
+                ),
+              ),
+              child: Container(
+                width: Responsive.w(context, 64),
+                height: Responsive.w(context, 64),
+                decoration: BoxDecoration(
+                  color: filled
+                      ? const Color(0xFF00513E)
+                      : const Color(0xFFE9F0EF),
+                  shape: BoxShape.circle,
+                  boxShadow: filled
+                      ? const [
+                          BoxShadow(
+                            color: Color(0x2600513E),
+                            blurRadius: 12,
+                            offset: Offset(0, 4),
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Icon(
+                  icon,
+                  size: Responsive.w(context, 30),
+                  color: filled ? Colors.white : const Color(0xFF00513E),
+                ),
+              ),
+            ),
+            SizedBox(height: Responsive.h(context, 5)),
+            Text(
+              label,
+              style: TextStyle(
+                color: context.finFlowColors.secondaryText,
+                fontSize: Responsive.sp(context, 11),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -307,45 +571,6 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
           Flexible(child: Text('Gemini đang đọc hóa đơn...')),
         ],
       ),
-    );
-  }
-
-  Widget _actionButton({
-    required Key key,
-    required BuildContext context,
-    required IconData icon,
-    required String label,
-    required VoidCallback onPressed,
-    bool filled = true,
-  }) {
-    final shape = RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(16),
-    );
-    return SizedBox(
-      height: Responsive.h(context, 52),
-      child: filled
-          ? ElevatedButton.icon(
-              key: key,
-              onPressed: onPressed,
-              icon: Icon(icon),
-              label: Text(label),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primaryGreen,
-                foregroundColor: _darkText,
-                shape: shape,
-              ),
-            )
-          : OutlinedButton.icon(
-              key: key,
-              onPressed: onPressed,
-              icon: Icon(icon),
-              label: Text(label),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: _darkText,
-                side: const BorderSide(color: AppColors.primaryGreen),
-                shape: shape,
-              ),
-            ),
     );
   }
 
@@ -523,14 +748,14 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
       width: double.infinity,
       padding: EdgeInsets.all(Responsive.w(context, 14)),
       decoration: BoxDecoration(
-        color: _blue.withValues(alpha: .1),
+        color: _scanGreen.withValues(alpha: .1),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _blue.withValues(alpha: .25)),
+        border: Border.all(color: _scanGreen.withValues(alpha: .25)),
       ),
       child: const Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.fact_check_outlined, color: _blue),
+          Icon(Icons.fact_check_outlined, color: _scanGreen),
           SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -565,9 +790,58 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
     );
   }
 
+  Future<void> _toggleTorch() async {
+    if (_isTorchChanging) return;
+    setState(() => _isTorchChanging = true);
+
+    try {
+      final isAvailable =
+          await (widget.torchAvailability ?? TorchLight.isTorchAvailable)();
+      if (!isAvailable) {
+        if (!mounted) return;
+        setState(() {
+          _isTorchChanging = false;
+          _error = 'Flash is unavailable on this device.';
+        });
+        return;
+      }
+
+      if (_isTorchOn) {
+        await (widget.torchDisabler ?? TorchLight.disableTorch)();
+      } else {
+        await (widget.torchEnabler ?? TorchLight.enableTorch)();
+      }
+      if (!mounted) return;
+      setState(() {
+        _isTorchOn = !_isTorchOn;
+        _isTorchChanging = false;
+        _error = null;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isTorchChanging = false;
+        _error = 'Could not control the flash. Please try again.';
+      });
+    }
+  }
+
+  Future<void> _disableTorchBeforeLeavingScanner() async {
+    if (!_isTorchOn) return;
+    try {
+      await (widget.torchDisabler ?? TorchLight.disableTorch)();
+    } catch (_) {
+      // The camera picker may already own the camera; continue opening it.
+    }
+    if (mounted) {
+      setState(() => _isTorchOn = false);
+    }
+  }
+
   Future<void> _pickImage(ImageSource source) async {
     final operationId = ++_operationId;
     try {
+      await _disableTorchBeforeLeavingScanner();
       final file = await (widget.imagePicker ?? _pickFromPlatform)(source);
       if (file == null) return;
       final bytes = await file.readAsBytes();
@@ -590,6 +864,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
   Future<void> _scanImage() async {
     final file = _imageFile;
     if (file == null || _isProcessing) return;
+    await _disableTorchBeforeLeavingScanner();
     final operationId = ++_operationId;
     setState(() {
       _isProcessing = true;
@@ -704,6 +979,215 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
     return '${date.day.toString().padLeft(2, '0')}/'
         '${date.month.toString().padLeft(2, '0')}/${date.year}';
   }
+}
+
+class _AnimatedScanningLine extends StatefulWidget {
+  const _AnimatedScanningLine();
+
+  @override
+  State<_AnimatedScanningLine> createState() => _AnimatedScanningLineState();
+}
+
+class _AnimatedScanningLineState extends State<_AnimatedScanningLine>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _position;
+  late final Animation<double> _opacity;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    )..repeat();
+    _position = Tween<double>(
+      begin: .1,
+      end: .9,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+    _opacity = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 0, end: 1), weight: 10),
+      TweenSequenceItem(tween: ConstantTween(1), weight: 80),
+      TweenSequenceItem(tween: Tween(begin: 1, end: 0), weight: 10),
+    ]).animate(_controller);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (_, child) => Align(
+        alignment: Alignment(0, (_position.value * 2) - 1),
+        child: Opacity(opacity: _opacity.value, child: child),
+      ),
+      child: Container(
+        key: const Key('scan_animated_line'),
+        height: 2,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.transparent, Color(0xFF00C49A), Colors.transparent],
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Color(0xFF00C49A),
+              blurRadius: 15,
+              spreadRadius: 1,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GlassControl extends StatelessWidget {
+  const _GlassControl({
+    super.key,
+    required this.isActive,
+    required this.isLoading,
+    required this.onTap,
+  });
+
+  final bool isActive;
+  final bool isLoading;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      toggled: isActive,
+      label: isActive ? 'Turn flash off' : 'Turn flash on',
+      child: Material(
+        color: isActive
+            ? const Color(0xFF00C49A)
+            : Colors.white.withValues(alpha: .85),
+        shape: const CircleBorder(),
+        elevation: 5,
+        shadowColor: Colors.black.withValues(alpha: .35),
+        child: InkWell(
+          onTap: isLoading ? null : onTap,
+          customBorder: const CircleBorder(),
+          child: SizedBox(
+            width: Responsive.w(context, 44),
+            height: Responsive.w(context, 44),
+            child: Center(
+              child: isLoading
+                  ? SizedBox.square(
+                      dimension: Responsive.w(context, 18),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: isActive
+                            ? Colors.white
+                            : const Color(0xFF1A1C1E),
+                      ),
+                    )
+                  : Icon(
+                      isActive
+                          ? Icons.flash_on_rounded
+                          : Icons.flash_off_rounded,
+                      color: isActive ? Colors.white : const Color(0xFF1A1C1E),
+                      size: 21,
+                    ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CameraOverlayPainter extends CustomPainter {
+  const _CameraOverlayPainter({required this.frameRect});
+
+  final Rect frameRect;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final roundedFrame = RRect.fromRectAndRadius(
+      frameRect,
+      const Radius.circular(18),
+    );
+    final maskPath = Path()
+      ..fillType = PathFillType.evenOdd
+      ..addRect(Offset.zero & size)
+      ..addRRect(roundedFrame);
+    canvas.drawPath(
+      maskPath,
+      Paint()
+        ..color = const Color(0xA6000000)
+        ..style = PaintingStyle.fill,
+    );
+
+    canvas.drawRRect(
+      roundedFrame,
+      Paint()
+        ..color = const Color(0x8A00C49A)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
+    );
+    canvas.drawRRect(
+      roundedFrame,
+      Paint()
+        ..color = Colors.white.withValues(alpha: .45)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _CameraOverlayPainter oldDelegate) =>
+      frameRect != oldDelegate.frameRect;
+}
+
+class _ViewfinderCornersPainter extends CustomPainter {
+  const _ViewfinderCornersPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const cornerLength = 30.0;
+    const radius = 17.0;
+    final paint = Paint()
+      ..color = const Color(0xFF00C49A)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.round;
+
+    final path = Path()
+      ..moveTo(0, cornerLength)
+      ..lineTo(0, radius)
+      ..quadraticBezierTo(0, 0, radius, 0)
+      ..lineTo(cornerLength, 0)
+      ..moveTo(size.width - cornerLength, 0)
+      ..lineTo(size.width - radius, 0)
+      ..quadraticBezierTo(size.width, 0, size.width, radius)
+      ..lineTo(size.width, cornerLength)
+      ..moveTo(size.width, size.height - cornerLength)
+      ..lineTo(size.width, size.height - radius)
+      ..quadraticBezierTo(
+        size.width,
+        size.height,
+        size.width - radius,
+        size.height,
+      )
+      ..lineTo(size.width - cornerLength, size.height)
+      ..moveTo(cornerLength, size.height)
+      ..lineTo(radius, size.height)
+      ..quadraticBezierTo(0, size.height, 0, size.height - radius)
+      ..lineTo(0, size.height - cornerLength);
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ViewfinderCornersPainter oldDelegate) => false;
 }
 
 class _ScannedItemEditor extends StatefulWidget {

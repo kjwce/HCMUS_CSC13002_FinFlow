@@ -40,6 +40,9 @@ void main() {
     WidgetTester tester, {
     ReceiptImagePicker? imagePicker,
     ReceiptFileParser? receiptParser,
+    ReceiptTorchAvailability? torchAvailability,
+    ReceiptTorchAction? torchEnabler,
+    ReceiptTorchAction? torchDisabler,
   }) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(393, 852);
@@ -54,6 +57,9 @@ void main() {
                 embedded: true,
                 imagePicker: imagePicker,
                 receiptParser: receiptParser,
+                torchAvailability: torchAvailability,
+                torchEnabler: torchEnabler,
+                torchDisabler: torchDisabler,
               ),
             ),
           ),
@@ -69,8 +75,55 @@ void main() {
     expect(find.byKey(const Key('scan_image_preview')), findsOneWidget);
     expect(find.byKey(const Key('scan_camera_button')), findsOneWidget);
     expect(find.byKey(const Key('scan_gallery_button')), findsOneWidget);
+    expect(find.byKey(const Key('scan_animated_line')), findsOneWidget);
+    expect(find.byKey(const Key('scan_camera_overlay')), findsOneWidget);
+    expect(find.byKey(const Key('scan_viewfinder')), findsOneWidget);
+    expect(find.byKey(const Key('scan_flash_button')), findsOneWidget);
+    expect(find.text('Place the receipt inside the frame'), findsOneWidget);
     expect(find.byKey(const Key('scan_analyze_button')), findsNothing);
     expect(find.text('Scan mode is coming soon'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('toggles the real torch action and updates the flash state', (
+    tester,
+  ) async {
+    var enableCount = 0;
+    var disableCount = 0;
+    await pumpScanner(
+      tester,
+      torchAvailability: () async => true,
+      torchEnabler: () async {
+        enableCount++;
+      },
+      torchDisabler: () async {
+        disableCount++;
+      },
+    );
+
+    await tester.tap(find.byKey(const Key('scan_flash_button')));
+    await tester.pump();
+    expect(enableCount, 1);
+    expect(find.byIcon(Icons.flash_on_rounded), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('scan_flash_button')));
+    await tester.pump();
+    expect(disableCount, 1);
+    expect(find.byIcon(Icons.flash_off_rounded), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('moves the green scanning line down the receipt frame', (
+    tester,
+  ) async {
+    await pumpScanner(tester);
+
+    final line = find.byKey(const Key('scan_animated_line'));
+    final initialTop = tester.getTopLeft(line).dy;
+    await tester.pump(const Duration(milliseconds: 1200));
+    final movedTop = tester.getTopLeft(line).dy;
+
+    expect(movedTop, greaterThan(initialTop));
     expect(tester.takeException(), isNull);
   });
 
@@ -89,7 +142,8 @@ void main() {
     );
 
     await tester.tap(find.byKey(const Key('scan_gallery_button')));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
 
     expect(selectedSource, ImageSource.gallery);
     expect(find.byKey(const Key('scan_analyze_button')), findsOneWidget);
@@ -121,7 +175,8 @@ void main() {
       receiptParser: (_) async => scanResult,
     );
     await tester.tap(find.byKey(const Key('scan_gallery_button')));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
     await tester.tap(find.byKey(const Key('scan_analyze_button')));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull, reason: 'after receipt review');

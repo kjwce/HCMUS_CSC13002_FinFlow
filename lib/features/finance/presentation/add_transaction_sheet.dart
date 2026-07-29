@@ -228,13 +228,15 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                           key: ValueKey(_mode),
                           keyboardDismissBehavior:
                               ScrollViewKeyboardDismissBehavior.onDrag,
-                          padding: EdgeInsets.fromLTRB(
-                            Responsive.w(context, 20),
-                            Responsive.h(context, 20),
-                            Responsive.w(context, 20),
-                            MediaQuery.viewInsetsOf(context).bottom +
-                                Responsive.h(context, 24),
-                          ),
+                          padding: _mode == _AddMode.scan
+                              ? EdgeInsets.zero
+                              : EdgeInsets.fromLTRB(
+                                  Responsive.w(context, 20),
+                                  Responsive.h(context, 20),
+                                  Responsive.w(context, 20),
+                                  MediaQuery.viewInsetsOf(context).bottom +
+                                      Responsive.h(context, 24),
+                                ),
                           child: switch (_mode!) {
                             _AddMode.manual => _buildManualMode(),
                             _AddMode.quick => _buildQuickMode(),
