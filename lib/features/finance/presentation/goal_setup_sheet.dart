@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/i18n/app_language.dart';
 import '../../../core/utils/responsive.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../models/goal_model.dart';
@@ -20,9 +21,12 @@ class GoalSetupSheet extends ConsumerStatefulWidget {
       useSafeArea: true,
       backgroundColor: Colors.transparent,
       barrierColor: const Color(0x66001F17),
-      builder: (_) => const FractionallySizedBox(
-        heightFactor: 0.96,
-        child: GoalSetupSheet(),
+      builder: (_) => const SafeArea(
+        top: false,
+        child: FractionallySizedBox(
+          heightFactor: 0.96,
+          child: GoalSetupSheet(),
+        ),
       ),
     );
   }
@@ -121,7 +125,7 @@ class _GoalSetupSheetState extends ConsumerState<GoalSetupSheet> {
           if (_showCreateForm)
             IconButton(
               key: const Key('saving-goals-back-button'),
-              tooltip: 'Back to goals',
+              tooltip: AppStrings.choose('Back to goals', 'Quay lại mục tiêu'),
               onPressed: _isSaving ? null : _closeGoalForm,
               icon: const Icon(Icons.arrow_back_rounded),
             )
@@ -143,8 +147,13 @@ class _GoalSetupSheetState extends ConsumerState<GoalSetupSheet> {
           Expanded(
             child: Text(
               _showCreateForm
-                  ? (_editingGoal == null ? 'Add New Goal' : 'Edit Saving Goal')
-                  : 'Veridian Finance',
+                  ? (_editingGoal == null
+                        ? AppStrings.choose('Add New Goal', 'Thêm mục tiêu mới')
+                        : AppStrings.choose(
+                            'Edit Saving Goal',
+                            'Sửa mục tiêu tiết kiệm',
+                          ))
+                  : 'FinFlow',
               style: TextStyle(
                 fontFamily: _headlineFont,
                 fontSize: Responsive.sp(context, 13),
@@ -155,7 +164,7 @@ class _GoalSetupSheetState extends ConsumerState<GoalSetupSheet> {
           ),
           IconButton(
             key: const Key('saving-goals-close-button'),
-            tooltip: 'Close',
+            tooltip: AppStrings.choose('Close', 'Đóng'),
             onPressed: () => Navigator.of(context).pop(),
             icon: const Icon(Icons.close_rounded, color: _textColor),
           ),
@@ -180,7 +189,7 @@ class _GoalSetupSheetState extends ConsumerState<GoalSetupSheet> {
       physics: const BouncingScrollPhysics(),
       children: [
         Text(
-          'Savings Goals',
+          AppStrings.choose('Savings Goals', 'Mục tiêu tiết kiệm'),
           style: TextStyle(
             fontFamily: _headlineFont,
             fontSize: Responsive.sp(context, 24),
@@ -190,7 +199,10 @@ class _GoalSetupSheetState extends ConsumerState<GoalSetupSheet> {
         ),
         SizedBox(height: Responsive.h(context, 3)),
         Text(
-          'Manage and track your financial goals.',
+          AppStrings.choose(
+            'Manage and track your financial goals.',
+            'Quản lý và theo dõi các mục tiêu tài chính của bạn.',
+          ),
           style: TextStyle(
             fontFamily: _bodyFont,
             fontSize: Responsive.sp(context, 13),
@@ -204,7 +216,7 @@ class _GoalSetupSheetState extends ConsumerState<GoalSetupSheet> {
             key: const Key('add-new-saving-goal-button'),
             onPressed: _startCreateGoal,
             icon: const Icon(Icons.add_rounded, size: 18),
-            label: const Text('Add New Goal'),
+            label: Text(AppStrings.choose('Add New Goal', 'Thêm mục tiêu mới')),
             style: FilledButton.styleFrom(
               backgroundColor: const Color(0xFF006C53),
               foregroundColor: Colors.white,
@@ -258,7 +270,10 @@ class _GoalSetupSheetState extends ConsumerState<GoalSetupSheet> {
           const Icon(Icons.flag_outlined, size: 38, color: Color(0xFF7D9189)),
           SizedBox(height: Responsive.h(context, 10)),
           Text(
-            'No savings goals yet',
+            AppStrings.choose(
+              'No savings goals yet',
+              'Chưa có mục tiêu tiết kiệm',
+            ),
             style: TextStyle(
               fontFamily: _headlineFont,
               fontSize: Responsive.sp(context, 16),
@@ -268,7 +283,10 @@ class _GoalSetupSheetState extends ConsumerState<GoalSetupSheet> {
           ),
           SizedBox(height: Responsive.h(context, 4)),
           Text(
-            'Create your first goal and start tracking your progress.',
+            AppStrings.choose(
+              'Create your first goal and start tracking your progress.',
+              'Tạo mục tiêu đầu tiên và bắt đầu theo dõi tiến độ.',
+            ),
             textAlign: TextAlign.center,
             style: TextStyle(
               fontFamily: _bodyFont,
@@ -320,17 +338,23 @@ class _GoalSetupSheetState extends ConsumerState<GoalSetupSheet> {
                 alignment: Alignment.topRight,
                 child: IconButton(
                   key: ValueKey('pin-saving-goal-${goal.id}'),
-                  tooltip: goal.isActive
-                      ? 'Primary saving goal'
-                      : 'Set as primary goal',
+                  tooltip: goal.isPrimary
+                      ? AppStrings.choose(
+                          'Primary saving goal',
+                          'Mục tiêu tiết kiệm chính',
+                        )
+                      : AppStrings.choose(
+                          'Set as primary goal',
+                          'Đặt làm mục tiêu chính',
+                        ),
                   visualDensity: VisualDensity.compact,
-                  onPressed: goal.isActive ? null : () => _activateGoal(goal),
+                  onPressed: goal.isPrimary ? null : () => _activateGoal(goal),
                   icon: Icon(
-                    goal.isActive
+                    goal.isPrimary
                         ? Icons.push_pin_rounded
                         : Icons.push_pin_outlined,
                     size: 18,
-                    color: goal.isActive
+                    color: goal.isPrimary
                         ? const Color(0xFF006C53)
                         : const Color(0xFF8A9993),
                   ),
@@ -432,8 +456,14 @@ class _GoalSetupSheetState extends ConsumerState<GoalSetupSheet> {
         children: [
           Text(
             _editingGoal == null
-                ? 'Create a savings goal'
-                : 'Edit your savings goal',
+                ? AppStrings.choose(
+                    'Create a savings goal',
+                    'Tạo mục tiêu tiết kiệm',
+                  )
+                : AppStrings.choose(
+                    'Edit your savings goal',
+                    'Sửa mục tiêu tiết kiệm',
+                  ),
             style: TextStyle(
               fontFamily: _headlineFont,
               fontSize: Responsive.sp(context, 24),
@@ -444,8 +474,14 @@ class _GoalSetupSheetState extends ConsumerState<GoalSetupSheet> {
           SizedBox(height: Responsive.h(context, 4)),
           Text(
             _editingGoal == null
-                ? 'Give your goal a clear name and target amount.'
-                : 'Update the goal name or target amount below.',
+                ? AppStrings.choose(
+                    'Give your goal a clear name and target amount.',
+                    'Đặt tên rõ ràng và số tiền đích cho mục tiêu.',
+                  )
+                : AppStrings.choose(
+                    'Update the goal name or target amount below.',
+                    'Cập nhật tên hoặc số tiền đích bên dưới.',
+                  ),
             style: TextStyle(
               fontFamily: _bodyFont,
               fontSize: Responsive.sp(context, 13),
@@ -458,8 +494,11 @@ class _GoalSetupSheetState extends ConsumerState<GoalSetupSheet> {
             controller: _nameController,
             textInputAction: TextInputAction.next,
             decoration: _inputDecoration(
-              label: 'Goal name',
-              hint: 'e.g. Buy a new laptop',
+              label: AppStrings.choose('Goal name', 'Tên mục tiêu'),
+              hint: AppStrings.choose(
+                'e.g. Buy a new laptop',
+                'Ví dụ: Mua máy tính xách tay mới',
+              ),
             ),
           ),
           SizedBox(height: Responsive.h(context, 14)),
@@ -468,7 +507,10 @@ class _GoalSetupSheetState extends ConsumerState<GoalSetupSheet> {
             controller: _amountController,
             keyboardType: TextInputType.number,
             decoration: _inputDecoration(
-              label: 'Target amount (VND)',
+              label: AppStrings.choose(
+                'Target amount (VND)',
+                'Số tiền mục tiêu (VND)',
+              ),
               hint: '15,000,000',
             ),
           ),
@@ -496,7 +538,12 @@ class _GoalSetupSheetState extends ConsumerState<GoalSetupSheet> {
                       ),
                     )
                   : Text(
-                      _editingGoal == null ? 'Start Saving' : 'Save Changes',
+                      _editingGoal == null
+                          ? AppStrings.choose(
+                              'Start Saving',
+                              'Bắt đầu tiết kiệm',
+                            )
+                          : AppStrings.choose('Save Changes', 'Lưu thay đổi'),
                       style: TextStyle(
                         fontFamily: _bodyFont,
                         fontSize: Responsive.sp(context, 15),
@@ -516,7 +563,7 @@ class _GoalSetupSheetState extends ConsumerState<GoalSetupSheet> {
                     ? null
                     : () => _confirmDelete(_editingGoal!),
                 icon: const Icon(Icons.delete_outline),
-                label: const Text('Delete Goal'),
+                label: Text(AppStrings.choose('Delete Goal', 'Xóa mục tiêu')),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: const Color(0xFFBA1A1A),
                   side: const BorderSide(color: Color(0xFFBA1A1A)),
@@ -563,7 +610,12 @@ class _GoalSetupSheetState extends ConsumerState<GoalSetupSheet> {
       if (mounted) setState(() {});
     } catch (error) {
       if (!mounted) return;
-      _showError('Unable to pin this goal: $error');
+      _showError(
+        AppStrings.choose(
+          'Unable to pin this goal: $error',
+          'Không thể ghim mục tiêu này: $error',
+        ),
+      );
     }
   }
 
@@ -598,16 +650,18 @@ class _GoalSetupSheetState extends ConsumerState<GoalSetupSheet> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Delete Goal'),
-        content: Text('Delete "${goal.name}"?'),
+        title: Text(AppStrings.choose('Delete Goal', 'Xóa mục tiêu')),
+        content: Text(
+          AppStrings.choose('Delete "${goal.name}"?', 'Xóa "${goal.name}"?'),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancel'),
+            child: Text(AppStrings.choose('Cancel', 'Hủy')),
           ),
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Delete'),
+            child: Text(AppStrings.choose('Delete', 'Xóa')),
           ),
         ],
       ),
@@ -618,7 +672,12 @@ class _GoalSetupSheetState extends ConsumerState<GoalSetupSheet> {
       if (mounted) _closeGoalForm();
     } catch (error) {
       if (!mounted) return;
-      _showError('Unable to delete this goal: $error');
+      _showError(
+        AppStrings.choose(
+          'Unable to delete this goal: $error',
+          'Không thể xóa mục tiêu này: $error',
+        ),
+      );
     }
   }
 
@@ -627,7 +686,12 @@ class _GoalSetupSheetState extends ConsumerState<GoalSetupSheet> {
     final raw = _amountController.text.replaceAll(',', '').trim();
     final amount = int.tryParse(raw);
     if (name.isEmpty || amount == null || amount <= 0) {
-      _showError('Please enter a name and a valid amount');
+      _showError(
+        AppStrings.choose(
+          'Please enter a name and a valid amount',
+          'Vui lòng nhập tên và số tiền hợp lệ',
+        ),
+      );
       return;
     }
 
@@ -635,7 +699,11 @@ class _GoalSetupSheetState extends ConsumerState<GoalSetupSheet> {
     setState(() => _isSaving = true);
     try {
       final user = ref.read(authServiceProvider).currentUser;
-      if (user == null) throw Exception('Not authenticated');
+      if (user == null) {
+        throw Exception(
+          AppStrings.choose('Not authenticated', 'Chưa xác thực'),
+        );
+      }
       final goalService = ref.read(goalServiceProvider);
       if (editingGoal == null) {
         await goalService.setGoal(
@@ -655,7 +723,18 @@ class _GoalSetupSheetState extends ConsumerState<GoalSetupSheet> {
             name: name,
             targetAmount: amount,
             createdAt: editingGoal.createdAt,
-            isActive: editingGoal.isActive,
+            isPrimary: editingGoal.isPrimary,
+            category: editingGoal.category,
+            targetDate: editingGoal.targetDate,
+            fundingMethod: editingGoal.fundingMethod,
+            autoAllocationPercent: editingGoal.autoAllocationPercent,
+            isProtected: editingGoal.isProtected,
+            withdrawalPriority: editingGoal.withdrawalPriority,
+            status: editingGoal.status,
+            completionBehavior: editingGoal.completionBehavior,
+            redirectGoalId: editingGoal.redirectGoalId,
+            imageUrl: editingGoal.imageUrl,
+            allocatedAmount: editingGoal.allocatedAmount,
           ),
         );
       }
@@ -667,8 +746,14 @@ class _GoalSetupSheetState extends ConsumerState<GoalSetupSheet> {
       setState(() => _isSaving = false);
       _showError(
         editingGoal == null
-            ? 'Failed to create goal: $error'
-            : 'Failed to update goal: $error',
+            ? AppStrings.choose(
+                'Failed to create goal: $error',
+                'Không thể tạo mục tiêu: $error',
+              )
+            : AppStrings.choose(
+                'Failed to update goal: $error',
+                'Không thể cập nhật mục tiêu: $error',
+              ),
       );
     }
   }
