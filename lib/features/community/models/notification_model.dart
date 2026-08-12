@@ -1,3 +1,5 @@
+import '../../../core/i18n/app_language.dart';
+
 class NotificationModel {
   const NotificationModel({
     required this.id,
@@ -42,7 +44,7 @@ class NotificationModel {
   final String actorId;
   final String? postId;
   final String? commentId;
-  final String type; // 'post', 'like', 'comment'
+  final String type;
   final bool isRead;
   final DateTime createdAt;
 
@@ -51,18 +53,41 @@ class NotificationModel {
   final String? actorAvatarUrl;
   final String? postContent;
 
-  String get actorDisplayName => actorName ?? 'FinFlow user';
+  String get actorDisplayName =>
+      actorName ?? AppStrings.choose('FinFlow user', 'Người dùng FinFlow');
 
   String get message {
     switch (type) {
       case 'post':
-        return 'shared a new community post: "${postContent ?? ""}"';
+        return AppStrings.choose(
+          'shared a new community post: "${postContent ?? ""}"',
+          'đã chia sẻ bài viết cộng đồng mới: "${postContent ?? ""}"',
+        );
       case 'like':
-        return 'liked your tip on "${postContent ?? "a post"}"';
+        return AppStrings.choose(
+          'liked your tip on "${postContent ?? "a post"}"',
+          'đã thích mẹo của bạn trong "${postContent ?? "một bài viết"}"',
+        );
       case 'comment':
-        return 'commented on a community post: "${postContent ?? ""}"';
+        return AppStrings.choose(
+          'commented on a community post: "${postContent ?? ""}"',
+          'đã bình luận về bài viết cộng đồng: "${postContent ?? ""}"',
+        );
+      case 'comment_reply':
+        return AppStrings.choose(
+          'replied to your comment on "${postContent ?? "a post"}"',
+          'đã trả lời bình luận của bạn trong "${postContent ?? "một bài viết"}"',
+        );
+      case 'comment_like':
+        return AppStrings.choose(
+          'liked your comment on "${postContent ?? "a post"}"',
+          'đã thích bình luận của bạn trong "${postContent ?? "một bài viết"}"',
+        );
       default:
-        return 'interacted with your post';
+        return AppStrings.choose(
+          'interacted with your post',
+          'đã tương tác với bài viết của bạn',
+        );
     }
   }
 

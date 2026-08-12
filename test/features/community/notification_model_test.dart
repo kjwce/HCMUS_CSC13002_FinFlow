@@ -27,4 +27,18 @@ void main() {
       'commented on a community post: "A community post"',
     );
   });
+
+  test('reply activity identifies the recipient comment', () {
+    expect(
+      notification('comment_reply').message,
+      'replied to your comment on "A community post"',
+    );
+  });
+
+  test('comment like activity identifies the recipient comment', () {
+    expect(
+      notification('comment_like').message,
+      'liked your comment on "A community post"',
+    );
+  });
 }

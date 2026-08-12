@@ -21,6 +21,15 @@ class CommunityService extends ChangeNotifier {
       List.unmodifiable(_posts.where((p) => p.isLikedByMe));
   List<CommunityPostModel> get savedPosts =>
       List.unmodifiable(_posts.where((p) => p.isSavedByMe));
+  List<CommunityPostModel> get myPosts {
+    final userId = _userId;
+    if (userId == null) return const [];
+    return List.unmodifiable(_posts.where((post) => post.userId == userId));
+  }
+
+  List<CommunityPostModel> postsForTopic(String topic) => topic == 'All'
+      ? posts
+      : List.unmodifiable(_posts.where((post) => post.category == topic));
   bool get isLoading => _isLoading;
 
   List<CommunityCommentModel> commentsFor(String postId) =>
@@ -125,6 +134,24 @@ class CommunityService extends ChangeNotifier {
             fetchComments(postId);
           },
         )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'community_comment_likes',
+          callback: (payload) {
+            final commentId =
+                (payload.newRecord['comment_id'] ??
+                        payload.oldRecord['comment_id'])
+                    as String?;
+            final comments = _commentsByPost[postId];
+            if (commentId == null ||
+                comments == null ||
+                !comments.any((comment) => comment.id == commentId)) {
+              return;
+            }
+            fetchComments(postId);
+          },
+        )
         .subscribe();
   }
 
@@ -194,8 +221,9 @@ class CommunityService extends ChangeNotifier {
         try {
           final mediaRows = await client
               .from('community_media')
-              .select('post_id,url')
-              .inFilter('post_id', rawPosts.map((p) => p.id).toList());
+              .select('post_id,url,created_at')
+              .inFilter('post_id', rawPosts.map((p) => p.id).toList())
+              .order('created_at', ascending: true);
           for (final row in mediaRows as List) {
             final postId = row['post_id'] as String;
             final url = row['url'] as String;
@@ -282,41 +310,48 @@ class CommunityService extends ChangeNotifier {
     return row['id'] as String;
   }
 
-  Future<void> addPostImage({
+  Future<void> addPostImage({required String postId, required XFile image}) =>
+      addPostImages(postId: postId, images: [image]);
+
+  Future<void> addPostImages({
     required String postId,
-    required XFile image,
+    required List<XFile> images,
   }) async {
     final userId = _userId;
     if (userId == null) throw Exception('Not authenticated');
-    final extension = image.name.contains('.')
-        ? image.name.split('.').last.toLowerCase()
-        : 'jpg';
-    final storagePath =
-        '$userId/$postId/${DateTime.now().millisecondsSinceEpoch}.$extension';
-    final bytes = await image.readAsBytes();
-    final contentType = switch (extension) {
-      'jpg' || 'jpeg' => 'image/jpeg',
-      'png' => 'image/png',
-      'webp' => 'image/webp',
-      'gif' => 'image/gif',
-      _ => image.mimeType ?? 'image/jpeg',
-    };
-    await Supabase.instance.client.storage
-        .from('community-media')
-        .uploadBinary(
-          storagePath,
-          bytes,
-          fileOptions: FileOptions(contentType: contentType, upsert: false),
-        );
-    final url = Supabase.instance.client.storage
-        .from('community-media')
-        .getPublicUrl(storagePath);
-    await Supabase.instance.client.from('community_media').insert({
-      'post_id': postId,
-      'user_id': userId,
-      'url': url,
-      'media_type': 'image',
-    });
+    for (var index = 0; index < images.length; index++) {
+      final image = images[index];
+      final extension = image.name.contains('.')
+          ? image.name.split('.').last.toLowerCase()
+          : 'jpg';
+      final storagePath =
+          '$userId/$postId/'
+          '${DateTime.now().microsecondsSinceEpoch}_$index.$extension';
+      final bytes = await image.readAsBytes();
+      final contentType = switch (extension) {
+        'jpg' || 'jpeg' => 'image/jpeg',
+        'png' => 'image/png',
+        'webp' => 'image/webp',
+        'gif' => 'image/gif',
+        _ => image.mimeType ?? 'image/jpeg',
+      };
+      await Supabase.instance.client.storage
+          .from('community-media')
+          .uploadBinary(
+            storagePath,
+            bytes,
+            fileOptions: FileOptions(contentType: contentType, upsert: false),
+          );
+      final url = Supabase.instance.client.storage
+          .from('community-media')
+          .getPublicUrl(storagePath);
+      await Supabase.instance.client.from('community_media').insert({
+        'post_id': postId,
+        'user_id': userId,
+        'url': url,
+        'media_type': 'image',
+      });
+    }
   }
 
   Future<void> editPost({
@@ -456,12 +491,32 @@ class CommunityService extends ChangeNotifier {
 
       final authorIds = rawComments.map((c) => c.userId).toSet().toList();
       final authors = await _fetchAuthors(authorIds);
+      final commentIds = rawComments.map((comment) => comment.id).toList();
+      final likedCommentIds = <String>{};
+      final userId = _userId;
+      if (userId != null && commentIds.isNotEmpty) {
+        try {
+          final likedRes = await client
+              .from('community_comment_likes')
+              .select('comment_id')
+              .eq('user_id', userId)
+              .inFilter('comment_id', commentIds);
+          likedCommentIds.addAll(
+            (likedRes as List).map(
+              (row) => (row as Map<String, dynamic>)['comment_id'] as String,
+            ),
+          );
+        } catch (e) {
+          debugPrint('fetch comment likes error: $e');
+        }
+      }
 
       _commentsByPost[postId] = rawComments.map((c) {
         final author = authors[c.userId];
         return c.copyWith(
           authorName: author?['full_name'] as String?,
           authorAvatarUrl: author?['avatar_url'] as String?,
+          isLikedByMe: likedCommentIds.contains(c.id),
         );
       }).toList();
       _syncPostCommentsCount(postId);
@@ -475,6 +530,7 @@ class CommunityService extends ChangeNotifier {
     required String postId,
     required String content,
     required bool isAnonymous,
+    String? parentCommentId,
   }) async {
     final userId = _userId;
     if (userId == null) throw Exception('Not authenticated');
@@ -484,6 +540,7 @@ class CommunityService extends ChangeNotifier {
       'user_id': userId,
       'content': content,
       'is_anonymous': isAnonymous,
+      'parent_comment_id': parentCommentId,
     });
     // Show the submitted comment immediately. Realtime continues to refresh
     // this cache for inserts, updates, and deletes from other clients.
@@ -499,10 +556,80 @@ class CommunityService extends ChangeNotifier {
         .delete()
         .eq('id', commentId)
         .eq('user_id', userId);
-    // Xoá khỏi danh sách local ngay lập tức
-    _commentsByPost[postId]?.removeWhere((c) => c.id == commentId);
+    // Remove the entire local subtree immediately. Supabase applies the same
+    // operation through ON DELETE CASCADE.
+    final comments = _commentsByPost[postId];
+    if (comments != null) {
+      final removedIds = <String>{commentId};
+      var foundChild = true;
+      while (foundChild) {
+        foundChild = false;
+        for (final comment in comments) {
+          if (comment.parentCommentId != null &&
+              removedIds.contains(comment.parentCommentId) &&
+              removedIds.add(comment.id)) {
+            foundChild = true;
+          }
+        }
+      }
+      comments.removeWhere((comment) => removedIds.contains(comment.id));
+    }
     _syncPostCommentsCount(postId);
     notifyListeners();
+  }
+
+  Future<void> toggleCommentLike({
+    required String postId,
+    required String commentId,
+  }) async {
+    final userId = _userId;
+    if (userId == null) throw Exception('Not authenticated');
+
+    final comments = _commentsByPost[postId];
+    final index = comments?.indexWhere((comment) => comment.id == commentId);
+    if (comments == null || index == null || index < 0) {
+      throw Exception('Comment not found');
+    }
+
+    final original = comments[index];
+    final shouldLike = !original.isLikedByMe;
+    comments[index] = original.copyWith(
+      isLikedByMe: shouldLike,
+      likesCount: shouldLike
+          ? original.likesCount + 1
+          : original.likesCount > 0
+          ? original.likesCount - 1
+          : 0,
+    );
+    notifyListeners();
+
+    try {
+      final client = Supabase.instance.client;
+      if (shouldLike) {
+        await client.from('community_comment_likes').insert({
+          'comment_id': commentId,
+          'user_id': userId,
+        });
+      } else {
+        await client
+            .from('community_comment_likes')
+            .delete()
+            .eq('comment_id', commentId)
+            .eq('user_id', userId);
+      }
+    } catch (e) {
+      final currentComments = _commentsByPost[postId];
+      final currentIndex = currentComments?.indexWhere(
+        (comment) => comment.id == commentId,
+      );
+      if (currentComments != null &&
+          currentIndex != null &&
+          currentIndex >= 0) {
+        currentComments[currentIndex] = original;
+        notifyListeners();
+      }
+      rethrow;
+    }
   }
 
   void _syncPostCommentsCount(String postId) {

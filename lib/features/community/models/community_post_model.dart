@@ -1,3 +1,5 @@
+import '../../../core/i18n/app_language.dart';
+
 class CommunityPostModel {
   const CommunityPostModel({
     required this.id,
@@ -61,8 +63,9 @@ class CommunityPostModel {
   final bool isSavedByMe;
   final List<String> mediaUrls;
 
-  String get displayName =>
-      isAnonymous ? 'Anonymous' : (authorName ?? 'FinFlow user');
+  String get displayName => isAnonymous
+      ? AppStrings.choose('Anonymous', 'Ẩn danh')
+      : (authorName ?? AppStrings.choose('FinFlow user', 'Người dùng FinFlow'));
 
   CommunityPostModel copyWith({
     String? content,

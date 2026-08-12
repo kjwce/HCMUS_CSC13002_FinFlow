@@ -1,9 +1,24 @@
+import '../../../core/i18n/app_language.dart';
+
 /// Formats a [DateTime] the way the Figma community screens show it,
 /// e.g. "6th May". No `intl` dependency required.
 String formatCommunityDate(DateTime date) {
+  if (AppStrings.isVietnamese) {
+    return '${date.day} Thg ${date.month}';
+  }
   const months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
   final day = date.day;
   final suffix = _daySuffix(day);
