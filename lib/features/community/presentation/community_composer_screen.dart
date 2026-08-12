@@ -5,20 +5,14 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../core/i18n/app_language.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/responsive.dart';
 import '../../auth/services/auth_service.dart';
 import '../models/community_post_model.dart';
 import '../providers/community_provider.dart';
+import '../utils/community_topics.dart';
 import '../utils/rich_text_formatter.dart';
-
-const _kComposerCategories = [
-  'Budgeting',
-  'Saving',
-  'Debt-free',
-  'Investing',
-  'General',
-];
 
 /// Full-screen "New post" composer — mirrors the Threads-style layout:
 /// close button, author row with a community/category picker, a large
@@ -40,7 +34,7 @@ class _CommunityComposerScreenState
     extends ConsumerState<CommunityComposerScreen> {
   final _controller = MarkdownEditingController();
   final _focusNode = FocusNode();
-  XFile? _selectedImage;
+  final List<XFile> _selectedImages = [];
 
   late String _category;
   bool _anonymous = false;
@@ -57,7 +51,7 @@ class _CommunityComposerScreenState
       _anonymous = post.isAnonymous;
       _controller.text = post.content;
     } else {
-      _category = _kComposerCategories.first;
+      _category = communityTopics.first;
     }
     _controller.addListener(() => setState(() {}));
   }
@@ -108,24 +102,50 @@ class _CommunityComposerScreenState
     _controller.selection.isValid ? _controller.selection.start : 0,
   );
 
-  Future<void> _pickImage() async {
-    final image = await ImagePicker().pickImage(
-      source: ImageSource.gallery,
+  Future<void> _pickImages() async {
+    final images = await ImagePicker().pickMultiImage(
       imageQuality: 85,
       maxWidth: 1800,
     );
-    if (image != null && mounted) setState(() => _selectedImage = image);
+    if (!mounted || images.isEmpty) return;
+    final remaining = 10 - _selectedImages.length;
+    if (remaining <= 0) {
+      _showMessage(
+        AppStrings.choose(
+          'You can attach up to 10 images.',
+          'Bạn có thể đính kèm tối đa 10 ảnh.',
+        ),
+      );
+      return;
+    }
+    setState(() => _selectedImages.addAll(images.take(remaining)));
+    if (images.length > remaining) {
+      _showMessage(
+        AppStrings.choose(
+          'Only the first 10 images were attached.',
+          'Chỉ 10 ảnh đầu tiên được đính kèm.',
+        ),
+      );
+    }
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(behavior: SnackBarBehavior.floating, content: Text(message)),
+    );
   }
 
   Future<void> _pickCategory() async {
     final colors = context.finFlowColors;
     final picked = await showModalBottomSheet<String>(
       context: context,
+      useSafeArea: true,
       backgroundColor: colors.bottomSheetBackground,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (_) => SafeArea(
+        top: false,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -140,7 +160,7 @@ class _CommunityComposerScreenState
             ),
             SizedBox(height: Responsive.h(context, 16)),
             Text(
-              'Choose a topic',
+              AppStrings.choose('Choose a topic', 'Chọn chủ đề'),
               style: TextStyle(
                 fontWeight: FontWeight.w700,
                 fontSize: Responsive.sp(context, 15),
@@ -148,19 +168,19 @@ class _CommunityComposerScreenState
               ),
             ),
             SizedBox(height: Responsive.h(context, 8)),
-            for (var i = 0; i < _kComposerCategories.length; i++) ...[
+            for (var i = 0; i < communityTopics.length; i++) ...[
               ListTile(
                 leading: Icon(
-                  _categoryIcon(_kComposerCategories[i]),
+                  _categoryIcon(communityTopics[i]),
                   color: AppColors.accentTeal,
                 ),
-                title: Text(_kComposerCategories[i]),
-                trailing: _kComposerCategories[i] == _category
+                title: Text(communityTopicLabel(communityTopics[i])),
+                trailing: communityTopics[i] == _category
                     ? const Icon(Icons.check, color: AppColors.primaryGreen)
                     : null,
-                onTap: () => Navigator.of(context).pop(_kComposerCategories[i]),
+                onTap: () => Navigator.of(context).pop(communityTopics[i]),
               ),
-              if (i != _kComposerCategories.length - 1)
+              if (i != communityTopics.length - 1)
                 Divider(height: 1, indent: 56, color: colors.divider),
             ],
             SizedBox(height: Responsive.h(context, 8)),
@@ -181,7 +201,7 @@ class _CommunityComposerScreenState
 
   Future<void> _submit() async {
     final text = _controller.text.trim();
-    if (text.isEmpty || _isPosting) return;
+    if ((text.isEmpty && _selectedImages.isEmpty) || _isPosting) return;
     setState(() => _isPosting = true);
     try {
       final service = ref.read(communityServiceProvider);
@@ -198,8 +218,8 @@ class _CommunityComposerScreenState
           isAnonymous: _anonymous,
           category: _category,
         );
-        if (_selectedImage != null) {
-          await service.addPostImage(postId: postId, image: _selectedImage!);
+        if (_selectedImages.isNotEmpty) {
+          await service.addPostImages(postId: postId, images: _selectedImages);
         }
         await service.fetchPosts();
       }
@@ -210,7 +230,7 @@ class _CommunityComposerScreenState
           SnackBar(
             behavior: SnackBarBehavior.floating,
             content: Text(
-              '${_isEditing ? "Could not edit" : "Could not post"}: $e',
+              '${_isEditing ? AppStrings.choose("Could not edit", "Không thể chỉnh sửa") : AppStrings.choose("Could not post", "Không thể đăng bài")}: $e',
             ),
           ),
         );
@@ -225,142 +245,112 @@ class _CommunityComposerScreenState
     final user = AuthService.instance.currentUser;
     final colors = context.finFlowColors;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final canPost = _controller.text.trim().isNotEmpty && !_isPosting;
-    final displayName = _anonymous ? 'Anonymous' : (user?.fullName ?? 'You');
+    final canPost =
+        (_controller.text.trim().isNotEmpty || _selectedImages.isNotEmpty) &&
+        !_isPosting;
+    final displayName = _anonymous
+        ? AppStrings.choose('Anonymous', 'Ẩn danh')
+        : (user?.fullName ?? AppStrings.choose('You', 'Bạn'));
 
     return Scaffold(
-      backgroundColor: isDark ? colors.pageBackground : AppColors.mintSoft,
-      body: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: isDark
-              ? null
-              : RadialGradient(
-                  center: const Alignment(0.45, -0.72),
-                  radius: 0.42,
-                  colors: [
-                    AppColors.primaryGreen.withValues(alpha: 0.42),
-                    AppColors.dashboardHeaderBg.withValues(alpha: 0.9),
-                    AppColors.mint,
-                  ],
-                  stops: const [0, 0.35, 1],
+      backgroundColor: isDark ? colors.pageBackground : colors.surface,
+      body: SafeArea(
+        child: Column(
+          children: [
+            _buildHeader(canPost),
+            Expanded(
+              child: SingleChildScrollView(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: EdgeInsets.fromLTRB(
+                  Responsive.w(context, 20),
+                  Responsive.h(context, 18),
+                  Responsive.w(context, 20),
+                  Responsive.h(context, 24),
                 ),
-          color: isDark ? colors.pageBackground : null,
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              _buildHeader(canPost),
-              Expanded(
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    Responsive.w(context, 28),
-                    Responsive.h(context, 18),
-                    Responsive.w(context, 28),
-                    Responsive.h(context, 14),
-                  ),
-                  child: Column(
-                    children: [
-                      _buildAuthorRow(displayName, user?.avatarUrl),
-                      SizedBox(height: Responsive.h(context, 18)),
-                      AspectRatio(
-                        aspectRatio: 0.92,
-                        child: Container(
-                          clipBehavior: Clip.antiAlias,
-                          decoration: BoxDecoration(
-                            color: colors.surface,
-                            borderRadius: BorderRadius.circular(22),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Theme.of(
-                                  context,
-                                ).shadowColor.withValues(alpha: 0.12),
-                                blurRadius: 18,
-                                offset: const Offset(0, 7),
-                              ),
-                              BoxShadow(
-                                color: AppColors.accentTeal.withValues(
-                                  alpha: 0.08,
-                                ),
-                                blurRadius: 30,
-                                spreadRadius: 3,
-                              ),
-                            ],
-                          ),
-                          child: Column(
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  controller: _controller,
-                                  focusNode: _focusNode,
-                                  expands: true,
-                                  maxLines: null,
-                                  minLines: null,
-                                  textAlignVertical: TextAlignVertical.top,
-                                  style: TextStyle(
-                                    fontSize: Responsive.sp(context, 15),
-                                    color: colors.primaryText,
-                                    height: 1.45,
-                                  ),
-                                  decoration: InputDecoration(
-                                    filled: true,
-                                    fillColor: Colors.transparent,
-                                    hintText: "What's on your mind?",
-                                    hintStyle: TextStyle(
-                                      color: colors.secondaryText,
-                                      fontSize: Responsive.sp(context, 16),
-                                    ),
-                                    border: InputBorder.none,
-                                    enabledBorder: InputBorder.none,
-                                    focusedBorder: InputBorder.none,
-                                    disabledBorder: InputBorder.none,
-                                    errorBorder: InputBorder.none,
-                                    focusedErrorBorder: InputBorder.none,
-                                    contentPadding: EdgeInsets.all(
-                                      Responsive.w(context, 20),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              if (_selectedImage != null)
-                                Padding(
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: Responsive.w(context, 14),
-                                  ),
-                                  child: Stack(
-                                    alignment: Alignment.topRight,
-                                    children: [
-                                      ClipRRect(
-                                        borderRadius: BorderRadius.circular(12),
-                                        child: Image.file(
-                                          File(_selectedImage!.path),
-                                          height: Responsive.h(context, 120),
-                                          width: double.infinity,
-                                          fit: BoxFit.cover,
-                                        ),
-                                      ),
-                                      IconButton.filled(
-                                        onPressed: () => setState(
-                                          () => _selectedImage = null,
-                                        ),
-                                        icon: const Icon(Icons.close, size: 18),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildAuthorRow(displayName, user?.avatarUrl),
+                    SizedBox(height: Responsive.h(context, 14)),
+                    TextField(
+                      controller: _controller,
+                      focusNode: _focusNode,
+                      minLines: 7,
+                      maxLines: null,
+                      textAlignVertical: TextAlignVertical.top,
+                      style: TextStyle(
+                        fontFamily: 'Hanken Grotesk',
+                        fontSize: Responsive.sp(context, 16),
+                        color: colors.primaryText,
+                        height: 1.5,
                       ),
-                      const Spacer(),
-                      SizedBox(height: Responsive.h(context, 18)),
-                      _buildToolbar(),
+                      decoration: InputDecoration(
+                        hintText: AppStrings.choose(
+                          "What's on your mind?",
+                          'Bạn đang nghĩ gì?',
+                        ),
+                        hintStyle: TextStyle(
+                          color: colors.secondaryText,
+                          fontSize: Responsive.sp(context, 17),
+                        ),
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                    if (_selectedImages.isNotEmpty) ...[
+                      SizedBox(height: Responsive.h(context, 14)),
+                      _buildSelectedMedia(),
                     ],
-                  ),
+                  ],
                 ),
               ),
-            ],
-          ),
+            ),
+            _buildToolbar(),
+          ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildSelectedMedia() {
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: _selectedImages.length,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: _selectedImages.length == 1 ? 1 : 2,
+        childAspectRatio: _selectedImages.length == 1 ? 1.8 : 1,
+        crossAxisSpacing: Responsive.w(context, 4),
+        mainAxisSpacing: Responsive.w(context, 4),
+      ),
+      itemBuilder: (_, index) => Stack(
+        fit: StackFit.expand,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(Responsive.w(context, 12)),
+            child: Image.file(
+              File(_selectedImages[index].path),
+              fit: BoxFit.cover,
+            ),
+          ),
+          Positioned(
+            top: Responsive.w(context, 6),
+            right: Responsive.w(context, 6),
+            child: IconButton.filled(
+              tooltip: AppStrings.choose('Remove image', 'Xóa ảnh'),
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.black.withValues(alpha: .66),
+                foregroundColor: Colors.white,
+                minimumSize: const Size(40, 40),
+              ),
+              onPressed: () => setState(() => _selectedImages.removeAt(index)),
+              icon: const Icon(Icons.close, size: 18),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -388,7 +378,7 @@ class _CommunityComposerScreenState
         children: [
           IconButton(
             onPressed: () => Navigator.of(context).pop(),
-            tooltip: 'Close',
+            tooltip: AppStrings.choose('Close', 'Đóng'),
             icon: Icon(
               Icons.close,
               size: Responsive.w(context, 22),
@@ -397,7 +387,9 @@ class _CommunityComposerScreenState
           ),
           Expanded(
             child: Text(
-              _isEditing ? 'Edit post' : 'New post',
+              _isEditing
+                  ? AppStrings.choose('Edit post', 'Chỉnh sửa bài viết')
+                  : AppStrings.choose('New post', 'Bài viết mới'),
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontWeight: FontWeight.w700,
@@ -430,7 +422,9 @@ class _CommunityComposerScreenState
                         ),
                       )
                     : Text(
-                        _isEditing ? 'Save' : 'Post',
+                        _isEditing
+                            ? AppStrings.save
+                            : AppStrings.choose('Post', 'Đăng'),
                         style: TextStyle(
                           color: Theme.of(context).colorScheme.onPrimary,
                           fontWeight: FontWeight.w700,
@@ -494,7 +488,7 @@ class _CommunityComposerScreenState
                   child: Row(
                     children: [
                       Text(
-                        _category,
+                        communityTopicLabel(_category),
                         style: TextStyle(
                           fontSize: Responsive.sp(context, 12.5),
                           color: AppColors.mutedGray,
@@ -520,19 +514,12 @@ class _CommunityComposerScreenState
     final colors = context.finFlowColors;
     return Container(
       padding: EdgeInsets.symmetric(
-        horizontal: Responsive.w(context, 14),
-        vertical: Responsive.h(context, 8),
+        horizontal: Responsive.w(context, 16),
+        vertical: Responsive.h(context, 10),
       ),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(999),
-        boxShadow: [
-          BoxShadow(
-            color: Theme.of(context).shadowColor.withValues(alpha: 0.12),
-            blurRadius: 16,
-            offset: const Offset(0, 5),
-          ),
-        ],
+        border: Border(top: BorderSide(color: colors.divider)),
       ),
       child: Row(
         children: [
@@ -566,16 +553,18 @@ class _CommunityComposerScreenState
           ),
           _ToolbarIconButton(
             icon: Icons.image_outlined,
-            tooltip: 'Add image',
+            tooltip: AppStrings.choose('Add images', 'Thêm ảnh'),
             accent: true,
-            onTap: _pickImage,
+            onTap: _pickImages,
           ),
           SizedBox(width: Responsive.w(context, 6)),
           _ToolbarIconButton(
             icon: _anonymous
                 ? Icons.visibility_off_outlined
                 : Icons.visibility_outlined,
-            tooltip: _anonymous ? 'Post with your profile' : 'Post anonymously',
+            tooltip: _anonymous
+                ? AppStrings.choose('Post with your profile', 'Đăng bằng hồ sơ')
+                : AppStrings.choose('Post anonymously', 'Đăng ẩn danh'),
             accent: true,
             onTap: _isEditing
                 ? () {}

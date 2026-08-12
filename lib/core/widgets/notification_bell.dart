@@ -13,6 +13,7 @@ class NotificationBell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final service = ref.watch(notificationServiceProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return ListenableBuilder(
       listenable: service,
@@ -23,8 +24,8 @@ class NotificationBell extends ConsumerWidget {
           child: Container(
             width: Responsive.w(context, 36),
             height: Responsive.h(context, 36),
-            decoration: const BoxDecoration(
-              color: AppColors.lightGreen,
+            decoration: BoxDecoration(
+              color: isDark ? Colors.transparent : AppColors.lightGreen,
               shape: BoxShape.circle,
             ),
             child: Stack(
@@ -36,8 +37,10 @@ class NotificationBell extends ConsumerWidget {
                     height: Responsive.h(context, 20),
                     child: SvgPicture.asset(
                       'assets/icons/icon_notification.svg',
-                      colorFilter: const ColorFilter.mode(
-                        Color(0xFF093030),
+                      colorFilter: ColorFilter.mode(
+                        isDark
+                            ? const Color(0xFFF4FBF8)
+                            : const Color(0xFF093030),
                         BlendMode.srcIn,
                       ),
                     ),

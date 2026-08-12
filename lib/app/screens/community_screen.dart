@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/i18n/app_language.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/responsive.dart';
 import '../../features/auth/providers/auth_provider.dart';
@@ -10,11 +11,11 @@ import '../../features/community/presentation/community_composer_screen.dart';
 import '../../features/community/presentation/widgets/post_card.dart';
 import '../../features/community/providers/community_provider.dart';
 import '../../features/community/services/community_service.dart';
+import '../../features/community/utils/community_topics.dart';
 import 'community_post_detail_screen.dart';
 
 // =============================================================================
-// COMMUNITY SCREEN — Deeper Mint Theme
-// Matches Stitch screen "Community Feed - Deeper Mint Theme"
+// COMMUNITY SCREEN — topic-driven social feed
 // =============================================================================
 
 class CommunityScreen extends ConsumerStatefulWidget {
@@ -25,7 +26,7 @@ class CommunityScreen extends ConsumerStatefulWidget {
 }
 
 class _CommunityScreenState extends ConsumerState<CommunityScreen> {
-  int _selectedTab = 0; // 0 = post, 1 = like, 2 = save
+  String _selectedTopic = communityFeedTopics.first;
   bool _loaded = false;
   late final CommunityService _communityService;
 
@@ -33,11 +34,26 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
   static const _headerBg = Color(0xFFF0F9F4);
   static const _headerText = Color(0xFF006B52);
   static const _primaryGreen = Color(0xFF00C49A);
-  static const _textMuted = Color(0xFF8E918F);
   static const _white = Color(0xFFFFFFFF);
-  static const _tabActiveBg = Color(0xFF00C49A);
-  static const _tabActiveText = _white;
   static const _cardShadow = Color(0xFF006C53);
+  static const _darkPage = Color(0xFF081C18);
+  static const _darkSurface = Color(0xFF16352E);
+  static const _darkRaisedSurface = Color(0xFF1C4037);
+  static const _darkBorder = Color(0xFF29483F);
+  static const _darkText = Color(0xFFF4FBF8);
+  static const _darkSecondaryText = Color(0xFFA9C1B9);
+  static const _darkMutedText = Color(0xFF708D84);
+  static const _darkMint = Color(0xFF38D6AC);
+
+  bool get _isDark => Theme.of(context).brightness == Brightness.dark;
+  Color get _pageBackground =>
+      _isDark ? _darkPage : context.finFlowColors.pageBackground;
+  Color get _surface => _isDark ? _darkSurface : context.finFlowColors.surface;
+  Color get _border => _isDark ? _darkBorder : context.finFlowColors.divider;
+  Color get _secondaryText =>
+      _isDark ? _darkSecondaryText : context.finFlowColors.secondaryText;
+  Color get _mutedText =>
+      _isDark ? _darkMutedText : context.finFlowColors.secondaryText;
 
   @override
   void initState() {
@@ -69,7 +85,14 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not update this like.')),
+          SnackBar(
+            content: Text(
+              AppStrings.choose(
+                'Could not update this like.',
+                'Không thể cập nhật lượt thích này.',
+              ),
+            ),
+          ),
         );
         setState(() {});
       }
@@ -89,16 +112,24 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete post'),
-        content: const Text('Are you sure you want to delete this post?'),
+        title: Text(AppStrings.choose('Delete post', 'Xóa bài viết')),
+        content: Text(
+          AppStrings.choose(
+            'Are you sure you want to delete this post?',
+            'Bạn có chắc muốn xóa bài viết này không?',
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
+            child: Text(AppStrings.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            child: Text(
+              AppStrings.choose('Delete', 'Xóa'),
+              style: const TextStyle(color: Colors.red),
+            ),
           ),
         ],
       ),
@@ -108,9 +139,13 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
         await ref.read(communityServiceProvider).deletePost(post.id);
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Could not delete: $e')));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                AppStrings.choose('Could not delete: $e', 'Không thể xóa: $e'),
+              ),
+            ),
+          );
         }
       }
     }
@@ -137,9 +172,13 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
 
   Future<void> _openComposer() async {
     if (AuthService.instance.currentUser == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Sign in to post.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            AppStrings.choose('Sign in to post.', 'Đăng nhập để đăng bài.'),
+          ),
+        ),
+      );
       return;
     }
     final posted = await Navigator.of(context).push<bool>(
@@ -149,7 +188,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
       ),
     );
     if (posted == true && mounted) {
-      setState(() => _selectedTab = 0);
+      setState(() => _selectedTopic = communityFeedTopics.first);
     }
   }
 
@@ -157,30 +196,10 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
   Widget build(BuildContext context) {
     final service = ref.watch(communityServiceProvider);
     final user = ref.watch(authServiceProvider).currentUser;
-    final colors = context.finFlowColors;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final posts = switch (_selectedTab) {
-      1 => service.likedPosts,
-      2 => service.savedPosts,
-      _ => service.posts,
-    };
+    final posts = service.postsForTopic(_selectedTopic);
 
     return DecoratedBox(
-      decoration: BoxDecoration(
-        color: isDark ? colors.pageBackground : AppColors.mintSoft,
-        gradient: isDark
-            ? null
-            : RadialGradient(
-                center: const Alignment(0.45, -0.72),
-                radius: 0.95,
-                colors: [
-                  AppColors.primaryGreen.withValues(alpha: 0.24),
-                  AppColors.dashboardHeaderBg.withValues(alpha: 0.82),
-                  AppColors.mint,
-                ],
-                stops: const [0, 0.38, 1],
-              ),
-      ),
+      decoration: BoxDecoration(color: _pageBackground),
       child: SafeArea(
         child: Column(
           children: [
@@ -188,10 +207,9 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
               avatarUrl: user?.avatarUrl?.trim(),
               displayName: user?.fullName.trim().isNotEmpty == true
                   ? user!.fullName.trim()
-                  : 'FinFlow User',
+                  : AppStrings.choose('FinFlow User', 'Người dùng FinFlow'),
             ),
-            _buildSegmentedTabs(),
-            SizedBox(height: Responsive.h(context, 4)),
+            _buildTopicFilters(),
             Expanded(
               child: !_loaded && service.isLoading
                   ? const Center(child: CircularProgressIndicator())
@@ -201,9 +219,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
                           ? _buildEmptyState()
                           : ListView.builder(
                               padding: EdgeInsets.only(
-                                left: Responsive.w(context, 16),
-                                right: Responsive.w(context, 16),
-                                top: Responsive.h(context, 8),
+                                top: Responsive.h(context, 4),
                                 bottom: Responsive.h(context, 80),
                               ),
                               itemCount: posts.length,
@@ -223,7 +239,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
                             ),
                     ),
             ),
-            if (_selectedTab == 0) _buildComposeEntry(),
+            _buildComposeEntry(),
           ],
         ),
       ),
@@ -231,9 +247,13 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
   }
 
   Widget _buildHeader({required String displayName, String? avatarUrl}) {
-    final colors = context.finFlowColors;
     return Container(
-      color: _headerBg,
+      decoration: BoxDecoration(
+        color: _isDark ? _darkPage : _headerBg,
+        border: Border(
+          bottom: BorderSide(color: _isDark ? _darkBorder : Colors.transparent),
+        ),
+      ),
       padding: EdgeInsets.symmetric(
         vertical: Responsive.h(context, 14),
         horizontal: Responsive.w(context, 20),
@@ -248,8 +268,10 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
                 width: Responsive.w(context, 42),
                 height: Responsive.w(context, 42),
                 padding: const EdgeInsets.all(2),
-                decoration: const BoxDecoration(
-                  color: Color(0xFF8DE6C4),
+                decoration: BoxDecoration(
+                  color: _isDark
+                      ? const Color(0xFF006C53)
+                      : const Color(0xFF8DE6C4),
                   shape: BoxShape.circle,
                 ),
                 child: ClipOval(
@@ -265,14 +287,12 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
               ),
               SizedBox(width: Responsive.w(context, 10)),
               Text(
-                'Financial Advices',
+                AppStrings.choose('Financial Advice', 'Tư vấn tài chính'),
                 style: TextStyle(
                   fontFamily: 'Manrope',
                   fontWeight: FontWeight.w700,
                   fontSize: Responsive.sp(context, 20),
-                  color: Theme.of(context).brightness == Brightness.dark
-                      ? colors.primaryText
-                      : _headerText,
+                  color: _isDark ? _darkText : _headerText,
                 ),
               ),
             ],
@@ -283,7 +303,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
               width: Responsive.w(context, 40),
               height: Responsive.w(context, 40),
               decoration: BoxDecoration(
-                color: _primaryGreen,
+                color: _isDark ? const Color(0xFF00D09C) : _primaryGreen,
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
@@ -294,9 +314,9 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
                 ],
               ),
               child: Icon(
-                Icons.chat_outlined,
+                Icons.edit_outlined,
                 size: Responsive.w(context, 20),
-                color: _headerText,
+                color: _white,
               ),
             ),
           ),
@@ -307,14 +327,14 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
 
   Widget _headerAvatarFallback(String displayName) {
     return ColoredBox(
-      color: AppColors.lightGreen,
+      color: _isDark ? const Color(0xFF006C53) : AppColors.lightGreen,
       child: Center(
         child: Text(
           displayName.trim().isEmpty
               ? '?'
               : displayName.trim().substring(0, 1).toUpperCase(),
           style: TextStyle(
-            color: const Color(0xFF006C52),
+            color: _isDark ? _darkText : const Color(0xFF006C52),
             fontSize: Responsive.sp(context, 16),
             fontWeight: FontWeight.w800,
           ),
@@ -323,84 +343,45 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
     );
   }
 
-  Widget _buildSegmentedTabs() {
-    final tabs = ['Post', 'Like', 'Save'];
-    final colors = context.finFlowColors;
+  Widget _buildTopicFilters() {
     return Container(
-      color: Colors.transparent,
-      padding: EdgeInsets.symmetric(
-        horizontal: Responsive.w(context, 16),
-        vertical: Responsive.h(context, 10),
-      ),
-      child: Container(
-        padding: EdgeInsets.all(Responsive.w(context, 3)),
-        decoration: BoxDecoration(
-          color: colors.surface,
-          borderRadius: BorderRadius.circular(Responsive.w(context, 12)),
-          boxShadow: [
-            BoxShadow(
-              color: _cardShadow.withValues(alpha: 0.08),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final tabWidth = constraints.maxWidth / tabs.length;
-
-            return SizedBox(
-              height: Responsive.h(context, 40),
-              child: Stack(
-                children: [
-                  AnimatedPositioned(
-                    duration: const Duration(milliseconds: 240),
-                    curve: Curves.easeOutCubic,
-                    left: tabWidth * _selectedTab,
-                    top: 0,
-                    bottom: 0,
-                    width: tabWidth,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: _tabActiveBg,
-                        borderRadius: BorderRadius.circular(
-                          Responsive.w(context, 10),
-                        ),
-                      ),
-                    ),
-                  ),
-                  Row(
-                    children: List.generate(tabs.length, (i) {
-                      final isActive = _selectedTab == i;
-                      return Expanded(
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: () => setState(() => _selectedTab = i),
-                            borderRadius: BorderRadius.circular(
-                              Responsive.w(context, 10),
-                            ),
-                            child: Center(
-                              child: AnimatedDefaultTextStyle(
-                                duration: const Duration(milliseconds: 180),
-                                curve: Curves.easeOut,
-                                style: TextStyle(
-                                  fontFamily: 'Hanken Grotesk',
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: Responsive.sp(context, 14),
-                                  color: isActive
-                                      ? _tabActiveText
-                                      : colors.primaryText,
-                                ),
-                                child: Text(tabs[i]),
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    }),
-                  ),
-                ],
+      color: _isDark ? _darkPage : _surface,
+      padding: EdgeInsets.symmetric(vertical: Responsive.h(context, 10)),
+      child: SizedBox(
+        height: Responsive.h(context, 34),
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 16)),
+          itemCount: communityFeedTopics.length,
+          separatorBuilder: (_, _) => SizedBox(width: Responsive.w(context, 8)),
+          itemBuilder: (_, index) {
+            final topic = communityFeedTopics[index];
+            final selected = topic == _selectedTopic;
+            return ChoiceChip(
+              label: Text(communityTopicLabel(topic)),
+              selected: selected,
+              showCheckmark: false,
+              onSelected: (_) => setState(() => _selectedTopic = topic),
+              labelStyle: TextStyle(
+                fontFamily: 'Hanken Grotesk',
+                fontWeight: FontWeight.w600,
+                fontSize: Responsive.sp(context, 12),
+                color: selected ? _white : _secondaryText,
+              ),
+              selectedColor: _isDark
+                  ? const Color(0xFF006C53)
+                  : AppColors.deepEmerald,
+              backgroundColor: _surface,
+              side: BorderSide(
+                color: selected
+                    ? (_isDark
+                          ? const Color(0xFF006C53)
+                          : AppColors.deepEmerald)
+                    : _border,
+              ),
+              shape: const StadiumBorder(),
+              padding: EdgeInsets.symmetric(
+                horizontal: Responsive.w(context, 8),
               ),
             );
           },
@@ -410,18 +391,22 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
   }
 
   Widget _buildEmptyState() {
-    final message = switch (_selectedTab) {
-      1 => 'No liked posts yet.\nTap the heart on a post to save it here.',
-      2 => 'No saved posts yet.\nTap the bookmark on a post to save it here.',
-      _ => 'No posts yet.\nBe the first to share a money tip!',
-    };
+    final message = _selectedTopic == 'All'
+        ? AppStrings.choose(
+            'No posts yet.\nBe the first to share a money tip!',
+            'Chưa có bài viết nào.\nHãy là người đầu tiên chia sẻ mẹo tài chính!',
+          )
+        : AppStrings.choose(
+            'No posts in ${communityTopicLabel(_selectedTopic)} yet.\nStart the conversation!',
+            'Chưa có bài viết trong ${communityTopicLabel(_selectedTopic)}.\nHãy bắt đầu cuộc trò chuyện!',
+          );
     return ListView(
       padding: EdgeInsets.only(top: Responsive.h(context, 40)),
       children: [
         Icon(
           Icons.forum_outlined,
           size: Responsive.w(context, 56),
-          color: _textMuted.withValues(alpha: 0.5),
+          color: _mutedText.withValues(alpha: 0.65),
         ),
         SizedBox(height: Responsive.h(context, 16)),
         Text(
@@ -430,7 +415,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
           style: TextStyle(
             fontFamily: 'Hanken Grotesk',
             fontSize: Responsive.sp(context, 14),
-            color: _textMuted,
+            color: _mutedText,
             height: 1.5,
           ),
         ),
@@ -444,7 +429,6 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
     final avatarUrl = user?.avatarUrl;
     final displayName = user?.fullName.trim() ?? '';
     final initial = displayName.isEmpty ? '?' : displayName[0].toUpperCase();
-    final colors = context.finFlowColors;
     return Container(
       color: Colors.transparent,
       padding: EdgeInsets.fromLTRB(
@@ -453,75 +437,111 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
         Responsive.w(context, 16),
         Responsive.h(context, 10),
       ),
-      child: Material(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(999),
-        child: InkWell(
-          onTap: _openComposer,
+      child: Container(
+        decoration: BoxDecoration(
+          color: _isDark ? _darkRaisedSurface : _surface,
           borderRadius: BorderRadius.circular(999),
-          child: Container(
-            padding: EdgeInsets.symmetric(
-              horizontal: Responsive.w(context, 16),
-              vertical: Responsive.h(context, 12),
-            ),
-            decoration: BoxDecoration(
-              color: Colors.transparent,
-              borderRadius: BorderRadius.circular(Responsive.w(context, 24)),
-              boxShadow: [
-                BoxShadow(
-                  color: Theme.of(context).shadowColor.withValues(alpha: 0.14),
-                  blurRadius: 18,
-                  offset: const Offset(0, 7),
-                ),
-                BoxShadow(
-                  color: AppColors.accentTeal.withValues(alpha: 0.08),
-                  blurRadius: 24,
-                  spreadRadius: 2,
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: Responsive.w(context, 16),
-                  backgroundColor: _primaryGreen,
-                  backgroundImage: avatarUrl?.isNotEmpty == true
-                      ? NetworkImage(avatarUrl!)
-                      : null,
-                  child: avatarUrl?.isNotEmpty == true
-                      ? null
-                      : isSignedIn
-                      ? Text(
-                          initial,
-                          style: TextStyle(
+          border: Border.all(color: _border.withValues(alpha: 0.9)),
+          boxShadow: _isDark
+              ? const [
+                  BoxShadow(
+                    color: Color(0x52000000),
+                    blurRadius: 20,
+                    offset: Offset(0, 7),
+                  ),
+                ]
+              : [
+                  BoxShadow(
+                    color: _cardShadow.withValues(alpha: 0.13),
+                    blurRadius: 20,
+                    spreadRadius: 1,
+                    offset: const Offset(0, 7),
+                  ),
+                  BoxShadow(
+                    color: Theme.of(
+                      context,
+                    ).shadowColor.withValues(alpha: 0.08),
+                    blurRadius: 5,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(999),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: _openComposer,
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: Responsive.w(context, 10),
+                vertical: Responsive.h(context, 9),
+              ),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: Responsive.w(context, 22),
+                    backgroundColor: _isDark
+                        ? const Color(0xFF006C53)
+                        : _headerText,
+                    backgroundImage: avatarUrl?.isNotEmpty == true
+                        ? NetworkImage(avatarUrl!)
+                        : null,
+                    child: avatarUrl?.isNotEmpty == true
+                        ? null
+                        : isSignedIn
+                        ? Text(
+                            initial,
+                            style: TextStyle(
+                              color: _white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: Responsive.sp(context, 18),
+                            ),
+                          )
+                        : Icon(
+                            Icons.person,
+                            size: Responsive.w(context, 20),
                             color: _white,
-                            fontWeight: FontWeight.w700,
-                            fontSize: Responsive.sp(context, 13),
                           ),
-                        )
-                      : Icon(
-                          Icons.person,
-                          size: Responsive.w(context, 16),
-                          color: _white,
-                        ),
-                ),
-                SizedBox(width: Responsive.w(context, 10)),
-                Expanded(
-                  child: Text(
-                    isSignedIn ? "What's on your mind?" : 'Sign in to post',
-                    style: TextStyle(
-                      fontFamily: 'Hanken Grotesk',
-                      fontSize: Responsive.sp(context, 14),
-                      color: colors.secondaryText,
+                  ),
+                  SizedBox(width: Responsive.w(context, 18)),
+                  Expanded(
+                    child: Text(
+                      isSignedIn
+                          ? AppStrings.choose(
+                              "What's on your mind?",
+                              'Bạn đang nghĩ gì?',
+                            )
+                          : AppStrings.choose(
+                              'Sign in to post',
+                              'Đăng nhập để đăng bài',
+                            ),
+                      style: TextStyle(
+                        fontFamily: 'Hanken Grotesk',
+                        fontSize: Responsive.sp(context, 16),
+                        color: _secondaryText,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
-                ),
-                Icon(
-                  Icons.edit_outlined,
-                  size: Responsive.w(context, 18),
-                  color: _primaryGreen,
-                ),
-              ],
+                  Container(
+                    width: Responsive.w(context, 44),
+                    height: Responsive.w(context, 44),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: _isDark
+                          ? const Color(0xFF006C53)
+                          : const Color(0xFFCFF8E8),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.edit_outlined,
+                      size: Responsive.w(context, 21),
+                      color: _isDark ? _darkMint : _headerText,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

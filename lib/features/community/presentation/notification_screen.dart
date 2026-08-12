@@ -1,13 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/utils/responsive.dart';
-import '../../../../core/theme/app_colors.dart';
+import '../../../core/i18n/app_language.dart';
+import '../../../core/utils/responsive.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../app/screens/community_post_detail_screen.dart';
 import '../models/notification_model.dart';
 import '../providers/notification_provider.dart';
 import '../utils/community_date_format.dart';
 import '../utils/rich_text_formatter.dart';
+import 'widgets/community_comment_icon.dart';
+
+const _notificationDarkBackground = Color(0xFF081C18);
+const _notificationDarkSurface = Color(0xFF112622);
+const _notificationDarkCard = Color(0xFF16352E);
+const _notificationDarkBorder = Color(0xFF29483F);
+const _notificationDarkPrimary = Color(0xFFF4FBF8);
+const _notificationDarkSecondary = Color(0xFFA9C1B9);
+const _notificationDarkMuted = Color(0xFF708D84);
+const _notificationDarkAccent = Color(0xFF38D6AC);
 
 class NotificationScreen extends ConsumerStatefulWidget {
   const NotificationScreen({super.key});
@@ -33,9 +44,12 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen> {
   Widget build(BuildContext context) {
     final service = ref.watch(notificationServiceProvider);
     final notifs = service.notifications;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF9FBF8),
+      backgroundColor: isDark
+          ? _notificationDarkBackground
+          : const Color(0xFFF9FBF8),
       body: SafeArea(
         child: Column(
           children: [
@@ -55,8 +69,14 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen> {
   }
 
   Widget _buildHeader(int unreadCount) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      color: const Color(0xFFD4F4E4),
+      decoration: BoxDecoration(
+        color: isDark ? _notificationDarkSurface : const Color(0xFFD4F4E4),
+        border: isDark
+            ? const Border(bottom: BorderSide(color: _notificationDarkBorder))
+            : null,
+      ),
       padding: EdgeInsets.symmetric(
         vertical: Responsive.h(context, 14),
         horizontal: Responsive.w(context, 16),
@@ -68,17 +88,21 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen> {
             child: Icon(
               Icons.arrow_back_ios_new,
               size: Responsive.w(context, 18),
-              color: const Color(0xFF002117),
+              color: isDark
+                  ? _notificationDarkPrimary
+                  : const Color(0xFF002117),
             ),
           ),
           const Spacer(),
           Text(
-            'Notifications',
+            AppStrings.choose('Notifications', 'Thông báo'),
             style: TextStyle(
               fontFamily: 'Manrope',
               fontWeight: FontWeight.w600,
               fontSize: Responsive.sp(context, 20),
-              color: const Color(0xFF002117),
+              color: isDark
+                  ? _notificationDarkPrimary
+                  : const Color(0xFF002117),
             ),
           ),
           const Spacer(),
@@ -88,12 +112,14 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen> {
                 await ref.read(notificationServiceProvider).markAllAsRead();
               },
               child: Text(
-                'Mark all as read',
+                AppStrings.choose('Mark all as read', 'Đánh dấu đã đọc'),
                 style: TextStyle(
                   fontFamily: 'Hanken Grotesk',
                   fontWeight: FontWeight.w600,
                   fontSize: Responsive.sp(context, 12),
-                  color: AppColors.primaryGreen,
+                  color: isDark
+                      ? _notificationDarkAccent
+                      : AppColors.primaryGreen,
                 ),
               ),
             )
@@ -105,6 +131,7 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen> {
   }
 
   Widget _buildEmptyState() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -112,15 +139,20 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen> {
           Icon(
             Icons.notifications_off_outlined,
             size: Responsive.w(context, 48),
-            color: const Color(0xFF8E918F),
+            color: isDark ? _notificationDarkMuted : const Color(0xFF8E918F),
           ),
           SizedBox(height: Responsive.h(context, 12)),
           Text(
-            "You're all caught up!",
+            AppStrings.choose(
+              "You're all caught up!",
+              'Bạn đã xem hết thông báo!',
+            ),
             style: TextStyle(
               fontFamily: 'Hanken Grotesk',
               fontSize: Responsive.sp(context, 14),
-              color: const Color(0xFF8E918F),
+              color: isDark
+                  ? _notificationDarkSecondary
+                  : const Color(0xFF8E918F),
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -143,7 +175,10 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen> {
       padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 16)),
       children: [
         if (today.isNotEmpty) ...[
-          _buildSectionHeader('Today', today.where((n) => !n.isRead).length),
+          _buildSectionHeader(
+            AppStrings.choose('Today', 'Hôm nay'),
+            today.where((n) => !n.isRead).length,
+          ),
           ...today.map(
             (n) => _NotificationTile(
               notification: n,
@@ -152,7 +187,7 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen> {
           ),
         ],
         if (earlier.isNotEmpty) ...[
-          _buildSectionHeader('Earlier', null),
+          _buildSectionHeader(AppStrings.choose('Earlier', 'Trước đó'), null),
           ...earlier.map(
             (n) => _NotificationTile(
               notification: n,
@@ -165,6 +200,7 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen> {
   }
 
   Widget _buildSectionHeader(String label, int? newCount) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
       padding: EdgeInsets.symmetric(vertical: Responsive.h(context, 12)),
       child: Row(
@@ -175,7 +211,9 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen> {
               fontFamily: 'Manrope',
               fontWeight: FontWeight.w600,
               fontSize: Responsive.sp(context, 14),
-              color: const Color(0xFF002117),
+              color: isDark
+                  ? _notificationDarkSecondary
+                  : const Color(0xFF002117),
             ),
           ),
           if (newCount != null && newCount > 0) ...[
@@ -190,7 +228,7 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen> {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
-                '$newCount New',
+                AppStrings.choose('$newCount New', '$newCount mới'),
                 style: TextStyle(
                   fontFamily: 'Hanken Grotesk',
                   fontSize: Responsive.sp(context, 10),
@@ -235,9 +273,8 @@ class _NotificationTile extends StatelessWidget {
       case 'post':
         return Icons.share_rounded;
       case 'like':
+      case 'comment_like':
         return Icons.favorite_rounded;
-      case 'comment':
-        return Icons.chat_bubble_rounded;
       default:
         return Icons.notifications_outlined;
     }
@@ -248,8 +285,10 @@ class _NotificationTile extends StatelessWidget {
       case 'post':
         return const Color(0xFF44BF99);
       case 'like':
+      case 'comment_like':
         return const Color(0xFFE86B5D);
       case 'comment':
+      case 'comment_reply':
         return const Color(0xFF3799D2);
       default:
         return const Color(0xFF44BF99);
@@ -258,11 +297,26 @@ class _NotificationTile extends StatelessWidget {
 
   String get _timeAgo {
     final diff = DateTime.now().difference(notification.createdAt);
-    if (diff.inMinutes < 1) return 'Just now';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
-    if (diff.inDays < 2) return 'Yesterday';
-    if (diff.inDays < 7) return '${diff.inDays}d ago';
+    if (diff.inMinutes < 1) return AppStrings.choose('Just now', 'Vừa xong');
+    if (diff.inMinutes < 60) {
+      return AppStrings.choose(
+        '${diff.inMinutes}m ago',
+        '${diff.inMinutes} phút trước',
+      );
+    }
+    if (diff.inHours < 24) {
+      return AppStrings.choose(
+        '${diff.inHours}h ago',
+        '${diff.inHours} giờ trước',
+      );
+    }
+    if (diff.inDays < 2) return AppStrings.choose('Yesterday', 'Hôm qua');
+    if (diff.inDays < 7) {
+      return AppStrings.choose(
+        '${diff.inDays}d ago',
+        '${diff.inDays} ngày trước',
+      );
+    }
     return formatCommunityDate(notification.createdAt);
   }
 
@@ -282,6 +336,7 @@ class _NotificationTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
       padding: EdgeInsets.only(bottom: Responsive.h(context, 10)),
       child: GestureDetector(
@@ -292,26 +347,44 @@ class _NotificationTile extends StatelessWidget {
             vertical: Responsive.h(context, 13),
           ),
           decoration: BoxDecoration(
-            color: notification.isRead ? Colors.white : const Color(0xFFF0F8F4),
+            color: isDark
+                ? notification.isRead
+                      ? _notificationDarkCard.withValues(alpha: .82)
+                      : _notificationDarkCard
+                : notification.isRead
+                ? Colors.white
+                : const Color(0xFFF0F8F4),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: notification.isRead
+              color: isDark
+                  ? notification.isRead
+                        ? _notificationDarkBorder
+                        : _notificationDarkAccent.withValues(alpha: .5)
+                  : notification.isRead
                   ? const Color(0x1A006C46)
                   : const Color(0x4000A77A),
             ),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x2600523C),
-                blurRadius: 18,
-                spreadRadius: 1,
-                offset: Offset(0, 7),
-              ),
-              BoxShadow(
-                color: Color(0x16000000),
-                blurRadius: 5,
-                offset: Offset(0, 2),
-              ),
-            ],
+            boxShadow: isDark
+                ? const [
+                    BoxShadow(
+                      color: Color(0x33000000),
+                      blurRadius: 8,
+                      offset: Offset(0, 3),
+                    ),
+                  ]
+                : const [
+                    BoxShadow(
+                      color: Color(0x2600523C),
+                      blurRadius: 18,
+                      spreadRadius: 1,
+                      offset: Offset(0, 7),
+                    ),
+                    BoxShadow(
+                      color: Color(0x16000000),
+                      blurRadius: 5,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -332,7 +405,12 @@ class _NotificationTile extends StatelessWidget {
                         decoration: BoxDecoration(
                           color: _iconColor,
                           shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 2),
+                          border: Border.all(
+                            color: isDark
+                                ? _notificationDarkCard
+                                : Colors.white,
+                            width: 2,
+                          ),
                           boxShadow: const [
                             BoxShadow(
                               color: Color(0x24000000),
@@ -341,11 +419,18 @@ class _NotificationTile extends StatelessWidget {
                             ),
                           ],
                         ),
-                        child: Icon(
-                          _icon,
-                          size: Responsive.w(context, 9),
-                          color: Colors.white,
-                        ),
+                        child:
+                            notification.type == 'comment' ||
+                                notification.type == 'comment_reply'
+                            ? CommunityCommentIcon(
+                                size: Responsive.w(context, 10),
+                                color: Colors.white,
+                              )
+                            : Icon(
+                                _icon,
+                                size: Responsive.w(context, 9),
+                                color: Colors.white,
+                              ),
                       ),
                     ),
                   ],
@@ -361,13 +446,18 @@ class _NotificationTile extends StatelessWidget {
                         style: TextStyle(
                           fontFamily: 'Hanken Grotesk',
                           fontSize: Responsive.sp(context, 13.5),
-                          color: const Color(0xFF404944),
+                          color: isDark
+                              ? _notificationDarkSecondary
+                              : const Color(0xFF404944),
                           height: 1.3,
                         ),
                         children: [
                           TextSpan(
                             text: notification.actorDisplayName,
-                            style: const TextStyle(fontWeight: FontWeight.w700),
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: isDark ? _notificationDarkPrimary : null,
+                            ),
                           ),
                           TextSpan(text: ' $_displayMessage'),
                         ],
@@ -379,7 +469,9 @@ class _NotificationTile extends StatelessWidget {
                       style: TextStyle(
                         fontFamily: 'Hanken Grotesk',
                         fontSize: Responsive.sp(context, 11),
-                        color: const Color(0xFF8E918F),
+                        color: isDark
+                            ? _notificationDarkMuted
+                            : const Color(0xFF8E918F),
                       ),
                     ),
                   ],
