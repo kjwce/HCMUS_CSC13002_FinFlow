@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as path;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/i18n/app_language.dart';
 import '../../finance/models/transaction_category.dart';
 import '../models/scan_result_model.dart';
 
@@ -58,24 +59,35 @@ class ReceiptScanService {
     List<TransactionCategory> categories = TransactionCategory.all,
   }) async {
     if (bytes.isEmpty) {
-      throw const ReceiptScanException(
+      throw ReceiptScanException(
         'EMPTY_IMAGE',
-        'Không tìm thấy dữ liệu ảnh hóa đơn.',
+        AppStrings.choose(
+          'No receipt image data was found.',
+          'Không tìm thấy dữ liệu ảnh hóa đơn.',
+        ),
       );
     }
     if (bytes.length > _maxImageBytes) {
-      throw const ReceiptScanException(
+      throw ReceiptScanException(
         'IMAGE_TOO_LARGE',
-        'Ảnh hóa đơn quá lớn. Vui lòng chụp ảnh rõ hơn với kích thước nhỏ hơn.',
+        AppStrings.choose(
+          'The receipt image is too large. Please use a clear, smaller image.',
+          'Ảnh hóa đơn quá lớn. Vui lòng chụp ảnh rõ hơn với kích thước nhỏ hơn.',
+        ),
       );
     }
 
     final response = await _invoker({
       'imageBase64': base64Encode(bytes),
       'mimeType': mimeType,
-      'locale': 'vi-VN',
+      'locale': AppStrings.isVietnamese ? 'vi-VN' : 'en-US',
       'categories': categories
-          .map((category) => {'key': category.key, 'label': category.label})
+          .map(
+            (category) => {
+              'key': category.key,
+              'label': AppStrings.categoryName(category.label),
+            },
+          )
           .toList(growable: false),
     });
 
@@ -84,39 +96,54 @@ class ReceiptScanService {
 
   ScanResultModel _parseResponse(dynamic response) {
     if (response is! Map || response['success'] != true) {
-      throw const ReceiptScanException(
+      throw ReceiptScanException(
         'INVALID_SCAN_RESPONSE',
-        'Dịch vụ quét hóa đơn trả về dữ liệu không hợp lệ.',
+        AppStrings.choose(
+          'The receipt scanning service returned invalid data.',
+          'Dịch vụ quét hóa đơn trả về dữ liệu không hợp lệ.',
+        ),
       );
     }
     if (response['version'] != _supportedVersion) {
-      throw const ReceiptScanException(
+      throw ReceiptScanException(
         'UNSUPPORTED_SCAN_VERSION',
-        'Phiên bản kết quả quét hóa đơn chưa được hỗ trợ.',
+        AppStrings.choose(
+          'This receipt scan result version is not supported.',
+          'Phiên bản kết quả quét hóa đơn chưa được hỗ trợ.',
+        ),
       );
     }
 
     final rawData = response['data'];
     if (rawData is! Map) {
-      throw const ReceiptScanException(
+      throw ReceiptScanException(
         'INVALID_SCAN_RESPONSE',
-        'Không đọc được dữ liệu từ hóa đơn.',
+        AppStrings.choose(
+          'The receipt data could not be read.',
+          'Không đọc được dữ liệu từ hóa đơn.',
+        ),
       );
     }
 
     final result = ScanResultModel.fromJson(Map<String, dynamic>.from(rawData));
     if (result.items.isEmpty) {
-      throw const ReceiptScanException(
+      throw ReceiptScanException(
         'NO_ITEMS_FOUND',
-        'Không tìm thấy món ăn hoặc dịch vụ nào trên hóa đơn.',
+        AppStrings.choose(
+          'No items or services were found on the receipt.',
+          'Không tìm thấy món ăn hoặc dịch vụ nào trên hóa đơn.',
+        ),
       );
     }
     if (result.items.any(
       (item) => item.name.trim().isEmpty || item.amount <= 0,
     )) {
-      throw const ReceiptScanException(
+      throw ReceiptScanException(
         'INVALID_ITEM',
-        'Một số dòng trên hóa đơn chưa có tên hoặc số tiền hợp lệ.',
+        AppStrings.choose(
+          'Some receipt lines do not have a valid name or amount.',
+          'Một số dòng trên hóa đơn chưa có tên hoặc số tiền hợp lệ.',
+        ),
       );
     }
     return result;
@@ -140,12 +167,18 @@ class ReceiptScanService {
         code ?? 'RECEIPT_SCAN_UNAVAILABLE',
         message?.isNotEmpty == true
             ? message!
-            : 'Dịch vụ quét hóa đơn hiện không khả dụng. Vui lòng thử lại.',
+            : AppStrings.choose(
+                'Receipt scanning is currently unavailable. Please try again.',
+                'Dịch vụ quét hóa đơn hiện không khả dụng. Vui lòng thử lại.',
+              ),
       );
     } catch (_) {
-      throw const ReceiptScanException(
+      throw ReceiptScanException(
         'RECEIPT_SCAN_UNAVAILABLE',
-        'Dịch vụ quét hóa đơn hiện không khả dụng. Vui lòng thử lại.',
+        AppStrings.choose(
+          'Receipt scanning is currently unavailable. Please try again.',
+          'Dịch vụ quét hóa đơn hiện không khả dụng. Vui lòng thử lại.',
+        ),
       );
     }
   }

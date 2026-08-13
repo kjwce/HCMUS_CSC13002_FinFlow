@@ -15,11 +15,11 @@ void main() {
     name: 'receipt.jpg',
   );
 
-  final scanResult = ScanResultModel(
+  const scanResult = ScanResultModel(
     merchantName: 'FinFlow Cafe',
-    receiptDate: DateTime(2020, 1, 2),
+    receiptDate: null,
     currency: 'VND',
-    items: const [
+    items: [
       ScannedItem(
         name: 'Cà phê',
         amount: 50000,
@@ -40,7 +40,7 @@ void main() {
     WidgetTester tester, {
     ReceiptImagePicker? imagePicker,
     ReceiptFileParser? receiptParser,
-    Future<void> Function(ScanResultModel result)? onConfirmed,
+    ValueChanged<ScanResultModel>? onConfirmed,
   }) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(393, 852);
@@ -108,7 +108,7 @@ void main() {
           return imageFile;
         },
         receiptParser: (_) => response.future,
-        onConfirmed: (result) async => confirmedResult = result,
+        onConfirmed: (result) => confirmedResult = result,
       );
 
       await tester.tap(find.byKey(const Key('scan_gallery_button')));
@@ -122,7 +122,7 @@ void main() {
       await tester.pump();
 
       expect(find.byKey(const Key('scan_processing_card')), findsOneWidget);
-      expect(find.text('FinFlow đang phân tích hóa đơn...'), findsOneWidget);
+      expect(find.text('FinFlow is analyzing the receipt...'), findsOneWidget);
 
       response.complete(scanResult);
       await tester.pumpAndSettle();
@@ -131,31 +131,9 @@ void main() {
       expect(find.text('Cà phê'), findsOneWidget);
       expect(find.text('Massage'), findsOneWidget);
       expect(find.text('150.000 VND'), findsOneWidget);
-      expect(find.text('02/01/2020'), findsOneWidget);
       expect(find.byKey(const Key('scan_total_card')), findsOneWidget);
       expect(find.byKey(const Key('scan_next_step_card')), findsOneWidget);
       expect(find.byKey(const Key('scan_confirm_button')), findsOneWidget);
-
-      await tester.tap(find.byKey(const Key('scan_receipt_date_button')));
-      await tester.pumpAndSettle();
-      final datePicker = tester.widget<DatePickerDialog>(
-        find.byType(DatePickerDialog),
-      );
-      final today = DateTime.now();
-      expect(
-        DateTime(
-          datePicker.lastDate.year,
-          datePicker.lastDate.month,
-          datePicker.lastDate.day,
-        ),
-        DateTime(today.year, today.month, today.day),
-      );
-      final dialogButtons = find.descendant(
-        of: find.byType(DatePickerDialog),
-        matching: find.byType(TextButton),
-      );
-      await tester.tap(dialogButtons.first);
-      await tester.pumpAndSettle();
 
       await tester.tap(find.byKey(const Key('scan_confirm_button')));
       await tester.pump();
@@ -182,7 +160,7 @@ void main() {
     await tester.tap(find.byKey(const Key('scan_item_menu_0')));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull, reason: 'after item menu');
-    await tester.tap(find.text('Sửa'));
+    await tester.tap(find.text('Edit'));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull, reason: 'after editor opens');
 

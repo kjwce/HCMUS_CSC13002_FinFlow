@@ -62,7 +62,7 @@ void main() {
     expect(result.receiptDate, DateTime(2026, 7, 16));
     expect(request?['mimeType'], 'image/jpeg');
     expect(request?['imageBase64'], 'AQID');
-    expect(request?['locale'], 'vi-VN');
+    expect(request?['locale'], 'en-US');
     final categories = request?['categories'] as List<dynamic>;
     expect(
       categories.any(

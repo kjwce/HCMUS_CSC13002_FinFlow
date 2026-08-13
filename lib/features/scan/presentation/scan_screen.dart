@@ -31,7 +31,7 @@ class ScanScreen extends ConsumerStatefulWidget {
   final ReceiptFileParser? receiptParser;
 
   /// Hands the reviewed receipt back to the parent Add Transaction flow.
-  final Future<void> Function(ScanResultModel result)? onConfirmed;
+  final ValueChanged<ScanResultModel>? onConfirmed;
 
   @override
   ConsumerState<ScanScreen> createState() => _ScanScreenState();
@@ -261,7 +261,10 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                             ],
                           ),
                           child: Text(
-                            'Place the receipt inside the frame',
+                            AppStrings.choose(
+                              'Place the receipt inside the frame',
+                              'Đặt hóa đơn vào trong khung',
+                            ),
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               color: Colors.white,
@@ -315,7 +318,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                   key: const Key('scan_gallery_button'),
                   context: context,
                   icon: Icons.image_outlined,
-                  label: 'Gallery',
+                  label: AppStrings.choose('Gallery', 'Thư viện'),
                   filled: false,
                   onPressed: () => _pickImage(ImageSource.gallery),
                 ),
@@ -324,7 +327,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                   key: const Key('scan_camera_button'),
                   context: context,
                   icon: Icons.photo_camera_outlined,
-                  label: 'Capture',
+                  label: AppStrings.choose('Capture', 'Chụp ảnh'),
                   onPressed: () => _pickImage(ImageSource.camera),
                 ),
               ],
@@ -333,8 +336,12 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
               Padding(
                 padding: EdgeInsets.only(top: Responsive.h(context, 12)),
                 child: Text(
-                  'AI system will automatically analyze and add\n'
-                  'transactions from your receipt.',
+                  AppStrings.choose(
+                    'AI system will automatically analyze and add\n'
+                        'transactions from your receipt.',
+                    'Hệ thống AI sẽ tự động phân tích và thêm\n'
+                        'giao dịch từ hóa đơn của bạn.',
+                  ),
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: context.finFlowColors.secondaryText.withValues(
@@ -355,7 +362,9 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                     key: const Key('scan_analyze_button'),
                     onPressed: _scanImage,
                     icon: const Icon(Icons.auto_awesome_rounded),
-                    label: const Text('Analyze receipt'),
+                    label: Text(
+                      AppStrings.choose('Analyze receipt', 'Phân tích hóa đơn'),
+                    ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF00513E),
                       foregroundColor: Colors.white,
@@ -456,7 +465,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
               child: Text(
                 result.merchantName?.trim().isNotEmpty == true
                     ? result.merchantName!
-                    : 'Hóa đơn đã quét',
+                    : AppStrings.choose('Scanned receipt', 'Hóa đơn đã quét'),
                 key: const Key('scan_merchant_name'),
                 style: TextStyle(
                   color: context.finFlowColors.primaryText,
@@ -469,11 +478,15 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
               key: const Key('scan_rescan_button'),
               onPressed: _resetScan,
               icon: const Icon(Icons.refresh, size: 18),
-              label: const Text('Quét lại'),
+              label: Text(AppStrings.choose('Scan again', 'Quét lại')),
             ),
           ],
         ),
-        _buildReceiptDateField(context, result),
+        if (result.receiptDate != null)
+          Text(
+            _formatDate(result.receiptDate!),
+            style: TextStyle(color: context.finFlowColors.secondaryText),
+          ),
         SizedBox(height: Responsive.h(context, 14)),
         if (result.warnings.isNotEmpty || hasMismatch)
           _buildWarnings(context, result.warnings, hasMismatch),
@@ -497,10 +510,13 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
               key: const Key('scan_confirm_button'),
               onPressed: result.items.isEmpty || _confirmedAmount(result) <= 0
                   ? null
-                  : () async => widget.onConfirmed!(result),
+                  : () => widget.onConfirmed!(result),
               icon: const Icon(Icons.check_circle_outline_rounded),
               label: Text(
-                'Xác nhận & lưu ${_formatVnd(_confirmedAmount(result))}',
+                AppStrings.choose(
+                  'Continue with ${_formatVnd(_confirmedAmount(result))}',
+                  'Tiếp tục với ${_formatVnd(_confirmedAmount(result))}',
+                ),
               ),
               style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xFF00513E),
@@ -539,7 +555,10 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                 ),
                 SizedBox(height: Responsive.h(context, 8)),
                 Text(
-                  'Ảnh hóa đơn sẽ hiển thị ở đây',
+                  AppStrings.choose(
+                    'The receipt image will appear here',
+                    'Ảnh hóa đơn sẽ hiển thị ở đây',
+                  ),
                   style: TextStyle(color: context.finFlowColors.secondaryText),
                 ),
               ],
@@ -554,62 +573,6 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
     );
   }
 
-  Widget _buildReceiptDateField(BuildContext context, ScanResultModel result) {
-    return Material(
-      key: const Key('scan_receipt_date_button'),
-      color: context.finFlowColors.surface,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        onTap: _editReceiptDate,
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          width: double.infinity,
-          padding: EdgeInsets.symmetric(
-            horizontal: Responsive.w(context, 14),
-            vertical: Responsive.h(context, 11),
-          ),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: AppColors.primaryGreen.withValues(alpha: .2),
-            ),
-          ),
-          child: Row(
-            children: [
-              const Icon(
-                Icons.calendar_month_outlined,
-                color: AppColors.primaryGreen,
-              ),
-              SizedBox(width: Responsive.w(context, 10)),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Ngày hóa đơn',
-                      style: TextStyle(
-                        color: context.finFlowColors.secondaryText,
-                        fontSize: Responsive.sp(context, 11),
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      result.receiptDate == null
-                          ? 'Chọn ngày hóa đơn'
-                          : _formatDate(result.receiptDate!),
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                  ],
-                ),
-              ),
-              const Icon(Icons.edit_calendar_outlined, size: 20),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildProcessingCard(BuildContext context) {
     return Container(
       key: const Key('scan_processing_card'),
@@ -619,12 +582,22 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
         color: context.finFlowColors.surface,
         borderRadius: BorderRadius.circular(18),
       ),
-      child: const Row(
+      child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          SizedBox.square(dimension: 22, child: CircularProgressIndicator()),
-          SizedBox(width: 14),
-          Flexible(child: Text('FinFlow đang phân tích hóa đơn...')),
+          const SizedBox.square(
+            dimension: 22,
+            child: CircularProgressIndicator(),
+          ),
+          const SizedBox(width: 14),
+          Flexible(
+            child: Text(
+              AppStrings.choose(
+                'FinFlow is analyzing the receipt...',
+                'FinFlow đang phân tích hóa đơn...',
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -648,8 +621,8 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
         child: Row(
           children: [
             CircleAvatar(
-              backgroundColor: category.color.withValues(alpha: .16),
-              child: Icon(category.icon, color: category.color),
+              backgroundColor: category.color.withValues(alpha: .12),
+              child: category.buildIcon(size: 20),
             ),
             SizedBox(width: Responsive.w(context, 12)),
             Expanded(
@@ -686,9 +659,15 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                 if (value == 'edit') _editItem(index);
                 if (value == 'delete') _deleteItem(index);
               },
-              itemBuilder: (_) => const [
-                PopupMenuItem(value: 'edit', child: Text('Sửa')),
-                PopupMenuItem(value: 'delete', child: Text('Xóa')),
+              itemBuilder: (_) => [
+                PopupMenuItem(
+                  value: 'edit',
+                  child: Text(AppStrings.choose('Edit', 'Sửa')),
+                ),
+                PopupMenuItem(
+                  value: 'delete',
+                  child: Text(AppStrings.choose('Delete', 'Xóa')),
+                ),
               ],
             ),
           ],
@@ -704,7 +683,11 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
   ) {
     final messages = <String>{
       ...warnings.where((warning) => warning.trim().isNotEmpty),
-      if (hasMismatch) 'Tổng các dòng chưa khớp với tổng hóa đơn.',
+      if (hasMismatch)
+        AppStrings.choose(
+          'The item total does not match the receipt total.',
+          'Tổng các dòng chưa khớp với tổng hóa đơn.',
+        ),
     };
     return Container(
       key: const Key('scan_warnings'),
@@ -738,8 +721,11 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
         color: context.finFlowColors.surface,
         borderRadius: BorderRadius.circular(16),
       ),
-      child: const Text(
-        'Không còn khoản mục nào. Hãy quét lại hoặc giữ ít nhất một khoản.',
+      child: Text(
+        AppStrings.choose(
+          'No items remain. Scan again or keep at least one item.',
+          'Không còn khoản mục nào. Hãy quét lại hoặc giữ ít nhất một khoản.',
+        ),
         textAlign: TextAlign.center,
       ),
     );
@@ -762,7 +748,9 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
         children: [
           Row(
             children: [
-              const Expanded(child: Text('Tổng các khoản')),
+              Expanded(
+                child: Text(AppStrings.choose('Items total', 'Tổng các khoản')),
+              ),
               const SizedBox(width: 8),
               Flexible(
                 child: Text(
@@ -780,7 +768,11 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
               padding: const EdgeInsets.only(top: 8),
               child: Row(
                 children: [
-                  const Expanded(child: Text('Tổng trên hóa đơn')),
+                  Expanded(
+                    child: Text(
+                      AppStrings.choose('Receipt total', 'Tổng trên hóa đơn'),
+                    ),
+                  ),
                   const SizedBox(width: 8),
                   Flexible(
                     child: Text(
@@ -808,14 +800,17 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: _scanGreen.withValues(alpha: .25)),
       ),
-      child: const Row(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.fact_check_outlined, color: _scanGreen),
-          SizedBox(width: 10),
+          const Icon(Icons.fact_check_outlined, color: _scanGreen),
+          const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Kiểm tra lại các khoản mục. Bước tiếp theo bạn sẽ chọn tài khoản và lưu giao dịch.',
+              AppStrings.choose(
+                'Review the items. Next, you will choose an account and save the transaction.',
+                'Kiểm tra lại các khoản mục. Bước tiếp theo bạn sẽ chọn tài khoản và lưu giao dịch.',
+              ),
             ),
           ),
         ],
@@ -864,7 +859,12 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
       setState(() => _error = _platformPickerMessage(error, source));
     } catch (_) {
       if (!mounted || operationId != _operationId) return;
-      setState(() => _error = 'Không thể đọc ảnh. Vui lòng chọn ảnh khác.');
+      setState(
+        () => _error = AppStrings.choose(
+          'Unable to read the image. Please choose another image.',
+          'Không thể đọc ảnh. Vui lòng chọn ảnh khác.',
+        ),
+      );
     }
   }
 
@@ -878,12 +878,11 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
     });
 
     try {
-      final parsedResult =
+      final result =
           await (widget.receiptParser ?? ReceiptScanService.instance.parseFile)(
             file,
           );
       if (!mounted || operationId != _operationId) return;
-      final result = _normalizeReceiptDate(parsedResult);
       setState(() {
         _result = result;
         _isProcessing = false;
@@ -898,7 +897,10 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
       if (!mounted || operationId != _operationId) return;
       setState(() {
         _isProcessing = false;
-        _error = 'Không thể phân tích hóa đơn. Vui lòng thử lại.';
+        _error = AppStrings.choose(
+          'Unable to analyze the receipt. Please try again.',
+          'Không thể phân tích hóa đơn. Vui lòng thử lại.',
+        );
       });
     }
   }
@@ -913,7 +915,10 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (_) => _ScannedItemEditor(item: result.items[index]),
+      builder: (_) => SafeArea(
+        top: false,
+        child: _ScannedItemEditor(item: result.items[index]),
+      ),
     );
     if (!mounted || edited == null) return;
     final current = _result;
@@ -925,33 +930,6 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
     });
   }
 
-  Future<void> _editReceiptDate() async {
-    final result = _result;
-    if (result == null) return;
-
-    final today = _dateOnly(DateTime.now());
-    final firstDate = DateTime(2000);
-    var initialDate = _dateOnly(result.receiptDate ?? today);
-    if (initialDate.isBefore(firstDate)) initialDate = firstDate;
-    if (initialDate.isAfter(today)) initialDate = today;
-
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: initialDate,
-      firstDate: firstDate,
-      lastDate: today,
-      helpText: 'Chọn ngày hóa đơn',
-    );
-    if (!mounted || picked == null) return;
-
-    final current = _result;
-    if (current == null) return;
-    setState(() {
-      _result = current.copyWith(receiptDate: _dateOnly(picked));
-      _error = null;
-    });
-  }
-
   void _deleteItem(int index) {
     final result = _result;
     if (result == null || index >= result.items.length) return;
@@ -959,7 +937,10 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
     setState(() {
       _result = result.copyWith(items: items);
       _error = items.isEmpty
-          ? 'Hóa đơn cần ít nhất một khoản mục trước khi lưu.'
+          ? AppStrings.choose(
+              'The receipt needs at least one item before saving.',
+              'Hóa đơn cần ít nhất một khoản mục trước khi lưu.',
+            )
           : null;
     });
   }
@@ -993,10 +974,22 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
         error.code.contains('access');
     if (denied) {
       return source == ImageSource.camera
-          ? 'FinFlow chưa được cấp quyền camera.'
-          : 'FinFlow chưa được cấp quyền truy cập thư viện ảnh.';
+          ? AppStrings.choose(
+              'FinFlow does not have camera permission.',
+              'FinFlow chưa được cấp quyền camera.',
+            )
+          : AppStrings.choose(
+              'FinFlow does not have photo library permission.',
+              'FinFlow chưa được cấp quyền truy cập thư viện ảnh.',
+            );
     }
-    return 'Không thể mở ${source == ImageSource.camera ? 'camera' : 'thư viện ảnh'}. Vui lòng thử lại.';
+    final sourceName = source == ImageSource.camera
+        ? AppStrings.choose('camera', 'camera')
+        : AppStrings.choose('photo library', 'thư viện ảnh');
+    return AppStrings.choose(
+      'Unable to open the $sourceName. Please try again.',
+      'Không thể mở $sourceName. Vui lòng thử lại.',
+    );
   }
 
   static String _formatVnd(int amount) {
@@ -1011,31 +1004,6 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
 
   static int _confirmedAmount(ScanResultModel result) {
     return result.totalAmount > 0 ? result.totalAmount : result.calculatedTotal;
-  }
-
-  static ScanResultModel _normalizeReceiptDate(ScanResultModel result) {
-    final receiptDate = result.receiptDate;
-    if (receiptDate == null) return result;
-
-    final today = _dateOnly(DateTime.now());
-    final firstDate = DateTime(2000);
-    final date = _dateOnly(receiptDate);
-    if (!date.isBefore(firstDate) && !date.isAfter(today)) return result;
-
-    final normalized = date.isBefore(firstDate) ? firstDate : today;
-    return result.copyWith(
-      receiptDate: normalized,
-      warnings: [
-        ...result.warnings,
-        date.isAfter(today)
-            ? 'Ngày trên hóa đơn nằm trong tương lai nên đã được đổi thành hôm nay.'
-            : 'Ngày trên hóa đơn quá cũ nên đã được giới hạn từ năm 2000.',
-      ],
-    );
-  }
-
-  static DateTime _dateOnly(DateTime date) {
-    return DateTime(date.year, date.month, date.day);
   }
 
   static String _formatDate(DateTime date) {
@@ -1241,28 +1209,35 @@ class _ScannedItemEditorState extends State<_ScannedItemEditor> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Chỉnh sửa khoản mục',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+          Text(
+            AppStrings.choose('Edit item', 'Chỉnh sửa khoản mục'),
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 16),
           TextField(
             key: const Key('scan_edit_name'),
             controller: _nameController,
-            decoration: const InputDecoration(labelText: 'Tên món/dịch vụ'),
+            decoration: InputDecoration(
+              labelText: AppStrings.choose(
+                'Item/service name',
+                'Tên món/dịch vụ',
+              ),
+            ),
           ),
           const SizedBox(height: 10),
           TextField(
             key: const Key('scan_edit_amount'),
             controller: _amountController,
             keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: 'Số tiền VND'),
+            decoration: InputDecoration(
+              labelText: AppStrings.choose('Amount (VND)', 'Số tiền VND'),
+            ),
           ),
           const SizedBox(height: 10),
           DropdownButtonFormField<String>(
             key: const Key('scan_edit_category'),
             initialValue: _category,
-            decoration: const InputDecoration(labelText: 'Danh mục'),
+            decoration: InputDecoration(labelText: AppStrings.category),
             items: TransactionCategory.all
                 .map(
                   (category) => DropdownMenuItem(
@@ -1286,7 +1261,7 @@ class _ScannedItemEditorState extends State<_ScannedItemEditor> {
             child: ElevatedButton(
               key: const Key('scan_edit_save'),
               onPressed: _save,
-              child: const Text('Lưu thay đổi'),
+              child: Text(AppStrings.choose('Save changes', 'Lưu thay đổi')),
             ),
           ),
         ],
@@ -1300,7 +1275,12 @@ class _ScannedItemEditorState extends State<_ScannedItemEditor> {
       _amountController.text.replaceAll(RegExp(r'[^0-9]'), ''),
     );
     if (name.isEmpty || amount == null || amount <= 0) {
-      setState(() => _error = 'Vui lòng nhập tên và số tiền hợp lệ.');
+      setState(
+        () => _error = AppStrings.choose(
+          'Please enter a valid name and amount.',
+          'Vui lòng nhập tên và số tiền hợp lệ.',
+        ),
+      );
       return;
     }
     Navigator.of(context).pop(
