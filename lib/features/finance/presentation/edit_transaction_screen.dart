@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/i18n/app_language.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/responsive.dart';
 import '../models/transaction_category.dart';
+import '../models/goal_model.dart';
 import '../models/transaction_model.dart';
 import '../models/wallet_model.dart';
 import '../providers/transaction_provider.dart';
+import '../providers/goal_provider.dart';
 import '../providers/wallet_provider.dart';
 import '../services/wallet_service.dart';
 import 'add_transaction_sheet.dart';
+import 'goal_sheets.dart';
+import 'widgets/goal_ui.dart';
 
 class EditTransactionScreen extends ConsumerStatefulWidget {
   const EditTransactionScreen({super.key, required this.transaction});
@@ -111,7 +116,10 @@ class _EditTransactionScreenState extends ConsumerState<EditTransactionScreen> {
                       onSelected: (value) => setState(() => _isExpense = value),
                     ),
                     SizedBox(height: Responsive.h(context, 22)),
-                    Text('AMOUNT (VND)', style: _labelStyle),
+                    Text(
+                      AppStrings.choose('AMOUNT (VND)', 'SỐ TIỀN (VND)'),
+                      style: _labelStyle,
+                    ),
                     SizedBox(height: Responsive.h(context, 4)),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.end,
@@ -170,16 +178,19 @@ class _EditTransactionScreenState extends ConsumerState<EditTransactionScreen> {
                     SizedBox(height: Responsive.h(context, 18)),
                     _buildSelectionField(
                       fieldKey: const Key('edit_category_field'),
-                      label: 'CATEGORY',
-                      value: category.label,
-                      leading: Icon(category.icon, color: _accent, size: 22),
+                      label: AppStrings.choose('CATEGORY', 'DANH MỤC'),
+                      value: AppStrings.categoryName(category.label),
+                      leading: category.buildIcon(color: _accent, size: 20),
                       highlighted: true,
                       onTap: _showCategorySelection,
                     ),
                     SizedBox(height: Responsive.h(context, 12)),
                     _buildSelectionField(
                       fieldKey: const Key('edit_source_field'),
-                      label: 'PAYMENT METHOD',
+                      label: AppStrings.choose(
+                        'PAYMENT METHOD',
+                        'PHƯƠNG THỨC THANH TOÁN',
+                      ),
                       value: _sourceName(wallet),
                       leading: wallet == null
                           ? Icon(
@@ -192,7 +203,7 @@ class _EditTransactionScreenState extends ConsumerState<EditTransactionScreen> {
                     ),
                     SizedBox(height: Responsive.h(context, 12)),
                     _buildSelectionField(
-                      label: 'DATE',
+                      label: AppStrings.choose('DATE', 'NGÀY'),
                       value: _formatDate(_transactionDate),
                       leading: Icon(
                         Icons.calendar_today_outlined,
@@ -229,9 +240,12 @@ class _EditTransactionScreenState extends ConsumerState<EditTransactionScreen> {
                                 color: Colors.white,
                               ),
                             )
-                          : const Text(
-                              'Update Transaction',
-                              style: TextStyle(
+                          : Text(
+                              AppStrings.choose(
+                                'Update Transaction',
+                                'Cập nhật giao dịch',
+                              ),
+                              style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w700,
                               ),
@@ -261,7 +275,7 @@ class _EditTransactionScreenState extends ConsumerState<EditTransactionScreen> {
           Align(
             alignment: Alignment.centerLeft,
             child: IconButton(
-              tooltip: 'Back',
+              tooltip: AppStrings.choose('Back', 'Quay lại'),
               onPressed: () => Navigator.of(context).pop(),
               icon: const Icon(
                 Icons.arrow_back_rounded,
@@ -270,7 +284,7 @@ class _EditTransactionScreenState extends ConsumerState<EditTransactionScreen> {
             ),
           ),
           Text(
-            'Edit Transaction',
+            AppStrings.editTransaction,
             style: TextStyle(
               fontFamily: 'Manrope',
               fontSize: Responsive.sp(context, 18),
@@ -281,7 +295,7 @@ class _EditTransactionScreenState extends ConsumerState<EditTransactionScreen> {
           Align(
             alignment: Alignment.centerRight,
             child: IconButton(
-              tooltip: 'Delete transaction',
+              tooltip: AppStrings.choose('Delete transaction', 'Xóa giao dịch'),
               onPressed: _isSaving || _isDeleting ? null : _delete,
               icon: _isDeleting
                   ? const SizedBox(
@@ -409,9 +423,12 @@ class _EditTransactionScreenState extends ConsumerState<EditTransactionScreen> {
                 fontWeight: FontWeight.w600,
               ),
               decoration: InputDecoration(
-                labelText: 'TRANSACTION NAME',
+                labelText: AppStrings.choose(
+                  'TRANSACTION NAME',
+                  'TÊN GIAO DỊCH',
+                ),
                 labelStyle: _labelStyle,
-                hintText: 'Enter a name',
+                hintText: AppStrings.choose('Enter a name', 'Nhập tên'),
                 border: InputBorder.none,
                 isDense: true,
               ),
@@ -438,10 +455,13 @@ class _EditTransactionScreenState extends ConsumerState<EditTransactionScreen> {
   Future<void> _showCategorySelection() async {
     final result = await showModalBottomSheet<String>(
       context: context,
+      useSafeArea: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) =>
-          TransactionCategorySelectionSheet(initialKey: _selectedCategory),
+      builder: (_) => SafeArea(
+        top: false,
+        child: TransactionCategorySelectionSheet(initialKey: _selectedCategory),
+      ),
     );
     if (result != null && mounted) setState(() => _selectedCategory = result);
   }
@@ -449,11 +469,15 @@ class _EditTransactionScreenState extends ConsumerState<EditTransactionScreen> {
   Future<void> _showSourceSelection(List<WalletModel> wallets) async {
     final result = await showModalBottomSheet<WalletModel>(
       context: context,
+      useSafeArea: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _EditSourceSelectionSheet(
-        wallets: wallets,
-        initialWalletId: _selectedWalletId,
+      builder: (_) => SafeArea(
+        top: false,
+        child: _EditSourceSelectionSheet(
+          wallets: wallets,
+          initialWalletId: _selectedWalletId,
+        ),
       ),
     );
     if (result != null && mounted) {
@@ -474,12 +498,99 @@ class _EditTransactionScreenState extends ConsumerState<EditTransactionScreen> {
   Future<void> _save() async {
     final amount = int.tryParse(_amountController.text.replaceAll(',', ''));
     if (amount == null || amount <= 0) {
-      _showMessage('Please enter a valid amount');
+      _showMessage(AppStrings.pleaseEnterValidAmount);
       return;
     }
     if (_selectedWalletId == null) {
-      _showMessage('Please select a payment method');
+      _showMessage(
+        AppStrings.choose(
+          'Please select a payment method',
+          'Vui lòng chọn phương thức thanh toán',
+        ),
+      );
       return;
+    }
+    final signedAmount = amount * (_isExpense ? -1 : 1);
+    final goalService = ref.read(goalServiceProvider);
+    final transactionService = ref.read(transactionServiceProvider);
+    setState(() => _isSaving = true);
+    try {
+      // Calculate against the same fresh snapshot the RPC will use. Stale goal
+      // entries or wallet balances can otherwise understate the real shortfall.
+      await Future.wait([
+        transactionService.fetchTransactions(),
+        goalService.fetchGoals(),
+        ref.read(walletServiceProvider).fetchWallets(),
+      ]);
+    } catch (error) {
+      if (mounted) _showMessage('$error');
+      return;
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+    if (!mounted) return;
+    final linkedByGoal = <String, int>{};
+    for (final entry in goalService.entries.where(
+      (entry) =>
+          entry.sourceTransactionId == widget.transaction.id &&
+          entry.amount > 0 &&
+          (entry.entryType == 'automatic_allocation' ||
+              entry.entryType == 'completion_transfer'),
+    )) {
+      linkedByGoal.update(
+        entry.goalId,
+        (amount) => amount + entry.amount,
+        ifAbsent: () => entry.amount,
+      );
+    }
+    final availableByGoal = <String, int>{
+      for (final goal in goalService.goals)
+        goal.id: (goal.allocatedAmount - (linkedByGoal[goal.id] ?? 0)).clamp(
+          0,
+          1 << 62,
+        ),
+    };
+    final actualAfter =
+        transactionService.totalBalance -
+        widget.transaction.amount +
+        signedAmount;
+    final allocatedAfter = availableByGoal.values.fold<int>(
+      0,
+      (sum, amount) => sum + amount,
+    );
+    final shortfall = (allocatedAfter - actualAfter).clamp(0, 1 << 62);
+    if (shortfall > allocatedAfter) {
+      _showMessage(
+        AppStrings.choose(
+          'This change would make your total balance negative by ${formatVnd(-actualAfter)} VND. Increase the income amount before saving.',
+          'Thay đổi này sẽ làm tổng số dư âm ${formatVnd(-actualAfter)} VND. Hãy tăng số tiền thu nhập trước khi lưu.',
+        ),
+      );
+      return;
+    }
+    var goalWithdrawals = <String, int>{};
+    if (shortfall > 0 &&
+        goalService.settings.expenseShortfallPolicy ==
+            ExpenseShortfallPolicy.askEachTime) {
+      final selected = await ExpenseGoalWithdrawalSheet.show(
+        context,
+        shortfall: shortfall,
+        availableByGoal: availableByGoal,
+        explanation: signedAmount > 0
+            ? AppStrings.choose(
+                'This income change requires ${formatVnd(shortfall)} VND to be released from goal allocations. Amounts shown already exclude allocations linked to this transaction.',
+                'Thay đổi thu nhập này cần giải phóng ${formatVnd(shortfall)} VND từ tiền phân bổ mục tiêu. Số tiền hiển thị đã loại trừ phần phân bổ liên kết với giao dịch này.',
+              )
+            : null,
+        primaryActionLabel: signedAmount > 0
+            ? AppStrings.choose('Continue with Changes', 'Tiếp tục thay đổi')
+            : AppStrings.choose(
+                'Continue with Expense',
+                'Tiếp tục với khoản chi',
+              ),
+      );
+      if (selected == null || !mounted) return;
+      goalWithdrawals = selected;
     }
     setState(() => _isSaving = true);
     try {
@@ -492,10 +603,11 @@ class _EditTransactionScreenState extends ConsumerState<EditTransactionScreen> {
               userId: widget.transaction.userId,
               name: name.isEmpty ? _selectedCategory : name,
               category: _selectedCategory,
-              amount: amount * (_isExpense ? -1 : 1),
+              amount: signedAmount,
               date: _transactionDate,
               walletId: _selectedWalletId,
             ),
+            goalWithdrawals: goalWithdrawals,
           );
       if (mounted) Navigator.of(context).pop();
     } catch (error) {
@@ -509,18 +621,23 @@ class _EditTransactionScreenState extends ConsumerState<EditTransactionScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Delete transaction?'),
-        content: const Text('This action cannot be undone.'),
+        title: Text(AppStrings.choose('Delete transaction?', 'Xóa giao dịch?')),
+        content: Text(
+          AppStrings.choose(
+            'This action cannot be undone.',
+            'Không thể hoàn tác thao tác này.',
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
+            child: Text(AppStrings.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text(
-              'Delete',
-              style: TextStyle(color: AppColors.coral),
+            child: Text(
+              AppStrings.choose('Delete', 'Xóa'),
+              style: const TextStyle(color: AppColors.coral),
             ),
           ),
         ],
@@ -574,8 +691,17 @@ class _EditTransactionScreenState extends ConsumerState<EditTransactionScreen> {
   }
 
   String _sourceName(WalletModel? wallet) {
-    if (wallet == null) return 'Select payment method';
-    return wallet.name;
+    if (wallet == null) {
+      return AppStrings.choose(
+        'Select payment method',
+        'Chọn phương thức thanh toán',
+      );
+    }
+    return switch (wallet.name) {
+      'Cash' => AppStrings.choose('Cash', 'Tiền mặt'),
+      'Transfer' => AppStrings.choose('Transfer', 'Chuyển khoản'),
+      _ => wallet.name,
+    };
   }
 
   String _formatDate(DateTime value) {
@@ -619,8 +745,20 @@ class _TransactionTypeSelector extends StatelessWidget {
       ),
       child: Row(
         children: [
-          _item(context, 'INCOME', false, !isExpense, accent),
-          _item(context, 'EXPENSE', true, isExpense, accent),
+          _item(
+            context,
+            AppStrings.choose('INCOME', 'THU NHẬP'),
+            false,
+            !isExpense,
+            accent,
+          ),
+          _item(
+            context,
+            AppStrings.choose('EXPENSE', 'CHI TIÊU'),
+            true,
+            isExpense,
+            accent,
+          ),
         ],
       ),
     );
@@ -720,10 +858,13 @@ class _EditSourceSelectionSheetState extends State<_EditSourceSelectionSheet> {
                 padding: const EdgeInsets.fromLTRB(16, 4, 8, 8),
                 child: Row(
                   children: [
-                    const Expanded(
+                    Expanded(
                       child: Text(
-                        'Select Payment Method',
-                        style: TextStyle(
+                        AppStrings.choose(
+                          'Select Payment Method',
+                          'Chọn phương thức thanh toán',
+                        ),
+                        style: const TextStyle(
                           fontFamily: 'Manrope',
                           fontSize: 22,
                           fontWeight: FontWeight.w700,
@@ -739,11 +880,24 @@ class _EditSourceSelectionSheetState extends State<_EditSourceSelectionSheet> {
               ),
               Expanded(
                 child: widget.wallets.isEmpty
-                    ? const Center(child: Text('No payment methods available'))
+                    ? Center(
+                        child: Text(
+                          AppStrings.choose(
+                            'No payment methods available',
+                            'Không có phương thức thanh toán',
+                          ),
+                        ),
+                      )
                     : ListView(
                         padding: const EdgeInsets.symmetric(horizontal: 14),
                         children: [
-                          _section('PAYMENT METHOD', WalletType.cash),
+                          _section(
+                            AppStrings.choose(
+                              'PAYMENT METHOD',
+                              'PHƯƠNG THỨC THANH TOÁN',
+                            ),
+                            WalletType.cash,
+                          ),
                           _section('', WalletType.transfer),
                         ],
                       ),
@@ -758,9 +912,9 @@ class _EditSourceSelectionSheetState extends State<_EditSourceSelectionSheet> {
                     minimumSize: const Size.fromHeight(54),
                     shape: const StadiumBorder(),
                   ),
-                  child: const Text(
-                    'Apply Selection',
-                    style: TextStyle(fontWeight: FontWeight.w700),
+                  child: Text(
+                    AppStrings.choose('Apply Selection', 'Áp dụng lựa chọn'),
+                    style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ),
               ),
@@ -832,7 +986,11 @@ class _EditSourceSelectionSheetState extends State<_EditSourceSelectionSheet> {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  wallet.name,
+                  switch (wallet.name) {
+                    'Cash' => AppStrings.choose('Cash', 'Tiền mặt'),
+                    'Transfer' => AppStrings.choose('Transfer', 'Chuyển khoản'),
+                    _ => wallet.name,
+                  },
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontWeight: FontWeight.w600),

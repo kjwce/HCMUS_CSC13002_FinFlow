@@ -8,7 +8,7 @@ void main() {
   const transfer = WalletModel(
     id: 'wallet-transfer',
     userId: 'user-1',
-    name: 'Chuyển khoản',
+    name: 'Transfer',
     logoAssetPath: '',
     brandColor: Colors.blue,
     type: WalletType.transfer,
@@ -17,7 +17,7 @@ void main() {
   const cash = WalletModel(
     id: 'wallet-cash',
     userId: 'user-1',
-    name: 'Tiền mặt',
+    name: 'Cash',
     logoAssetPath: '',
     brandColor: Colors.green,
     type: WalletType.cash,
@@ -39,7 +39,7 @@ void main() {
     dynamic amount = 50000,
     dynamic name = 'Lunch',
     dynamic categoryKey = 'Food',
-    dynamic walletName = 'Chuyển khoản',
+    dynamic walletName = 'Transfer',
     dynamic date = '2026-07-11T12:00:00',
     dynamic confidence = 0.95,
     dynamic warnings = const <String>[],
@@ -199,7 +199,7 @@ void main() {
     });
 
     test('wallet resolves by exact name', () async {
-      final draft = await parse(response(walletName: 'Chuyển khoản'));
+      final draft = await parse(response(walletName: 'Transfer'));
       expect(draft.walletId, transfer.id);
       expect(draft.walletName, transfer.name);
     });
@@ -315,7 +315,7 @@ void main() {
   group('transfer and conversion', () {
     test('unsupported transfer cannot be directly confirmed', () async {
       final draft = await parse(
-        response(type: 'expense', walletName: 'Chuyển khoản'),
+        response(type: 'expense', walletName: 'Transfer'),
         text: 'Chuyển 500k từ MoMo sang MB',
       );
       expect(draft.type, isNull);

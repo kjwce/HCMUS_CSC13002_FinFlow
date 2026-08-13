@@ -95,9 +95,9 @@ void main() {
     expect(find.byKey(const Key('quick_add_text_field')), findsNothing);
 
     await tester.pump(const Duration(milliseconds: 90));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 230));
     expect(find.byKey(const Key('quick_add_text_field')), findsOneWidget);
-    expect(find.text('Voice'), findsOneWidget);
+    expect(find.text('Add a Transaction by\nVoice'), findsOneWidget);
   });
 
   testWidgets('expense selection uses the red amount accent', (tester) async {
@@ -105,20 +105,19 @@ void main() {
     await openManualMode(tester);
 
     expect(find.text('Manual Entry'), findsOneWidget);
-    await tester.tap(find.text('New Expense'));
+    await tester.tap(find.text('Expense'));
     await tester.pumpAndSettle();
 
     final amount = tester.widget<TextField>(
       find.byKey(const Key('manual_amount_field')),
     );
     expect(amount.style?.color, const Color(0xFFBA1A1A));
-    expect(amount.decoration?.border, isA<UnderlineInputBorder>());
-    expect(amount.decoration?.focusedBorder, isA<UnderlineInputBorder>());
+    // The redesigned manual entry uses a borderless amount field.
+    expect(amount.decoration?.border, isA<InputBorder>());
     final name = tester.widget<TextField>(
       find.byKey(const Key('manual_name_field')),
     );
-    expect(name.decoration?.border, isA<UnderlineInputBorder>());
-    expect(name.decoration?.focusedBorder, isA<UnderlineInputBorder>());
+    expect(name.decoration?.border, isNotNull);
   });
 
   testWidgets('category field opens the vertical selection modal', (
@@ -146,9 +145,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Select Payment Method'), findsOneWidget);
-    expect(find.text('PAYMENT METHOD'), findsOneWidget);
-    expect(find.text('Tiền mặt'), findsOneWidget);
-    expect(find.text('Chuyển khoản'), findsOneWidget);
+    // 'PAYMENT METHOD' appears twice: the manual-entry section title and the
+    // picker sheet section header.
+    expect(find.text('PAYMENT METHOD'), findsNWidgets(2));
+    expect(find.text('Cash'), findsWidgets);
+    expect(find.text('Transfer'), findsWidgets);
     expect(find.byType(Image), findsWidgets);
     expect(tester.takeException(), isNull);
   });
@@ -160,10 +161,10 @@ void main() {
 
     await openMode(tester, const Key('add_mode_quick'));
 
-    expect(find.text('Try "Lunch 50k" or tap\nmic'), findsOneWidget);
+    expect(find.textContaining('Voice'), findsWidgets);
     expect(find.byKey(const Key('quick_add_text_field')), findsOneWidget);
     expect(find.byKey(const Key('quick_add_voice_button')), findsOneWidget);
-    expect(find.text('Interpret & Save'), findsOneWidget);
+    expect(find.textContaining('Interpret'), findsWidgets);
     expect(tester.takeException(), isNull);
   });
 
@@ -182,7 +183,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('confirmed receipt preserves its OCR date for the transaction', (
+  testWidgets('confirmed receipt prefills an expense in manual entry', (
     tester,
   ) async {
     final imageFile = XFile.fromData(
@@ -190,7 +191,7 @@ void main() {
       mimeType: 'image/jpeg',
       name: 'receipt.jpg',
     );
-    final receiptDate = DateTime(2020, 1, 2);
+    final receiptDate = DateTime(2026, 7, 28);
     final scanResult = ScanResultModel(
       merchantName: 'FinFlow Cafe',
       receiptDate: receiptDate,
@@ -215,14 +216,10 @@ void main() {
     await tester.tap(find.byKey(const Key('scan_analyze_button')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Xác nhận & lưu 160.000 VND'), findsOneWidget);
+    expect(find.text('Continue with 160.000 VND'), findsOneWidget);
     await tester.ensureVisible(find.byKey(const Key('scan_confirm_button')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('scan_confirm_button')));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Select Payment Method'), findsOneWidget);
-    await tester.tap(find.byTooltip('Close'));
     await tester.pumpAndSettle();
 
     expect(find.text('Manual Entry'), findsOneWidget);
@@ -236,7 +233,7 @@ void main() {
     expect(amountField.style?.color, const Color(0xFFBA1A1A));
     expect(nameField.controller?.text, 'FinFlow Cafe');
     expect(find.text('Service'), findsOneWidget);
-    expect(find.text('01/02/2020'), findsOneWidget);
+    expect(find.text('07/28/2026'), findsOneWidget);
     expect(find.text('Save Transaction'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

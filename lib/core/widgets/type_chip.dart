@@ -37,14 +37,17 @@ class TypeChip extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: isSelected ? color : Colors.grey, size: Responsive.w(context, 20)),
+            Icon(
+              icon,
+              color: isSelected ? color : Colors.grey,
+              size: Responsive.w(context, 20),
+            ),
             SizedBox(width: Responsive.w(context, 8)),
             Text(
               label,
               style: TextStyle(
                 color: isSelected ? color : Colors.grey,
-                fontWeight:
-                    isSelected ? FontWeight.w800 : FontWeight.normal,
+                fontWeight: isSelected ? FontWeight.w800 : FontWeight.normal,
               ),
             ),
           ],

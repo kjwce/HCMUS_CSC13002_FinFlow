@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/transaction_model.dart';
+import 'goal_service.dart';
 import 'wallet_service.dart';
 
 /// Time period filter for charts.
@@ -379,7 +380,13 @@ class TransactionService extends ChangeNotifier {
       case ChartPeriod.day:
         {
           final targetDay = today.add(Duration(days: offset));
-          bucketDefs.add((targetDay, '${targetDay.day}'));
+          // Preserve one data point per hour. The chart can then keep all 24
+          // buckets for accurate totals while rendering only a few axis
+          // labels, which is much easier to scan on a phone.
+          for (var hour = 0; hour < 24; hour++) {
+            final start = targetDay.add(Duration(hours: hour));
+            bucketDefs.add((start, '${hour.toString().padLeft(2, '0')}:00'));
+          }
           break;
         }
       case ChartPeriod.week:
@@ -429,7 +436,7 @@ class TransactionService extends ChangeNotifier {
       DateTime end;
       switch (period) {
         case ChartPeriod.day:
-          end = start.add(const Duration(days: 1));
+          end = start.add(const Duration(hours: 1));
           break;
         case ChartPeriod.week:
           end = start.add(const Duration(days: 1));
@@ -583,38 +590,62 @@ class TransactionService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> add(TransactionModel transaction) async {
+  Future<List<String>> add(
+    TransactionModel transaction, {
+    bool isImported = false,
+    Map<String, int> goalWithdrawals = const {},
+  }) async {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) throw Exception('Not authenticated');
+    final completedBefore = GoalService.instance.goals
+        .where((goal) => goal.isCompleted)
+        .map((goal) => goal.id)
+        .toSet();
 
-    await Supabase.instance.client.from('transactions').insert({
-      'id': transaction.id,
-      'user_id': userId,
-      'name': transaction.name,
-      'category': transaction.category,
-      'amount': transaction.amount,
-      'date': TransactionModel.floatingLocalIso(transaction.date),
-      if (transaction.walletId != null) 'wallet_id': transaction.walletId,
-    });
-    await fetchTransactions();
+    await Supabase.instance.client.rpc(
+      'create_transaction_with_goal_handling',
+      params: {
+        'p_id': transaction.id,
+        'p_name': transaction.name,
+        'p_category': transaction.category,
+        'p_amount': transaction.amount,
+        'p_date': TransactionModel.floatingLocalIso(transaction.date),
+        'p_wallet_id': transaction.walletId,
+        'p_is_imported': isImported,
+        'p_withdrawals': goalWithdrawals.entries
+            .map((entry) => {'goal_id': entry.key, 'amount': entry.value})
+            .toList(growable: false),
+      },
+    );
+    await Future.wait([fetchTransactions(), GoalService.instance.fetchGoals()]);
+    return GoalService.instance.goals
+        .where((goal) => goal.isCompleted && !completedBefore.contains(goal.id))
+        .map((goal) => goal.id)
+        .toList(growable: false);
   }
 
-  Future<void> update(TransactionModel transaction) async {
+  Future<void> update(
+    TransactionModel transaction, {
+    Map<String, int> goalWithdrawals = const {},
+  }) async {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) throw Exception('Not authenticated');
 
-    await Supabase.instance.client
-        .from('transactions')
-        .update({
-          'name': transaction.name,
-          'category': transaction.category,
-          'amount': transaction.amount,
-          'date': TransactionModel.floatingLocalIso(transaction.date),
-          if (transaction.walletId != null) 'wallet_id': transaction.walletId,
-        })
-        .eq('id', transaction.id)
-        .eq('user_id', userId);
-    await fetchTransactions();
+    await Supabase.instance.client.rpc(
+      'update_transaction_with_goal_handling',
+      params: {
+        'p_id': transaction.id,
+        'p_name': transaction.name,
+        'p_category': transaction.category,
+        'p_amount': transaction.amount,
+        'p_date': TransactionModel.floatingLocalIso(transaction.date),
+        'p_wallet_id': transaction.walletId,
+        'p_withdrawals': goalWithdrawals.entries
+            .map((entry) => {'goal_id': entry.key, 'amount': entry.value})
+            .toList(growable: false),
+      },
+    );
+    await Future.wait([fetchTransactions(), GoalService.instance.fetchGoals()]);
   }
 
   Future<void> delete(String transactionId) async {
@@ -626,7 +657,7 @@ class TransactionService extends ChangeNotifier {
         .delete()
         .eq('id', transactionId)
         .eq('user_id', userId);
-    await fetchTransactions();
+    await Future.wait([fetchTransactions(), GoalService.instance.fetchGoals()]);
   }
 
   Future<void> clearAll() async {
@@ -638,6 +669,7 @@ class TransactionService extends ChangeNotifier {
         .delete()
         .eq('user_id', userId);
     _transactions = [];
+    await GoalService.instance.fetchGoals();
     notifyListeners();
   }
 }

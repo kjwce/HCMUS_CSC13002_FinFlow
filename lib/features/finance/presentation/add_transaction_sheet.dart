@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/i18n/app_language.dart';
+import '../../../app/shell/finflow_app.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/responsive.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -11,15 +12,18 @@ import '../../auth/services/auth_service.dart';
 import '../../scan/models/scan_result_model.dart';
 import '../../scan/presentation/scan_screen.dart';
 import '../models/quick_add_draft_model.dart';
+import '../models/goal_model.dart';
 import '../models/transaction_category.dart';
 import '../models/transaction_model.dart';
 import '../models/wallet_model.dart';
 import '../providers/transaction_provider.dart';
+import '../providers/goal_provider.dart';
 import '../services/quick_add_service.dart';
 import '../services/quick_add_speech_recognition_service.dart';
 import '../services/transaction_service.dart';
 import '../services/wallet_service.dart';
 import 'quick_add_review_sheet.dart';
+import 'goal_sheets.dart';
 import 'transaction_saved_screen.dart';
 import 'widgets/quick_add_card.dart';
 
@@ -52,6 +56,15 @@ const _customColors = <Color>[
   Color(0xFF6D4C41),
   Color(0xFF757575),
 ];
+
+const _addTransactionBackground = Color(0xFFEDF7F3);
+const _addTransactionDarkBackground = Color(0xFF081C18);
+const _addTransactionDarkSurface = Color(0xFF16352E);
+const _addTransactionDarkRaisedSurface = Color(0xFF1C4037);
+const _addTransactionDarkBorder = Color(0xFF29483F);
+const _addTransactionDarkText = Color(0xFFF4FBF8);
+const _addTransactionDarkSecondaryText = Color(0xFFA9C1B9);
+const _addTransactionDarkMutedText = Color(0xFF708D84);
 
 /// Full-screen Add Transaction flow. The historical class name is preserved so
 /// existing callers keep the same API while [show] now pushes a page.
@@ -122,6 +135,7 @@ enum _QuickAddVoiceState {
   processingFinal,
   parsing,
   error,
+  success,
 }
 
 class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
@@ -142,14 +156,30 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
 
   var _isQuickAddParsing = false;
   var _isQuickAddReviewOpen = false;
+  QuickAddDraft? _quickAddDraft;
+  String? _quickAddErrorMessage;
   var _voiceState = _QuickAddVoiceState.idle;
   var _voiceSession = 0;
+  var _quickParseSession = 0;
   var _voiceFinalHandled = false;
   var _latestVoiceTranscript = '';
+  var _voiceSoundLevel = 0.0;
   Timer? _voiceTimeout;
   Timer? _modeNavigationTimer;
 
   bool get _isVoiceRecording => _voiceState == _QuickAddVoiceState.listening;
+  bool get _isDark => Theme.of(context).brightness == Brightness.dark;
+  Color get _pageBackground =>
+      _isDark ? _addTransactionDarkBackground : _addTransactionBackground;
+  Color get _surface => _isDark ? _addTransactionDarkSurface : Colors.white;
+  Color get _raisedSurface =>
+      _isDark ? _addTransactionDarkRaisedSurface : const Color(0xFFE0F2ED);
+  Color get _border =>
+      _isDark ? _addTransactionDarkBorder : const Color(0xFFE4EAE7);
+  Color get _primaryText =>
+      _isDark ? _addTransactionDarkText : const Color(0xFF1A1C1E);
+  Color get _mutedText =>
+      _isDark ? _addTransactionDarkMutedText : const Color(0xFF74817B);
   bool get _isVoiceProcessing =>
       _voiceState == _QuickAddVoiceState.initializing ||
       _voiceState == _QuickAddVoiceState.processingFinal;
@@ -206,14 +236,14 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) {
           if (_mode != null && !widget.fromQuickAdd) {
-            setState(() => _mode = null);
+            _returnToModePicker();
           } else {
             unawaited(_requestClose());
           }
         }
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFFF7FBF9),
+        backgroundColor: _pageBackground,
         body: SafeArea(
           child: Column(
             children: [
@@ -223,6 +253,12 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                   duration: const Duration(milliseconds: 220),
                   switchInCurve: Curves.easeOutCubic,
                   switchOutCurve: Curves.easeInCubic,
+                  layoutBuilder: (currentChild, previousChildren) {
+                    return Stack(
+                      alignment: Alignment.topCenter,
+                      children: [...previousChildren, ?currentChild],
+                    );
+                  },
                   transitionBuilder: _buildHorizontalPageTransition,
                   child: _mode == null
                       ? ListenableBuilder(
@@ -238,9 +274,18 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                           padding: _mode == _AddMode.scan
                               ? EdgeInsets.zero
                               : EdgeInsets.fromLTRB(
-                                  Responsive.w(context, 20),
-                                  Responsive.h(context, 20),
-                                  Responsive.w(context, 20),
+                                  Responsive.w(
+                                    context,
+                                    _mode == _AddMode.manual ? 16 : 20,
+                                  ),
+                                  Responsive.h(
+                                    context,
+                                    _mode == _AddMode.manual ? 16 : 20,
+                                  ),
+                                  Responsive.w(
+                                    context,
+                                    _mode == _AddMode.manual ? 16 : 20,
+                                  ),
                                   MediaQuery.viewInsetsOf(context).bottom +
                                       Responsive.h(context, 24),
                                 ),
@@ -261,15 +306,18 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
 
   Widget _buildHeader() {
     final title = switch (_mode) {
-      _AddMode.manual => 'Manual Entry',
-      _AddMode.quick => 'Voice',
-      _AddMode.scan => 'Scan',
-      _ => 'Add transaction',
+      _AddMode.manual => AppStrings.choose('Manual Entry', 'Nhập thủ công'),
+      _AddMode.quick => AppStrings.choose(
+        'Voice - Quick Add',
+        'Giọng nói - Thêm nhanh',
+      ),
+      _AddMode.scan => AppStrings.choose('Scan', 'Quét'),
+      _ => AppStrings.choose('Add transaction', 'Thêm giao dịch'),
     };
     return Container(
-      height: Responsive.h(context, 64),
+      height: Responsive.h(context, _mode == _AddMode.manual ? 52 : 64),
       padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 10)),
-      decoration: const BoxDecoration(color: Color(0xFFF7FBF9)),
+      decoration: BoxDecoration(color: _pageBackground),
       child: Stack(
         alignment: Alignment.center,
         children: [
@@ -277,11 +325,13 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
             alignment: Alignment.centerLeft,
             child: IconButton(
               onPressed: _handleHeaderBack,
-              tooltip: 'Back',
-              icon: const Icon(
+              tooltip: AppStrings.choose('Back', 'Quay lại'),
+              icon: Icon(
                 Icons.arrow_back_rounded,
                 size: 22,
-                color: Color(0xFF43474E),
+                color: _isDark
+                    ? _addTransactionDarkText
+                    : const Color(0xFF43474E),
               ),
             ),
           ),
@@ -291,12 +341,17 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
               fontFamily: 'Manrope',
               fontSize: Responsive.sp(context, 18),
               fontWeight: FontWeight.w600,
-              color: const Color(0xFF1A1C1E),
+              color: _primaryText,
             ),
           ),
-          const Align(
+          Align(
             alignment: Alignment.centerRight,
-            child: Icon(Icons.more_horiz_rounded, color: Color(0xFF43474E)),
+            child: Icon(
+              Icons.more_horiz_rounded,
+              color: _isDark
+                  ? _addTransactionDarkText
+                  : const Color(0xFF43474E),
+            ),
           ),
         ],
       ),
@@ -305,13 +360,28 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
 
   void _handleHeaderBack() {
     if (_mode != null && !widget.fromQuickAdd) {
-      setState(() {
-        _mode = null;
-        _selectedInputMode = null;
-      });
+      _returnToModePicker();
       return;
     }
     unawaited(_requestClose());
+  }
+
+  void _returnToModePicker() {
+    if (_mode == _AddMode.quick) {
+      _voiceSession++;
+      _quickParseSession++;
+      _voiceTimeout?.cancel();
+      unawaited(QuickAddSpeechRecognitionService.instance.cancelListening());
+    }
+    setState(() {
+      _mode = null;
+      _selectedInputMode = null;
+      _voiceState = _QuickAddVoiceState.idle;
+      _voiceSoundLevel = 0;
+      _isQuickAddParsing = false;
+      _quickAddDraft = null;
+      _quickAddErrorMessage = null;
+    });
   }
 
   Widget _buildHorizontalPageTransition(
@@ -359,16 +429,16 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     return SingleChildScrollView(
       key: const ValueKey('add-transaction-mode-picker'),
       padding: EdgeInsets.fromLTRB(
-        Responsive.w(context, 20),
-        Responsive.h(context, 4),
-        Responsive.w(context, 20),
+        Responsive.w(context, 16),
+        Responsive.h(context, 6),
+        Responsive.w(context, 16),
         Responsive.h(context, 28),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _buildPromptRow(isOverBudget: isOverBudget),
-          SizedBox(height: Responsive.h(context, 16)),
+          SizedBox(height: Responsive.h(context, 14)),
           _buildBudgetInsightCard(
             budgetLimit: budgetLimit,
             remaining: remaining,
@@ -376,11 +446,14 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
             daysLeft: daysLeft,
             isOverBudget: isOverBudget,
           ),
-          SizedBox(height: Responsive.h(context, 16)),
+          SizedBox(height: Responsive.h(context, 14)),
           _buildHabitBanner(),
-          SizedBox(height: Responsive.h(context, 20)),
-          Text('CHOOSE INPUT METHOD', style: _labelStyle),
-          SizedBox(height: Responsive.h(context, 10)),
+          SizedBox(height: Responsive.h(context, 22)),
+          Text(
+            AppStrings.choose('CHOOSE INPUT METHOD', 'CHỌN CÁCH NHẬP'),
+            style: _labelStyle,
+          ),
+          SizedBox(height: Responsive.h(context, 11)),
           Row(
             children: [
               Expanded(
@@ -388,7 +461,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                   key: const Key('add_mode_manual'),
                   mode: _AddMode.manual,
                   icon: Icons.keyboard_alt_outlined,
-                  label: 'MANUAL ENTRY',
+                  label: AppStrings.choose('MANUAL ENTRY', 'NHẬP THỦ CÔNG'),
                   tint: const Color(0xFFE5F5F0),
                   foreground: const Color(0xFF006C53),
                   selected: _selectedInputMode == _AddMode.manual,
@@ -400,11 +473,11 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                   key: const Key('add_mode_quick'),
                   mode: _AddMode.quick,
                   icon: Icons.mic_none_rounded,
-                  label: 'VOICE',
+                  label: AppStrings.choose('VOICE', 'GIỌNG NÓI'),
                   tint: const Color(0xFFE5F5F0),
                   foreground: const Color(0xFF006C53),
                   selected: _selectedInputMode == _AddMode.quick,
-                  badge: 'FAST',
+                  badge: AppStrings.choose('FAST', 'NHANH'),
                 ),
               ),
               SizedBox(width: Responsive.w(context, 10)),
@@ -413,7 +486,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                   key: const Key('add_mode_scan'),
                   mode: _AddMode.scan,
                   icon: Icons.photo_camera_outlined,
-                  label: 'SCAN',
+                  label: AppStrings.choose('SCAN', 'QUÉT'),
                   tint: const Color(0xFFFFE7E1),
                   foreground: const Color(0xFFBA4B3D),
                   selected: _selectedInputMode == _AddMode.scan,
@@ -421,13 +494,19 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
               ),
             ],
           ),
-          SizedBox(height: Responsive.h(context, 22)),
-          Text('QUICK CATEGORIES', style: _labelStyle),
-          SizedBox(height: Responsive.h(context, 10)),
+          SizedBox(height: Responsive.h(context, 24)),
+          Text(
+            AppStrings.choose('QUICK CATEGORIES', 'DANH MỤC NHANH'),
+            style: _labelStyle,
+          ),
+          SizedBox(height: Responsive.h(context, 11)),
           _buildQuickCategories(),
-          SizedBox(height: Responsive.h(context, 22)),
-          Text('RECENT TRANSACTIONS', style: _labelStyle),
-          SizedBox(height: Responsive.h(context, 10)),
+          SizedBox(height: Responsive.h(context, 24)),
+          Text(
+            AppStrings.choose('RECENT TRANSACTIONS', 'GIAO DỊCH GẦN ĐÂY'),
+            style: _labelStyle,
+          ),
+          SizedBox(height: Responsive.h(context, 11)),
           if (recent.isEmpty)
             _buildEmptyRecentTransactions()
           else
@@ -441,11 +520,18 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     return Row(
       children: [
         Container(
-          width: Responsive.w(context, 42),
-          height: Responsive.w(context, 42),
+          width: Responsive.w(context, 48),
+          height: Responsive.w(context, 48),
           decoration: BoxDecoration(
             color: isOverBudget ? Colors.transparent : const Color(0xFF64D2AE),
             shape: BoxShape.circle,
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x2464D2AE),
+                blurRadius: 12,
+                offset: Offset(0, 5),
+              ),
+            ],
           ),
           child: AnimatedSwitcher(
             duration: const Duration(milliseconds: 180),
@@ -465,27 +551,43 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                   )
                 : const Center(
                     key: ValueKey('on-track-happy-mood'),
-                    child: Text('😊', style: TextStyle(fontSize: 21)),
+                    child: Text('😊', style: TextStyle(fontSize: 24)),
                   ),
           ),
         ),
-        SizedBox(width: Responsive.w(context, 10)),
+        SizedBox(width: Responsive.w(context, 12)),
         Expanded(
           child: Container(
             padding: EdgeInsets.symmetric(
-              horizontal: Responsive.w(context, 14),
-              vertical: Responsive.h(context, 12),
+              horizontal: Responsive.w(context, 16),
+              vertical: Responsive.h(context, 14),
             ),
             decoration: BoxDecoration(
-              color: const Color(0xFFE2F4EF),
-              borderRadius: BorderRadius.circular(8),
+              color: _raisedSurface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _border),
+              boxShadow: _isDark
+                  ? null
+                  : const [
+                      BoxShadow(
+                        color: Color(0x0F006C53),
+                        blurRadius: 10,
+                        offset: Offset(0, 4),
+                      ),
+                    ],
             ),
-            child: const Text(
-              'What did you spend money on today?',
+            child: Text(
+              AppStrings.choose(
+                'What did you spend money on today?',
+                'Hôm nay bạn đã chi tiền cho việc gì?',
+              ),
               style: TextStyle(
                 fontFamily: 'Hanken Grotesk',
-                fontSize: 13,
-                color: Color(0xFF34443F),
+                fontSize: 13.5,
+                fontWeight: FontWeight.w500,
+                color: _isDark
+                    ? _addTransactionDarkSecondaryText
+                    : const Color(0xFF30413B),
               ),
             ),
           ),
@@ -504,24 +606,32 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     final hasBudget = budgetLimit > 0;
     final cardColors = isOverBudget
         ? const [Color(0xFF10182B), Color(0xFF172139)]
+        : _isDark
+        ? const [Color(0xFF005C47), Color(0xFF004233)]
         : const [Color(0xFF006C53), Color(0xFF008F70)];
     final amountColor = isOverBudget ? const Color(0xFFFF777C) : Colors.white;
 
     return Container(
-      constraints: BoxConstraints(minHeight: Responsive.h(context, 116)),
-      padding: EdgeInsets.all(Responsive.w(context, 16)),
+      constraints: BoxConstraints(minHeight: Responsive.h(context, 132)),
+      padding: EdgeInsets.all(Responsive.w(context, 18)),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: cardColors,
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0x1AFFFFFF)),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x26006C53),
-            blurRadius: 16,
-            offset: Offset(0, 7),
+            color: Color(0x36005A45),
+            blurRadius: 24,
+            offset: Offset(0, 10),
+          ),
+          BoxShadow(
+            color: Color(0x18006C53),
+            blurRadius: 7,
+            offset: Offset(0, 3),
           ),
         ],
       ),
@@ -532,27 +642,30 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
             children: [
               Expanded(
                 child: Text(
-                  'REMAINING BALANCE',
+                  AppStrings.choose('REMAINING BALANCE', 'SỐ DƯ CÒN LẠI'),
                   style: _labelStyle.copyWith(
                     color: Colors.white.withValues(alpha: 0.72),
-                    fontSize: 9,
+                    fontSize: 10,
                   ),
                 ),
               ),
               _buildDaysLeftChip(daysLeft),
             ],
           ),
-          const SizedBox(height: 3),
+          const SizedBox(height: 4),
           RichText(
             text: TextSpan(
               children: [
                 TextSpan(
                   text: hasBudget
                       ? _formatInsightMoney(remaining)
-                      : 'No budget set',
+                      : AppStrings.choose(
+                          'No budget set',
+                          'Chưa đặt ngân sách',
+                        ),
                   style: TextStyle(
                     fontFamily: 'Manrope',
-                    fontSize: Responsive.sp(context, hasBudget ? 27 : 21),
+                    fontSize: Responsive.sp(context, hasBudget ? 29 : 22),
                     height: 1.05,
                     fontWeight: FontWeight.w700,
                     color: amountColor,
@@ -572,7 +685,9 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
               ],
             ),
           ),
-          SizedBox(height: Responsive.h(context, 16)),
+          SizedBox(height: Responsive.h(context, 14)),
+          Container(height: 1, color: Colors.white.withValues(alpha: 0.14)),
+          SizedBox(height: Responsive.h(context, 13)),
           Row(
             children: [
               Icon(
@@ -582,32 +697,49 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                 color: isOverBudget
                     ? const Color(0xFFFF777C)
                     : const Color(0xFFA6F2D7),
-                size: 19,
+                size: 18,
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 9),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      isOverBudget ? 'DEFICIT WARNING' : 'YOU SHOULD SPEND',
+                      isOverBudget
+                          ? AppStrings.choose(
+                              'DEFICIT WARNING',
+                              'CẢNH BÁO THÂM HỤT',
+                            )
+                          : AppStrings.choose(
+                              'YOU SHOULD SPEND',
+                              'BẠN NÊN CHI',
+                            ),
                       style: _labelStyle.copyWith(
                         color: isOverBudget
                             ? const Color(0xFFFF777C)
                             : Colors.white.withValues(alpha: 0.65),
-                        fontSize: 8,
+                        fontSize: 8.5,
                       ),
                     ),
                     Text(
                       isOverBudget
-                          ? 'Reduce spending to recover balance'
+                          ? AppStrings.choose(
+                              'Reduce spending to recover balance',
+                              'Giảm chi tiêu để cân đối lại số dư',
+                            )
                           : hasBudget
-                          ? '${_formatInsightMoney(shouldSpend)} VND/day'
-                          : 'Set a monthly budget to see insights',
+                          ? AppStrings.choose(
+                              '${_formatInsightMoney(shouldSpend)} VND/day',
+                              '${_formatInsightMoney(shouldSpend)} VND/ngày',
+                            )
+                          : AppStrings.choose(
+                              'Set a monthly budget to see insights',
+                              'Đặt ngân sách tháng để xem phân tích',
+                            ),
                       style: const TextStyle(
                         fontFamily: 'Hanken Grotesk',
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
                         color: Colors.white,
                       ),
                     ),
@@ -627,20 +759,21 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.16),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(99),
+        border: Border.all(color: const Color(0x1FFFFFFF)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           const Icon(
             Icons.calendar_today_outlined,
-            size: 11,
+            size: 12,
             color: Colors.white,
           ),
           const SizedBox(width: 5),
           Text(
-            '$daysLeft DAYS LEFT',
-            style: _labelStyle.copyWith(color: Colors.white, fontSize: 8),
+            AppStrings.choose('$daysLeft DAYS LEFT', 'CÒN $daysLeft NGÀY'),
+            style: _labelStyle.copyWith(color: Colors.white, fontSize: 8.5),
           ),
         ],
       ),
@@ -666,10 +799,10 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       ),
       child: Text(
         !hasBudget
-            ? 'NO BUDGET'
+            ? AppStrings.choose('NO BUDGET', 'CHƯA CÓ NGÂN SÁCH')
             : isOverBudget
-            ? 'OVER BUDGET'
-            : 'ON TRACK',
+            ? AppStrings.choose('OVER BUDGET', 'VƯỢT NGÂN SÁCH')
+            : AppStrings.choose('ON TRACK', 'ĐÚNG KẾ HOẠCH'),
         style: _labelStyle.copyWith(
           color: foreground,
           fontSize: 8,
@@ -682,24 +815,44 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   Widget _buildHabitBanner() {
     return Container(
       padding: EdgeInsets.symmetric(
-        horizontal: Responsive.w(context, 14),
-        vertical: Responsive.h(context, 11),
+        horizontal: Responsive.w(context, 15),
+        vertical: Responsive.h(context, 12),
       ),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF0D9),
-        borderRadius: BorderRadius.circular(9),
+        color: _isDark
+            ? _addTransactionDarkRaisedSurface
+            : const Color(0xFFFFF0D9),
+        borderRadius: BorderRadius.circular(11),
+        border: Border.all(
+          color: _isDark ? _addTransactionDarkBorder : const Color(0xFFFFDFC0),
+        ),
+        boxShadow: _isDark
+            ? null
+            : const [
+                BoxShadow(
+                  color: Color(0x12A45C18),
+                  blurRadius: 8,
+                  offset: Offset(0, 3),
+                ),
+              ],
       ),
-      child: const Row(
+      child: Row(
         children: [
           Text('🔥', style: TextStyle(fontSize: 17)),
           SizedBox(width: 9),
           Expanded(
             child: Text(
-              "You're building a healthy money habit. Keep it up!",
+              AppStrings.choose(
+                "You're building a healthy money habit. Keep it up!",
+                'Bạn đang xây dựng thói quen tài chính tốt. Hãy tiếp tục nhé!',
+              ),
               style: TextStyle(
                 fontFamily: 'Hanken Grotesk',
-                fontSize: 11,
-                color: Color(0xFF704E24),
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                color: _isDark
+                    ? const Color(0xFFFFBF47)
+                    : const Color(0xFF704E24),
               ),
             ),
           ),
@@ -719,7 +872,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     String? badge,
   }) {
     return SizedBox(
-      height: Responsive.h(context, 104),
+      height: Responsive.h(context, 110),
       child: Stack(
         clipBehavior: Clip.none,
         fit: StackFit.expand,
@@ -729,37 +882,41 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
             curve: Curves.easeOut,
             key: key,
             decoration: BoxDecoration(
-              color: selected ? const Color(0xFF00513E) : Colors.white,
-              borderRadius: BorderRadius.circular(14),
+              color: selected ? const Color(0xFF00513E) : _surface,
+              borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: selected
                     ? const Color(0xFF00513E)
+                    : _isDark
+                    ? _addTransactionDarkBorder
                     : const Color(0xFFDDE5E1),
               ),
               boxShadow: selected
                   ? const [
                       BoxShadow(
                         color: Color(0x3000513E),
-                        blurRadius: 12,
-                        offset: Offset(0, 5),
+                        blurRadius: 18,
+                        offset: Offset(0, 7),
                       ),
                     ]
+                  : _isDark
+                  ? null
                   : const [
                       BoxShadow(
-                        color: Color(0x0D000000),
-                        blurRadius: 6,
-                        offset: Offset(0, 2),
+                        color: Color(0x18004736),
+                        blurRadius: 14,
+                        offset: Offset(0, 6),
                       ),
                     ],
             ),
             child: Material(
               color: Colors.transparent,
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(16),
               child: InkWell(
                 onTap: _selectedInputMode == null
                     ? () => _selectInputMode(mode)
                     : null,
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(16),
                 child: Padding(
                   padding: EdgeInsets.symmetric(
                     horizontal: Responsive.w(context, 6),
@@ -770,16 +927,33 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                     children: [
                       AnimatedContainer(
                         duration: const Duration(milliseconds: 90),
-                        width: Responsive.w(context, 38),
-                        height: Responsive.w(context, 38),
+                        width: Responsive.w(context, 44),
+                        height: Responsive.w(context, 44),
                         decoration: BoxDecoration(
-                          color: selected ? const Color(0xFF58CCA9) : tint,
+                          color: selected
+                              ? const Color(0xFF58CCA9)
+                              : _isDark
+                              ? _addTransactionDarkRaisedSurface
+                              : tint,
                           shape: BoxShape.circle,
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x12000000),
+                              blurRadius: 8,
+                              offset: Offset(0, 3),
+                            ),
+                          ],
                         ),
                         child: Icon(
                           icon,
-                          color: selected ? Colors.white : foreground,
-                          size: 21,
+                          color: selected
+                              ? Colors.white
+                              : _isDark
+                              ? foreground == const Color(0xFFBA4B3D)
+                                    ? const Color(0xFFFF6B70)
+                                    : const Color(0xFF66C0AA)
+                              : foreground,
+                          size: 22,
                         ),
                       ),
                       SizedBox(height: Responsive.h(context, 7)),
@@ -788,9 +962,13 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                         child: AnimatedDefaultTextStyle(
                           duration: const Duration(milliseconds: 90),
                           style: _labelStyle.copyWith(
-                            color: selected ? Colors.white : foreground,
-                            fontSize: 8,
-                            fontWeight: FontWeight.w600,
+                            color: selected
+                                ? Colors.white
+                                : _isDark
+                                ? _addTransactionDarkSecondaryText
+                                : foreground,
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w700,
                           ),
                           child: Text(label),
                         ),
@@ -815,7 +993,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                   badge,
                   style: _labelStyle.copyWith(
                     color: const Color(0xFF5C4300),
-                    fontSize: 7,
+                    fontSize: 8,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -853,10 +1031,14 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
           onTap: () async {
             final result = await showModalBottomSheet<String>(
               context: context,
+              useSafeArea: true,
               isScrollControlled: true,
               backgroundColor: Colors.transparent,
-              builder: (_) => TransactionCategorySelectionSheet(
-                initialKey: _selectedCategory,
+              builder: (_) => SafeArea(
+                top: false,
+                child: TransactionCategorySelectionSheet(
+                  initialKey: _selectedCategory,
+                ),
               ),
             );
             if (result != null && mounted) {
@@ -881,20 +1063,29 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
         vertical: Responsive.h(context, 11),
       ),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE4EAE7)),
+        color: _surface,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: _border),
+        boxShadow: _isDark
+            ? null
+            : const [
+                BoxShadow(
+                  color: Color(0x14004736),
+                  blurRadius: 12,
+                  offset: Offset(0, 5),
+                ),
+              ],
       ),
       child: Row(
         children: [
           Container(
-            width: 36,
-            height: 36,
+            width: 40,
+            height: 40,
             decoration: BoxDecoration(
-              color: category.color.withValues(alpha: 0.16),
+              color: category.color.withValues(alpha: 0.12),
               shape: BoxShape.circle,
             ),
-            child: Icon(category.icon, size: 18, color: category.color),
+            child: category.buildIcon(size: 18),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -905,19 +1096,19 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                   transaction.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: 'Hanken Grotesk',
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF1A1C1E),
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                    color: _primaryText,
                   ),
                 ),
                 Text(
                   _formatRecentDate(transaction.date),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: 'Hanken Grotesk',
-                    fontSize: 10,
-                    color: Color(0xFF74817B),
+                    fontSize: 10.5,
+                    color: _mutedText,
                   ),
                 ),
               ],
@@ -927,11 +1118,15 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
             '${isExpense ? '-' : '+'}${_formatInsightMoney(transaction.amount.abs())}đ',
             style: TextStyle(
               fontFamily: 'Manrope',
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
               color: isExpense
-                  ? const Color(0xFFC24444)
-                  : const Color(0xFF006C53),
+                  ? (_isDark
+                        ? const Color(0xFFFF6B70)
+                        : const Color(0xFFC24444))
+                  : (_isDark
+                        ? const Color(0xFF38D6AC)
+                        : const Color(0xFF006C53)),
               fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
@@ -944,17 +1139,20 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     return Container(
       padding: EdgeInsets.all(Responsive.w(context, 16)),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE4EAE7)),
+        border: Border.all(color: _border),
       ),
-      child: const Text(
-        'Your latest transactions will appear here.',
+      child: Text(
+        AppStrings.choose(
+          'Your latest transactions will appear here.',
+          'Các giao dịch mới nhất sẽ xuất hiện tại đây.',
+        ),
         textAlign: TextAlign.center,
         style: TextStyle(
           fontFamily: 'Hanken Grotesk',
           fontSize: 12,
-          color: Color(0xFF74817B),
+          color: _mutedText,
         ),
       ),
     );
@@ -991,20 +1189,25 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     final date = DateTime(value.year, value.month, value.day);
     final difference = today.difference(date).inDays;
     final prefix = difference == 0
-        ? 'Today'
+        ? AppStrings.choose('Today', 'Hôm nay')
         : difference == 1
-        ? 'Yesterday'
+        ? AppStrings.choose('Yesterday', 'Hôm qua')
+        : AppStrings.isVietnamese
+        ? '${value.day}/${value.month}/${value.year}'
         : '${value.month}/${value.day}/${value.year}';
     final hour = value.hour % 12 == 0 ? 12 : value.hour % 12;
     final minute = value.minute.toString().padLeft(2, '0');
     final period = value.hour >= 12 ? 'PM' : 'AM';
-    return '$prefix, $hour:$minute $period';
+    return AppStrings.isVietnamese
+        ? '$prefix, ${value.hour.toString().padLeft(2, '0')}:$minute'
+        : '$prefix, $hour:$minute $period';
   }
 
   Widget _buildManualMode() {
     final accent = _isExpense
-        ? const Color(0xFFBA1A1A)
-        : const Color(0xFF006C53);
+        ? (_isDark ? const Color(0xFFD9434E) : const Color(0xFFBA1A1A))
+        : (_isDark ? const Color(0xFF82D7B8) : const Color(0xFF006C53));
+    final controlAccent = _isDark ? const Color(0xFF82D7B8) : accent;
     final category = _categoryForKey(_selectedCategory);
     final wallet = WalletService.instance.byId(_selectedWalletId);
     final date = _transactionDate ?? DateTime.now();
@@ -1015,116 +1218,159 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       children: [
         _buildTransactionTypeTabs(accent),
         SizedBox(height: Responsive.h(context, 16)),
-        _buildRefinedAmountField(accent),
+        Text(
+          AppStrings.choose('AMOUNT', 'SỐ TIỀN'),
+          style: _manualSectionTitleStyle,
+        ),
+        SizedBox(height: Responsive.h(context, 8)),
+        _buildRefinedAmountField(controlAccent),
         SizedBox(height: Responsive.h(context, 22)),
-        Material(
-          key: const Key('manual_source_field'),
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: _showSourceSelection,
-            borderRadius: BorderRadius.circular(8),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Payment method',
-                      style: _manualSectionTitleStyle,
-                    ),
-                  ),
-                  Text(
-                    _sourceDisplayName(wallet?.name ?? _selectedWalletName),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontFamily: 'Hanken Grotesk',
-                      fontSize: 11,
-                      color: accent,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(width: 2),
-                  Icon(Icons.chevron_right_rounded, size: 18, color: accent),
-                ],
-              ),
-            ),
-          ),
+        Text(
+          AppStrings.choose('PAYMENT METHOD', 'PHƯƠNG THỨC THANH TOÁN'),
+          style: _manualSectionTitleStyle,
         ),
         SizedBox(height: Responsive.h(context, 10)),
-        Row(
-          children: [
-            Expanded(
-              child: _buildPaymentMethodChip(
-                type: WalletType.cash,
-                label: 'Cash',
-                icon: Icons.payments_outlined,
-                accent: accent,
-                selected:
-                    wallet?.type == WalletType.cash ||
-                    _selectedAcctCategory == _AccountCategory.cash,
-              ),
+        GestureDetector(
+          key: const Key('manual_source_field'),
+          behavior: HitTestBehavior.opaque,
+          onTap: _showSourceSelection,
+          child: Semantics(
+            button: true,
+            label: _sourceDisplayName(wallet?.name ?? _selectedWalletName),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _buildPaymentMethodChip(
+                    type: WalletType.cash,
+                    label: AppStrings.choose('Cash', 'Tiền mặt'),
+                    icon: Icons.payments_outlined,
+                    accent: controlAccent,
+                    selected:
+                        wallet?.type == WalletType.cash ||
+                        _selectedAcctCategory == _AccountCategory.cash,
+                  ),
+                ),
+                SizedBox(width: Responsive.w(context, 10)),
+                Expanded(
+                  child: _buildPaymentMethodChip(
+                    type: WalletType.transfer,
+                    label: AppStrings.choose('Transfer', 'Chuyển khoản'),
+                    icon: Icons.account_balance_outlined,
+                    accent: controlAccent,
+                    selected:
+                        wallet?.type == WalletType.transfer ||
+                        _selectedAcctCategory == _AccountCategory.transfer,
+                  ),
+                ),
+              ],
             ),
-            SizedBox(width: Responsive.w(context, 10)),
-            Expanded(
-              child: _buildPaymentMethodChip(
-                type: WalletType.transfer,
-                label: 'Transfer',
-                icon: Icons.swap_horiz_rounded,
-                accent: accent,
-                selected:
-                    wallet?.type == WalletType.transfer ||
-                    _selectedAcctCategory == _AccountCategory.transfer,
-              ),
-            ),
-          ],
+          ),
         ),
         SizedBox(height: Responsive.h(context, 24)),
-        Text('From category', style: _manualSectionTitleStyle),
+        Text(
+          AppStrings.choose('TRANSACTION DETAILS', 'CHI TIẾT GIAO DỊCH'),
+          style: _manualSectionTitleStyle,
+        ),
         SizedBox(height: Responsive.h(context, 10)),
-        _buildSelectionField(
-          fieldKey: const Key('manual_category_field'),
-          label: 'CATEGORY',
-          value: category.label,
-          leading: Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: category.color.withValues(alpha: 0.16),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(category.icon, color: category.color, size: 20),
+        Container(
+          decoration: BoxDecoration(
+            color: _surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: _border),
+            boxShadow: _isDark
+                ? const [
+                    BoxShadow(
+                      color: Color(0x33000000),
+                      blurRadius: 18,
+                      offset: Offset(0, 7),
+                    ),
+                  ]
+                : const [
+                    BoxShadow(
+                      color: Color(0x14004736),
+                      blurRadius: 18,
+                      offset: Offset(0, 7),
+                    ),
+                  ],
           ),
-          onTap: _showCategorySelection,
-          accent: accent,
-          highlighted: false,
+          child: Column(
+            children: [
+              _buildSelectionField(
+                fieldKey: const Key('manual_category_field'),
+                label: AppStrings.choose('CATEGORY', 'DANH MỤC'),
+                value: AppStrings.categoryName(category.label),
+                leading: Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: category.color.withValues(
+                      alpha: _isDark ? 0.2 : 0.12,
+                    ),
+                    shape: BoxShape.circle,
+                  ),
+                  child: category.buildIcon(size: 18),
+                ),
+                trailing: Icon(
+                  Icons.chevron_right_rounded,
+                  size: 20,
+                  color: controlAccent,
+                ),
+                onTap: _showCategorySelection,
+                accent: controlAccent,
+                embedded: true,
+              ),
+              Divider(height: 1, indent: 62, color: _border),
+              _buildSelectionField(
+                label: AppStrings.choose('DATE', 'NGÀY'),
+                value: _formatDate(date),
+                leading: Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: _isDark
+                        ? const Color(0xFF123650)
+                        : const Color(0xFFE8F0FF),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.calendar_today_outlined,
+                    color: _isDark
+                        ? const Color(0xFF5B9BFF)
+                        : const Color(0xFF3F6FE5),
+                    size: 18,
+                  ),
+                ),
+                trailing: Icon(
+                  Icons.calendar_month_outlined,
+                  size: 19,
+                  color: controlAccent,
+                ),
+                onTap: _pickDate,
+                accent: controlAccent,
+                embedded: true,
+              ),
+              Divider(height: 1, indent: 62, color: _border),
+              _buildNameField(controlAccent, embedded: true),
+            ],
+          ),
         ),
-        SizedBox(height: Responsive.h(context, 16)),
-        _buildSelectionField(
-          label: 'DATE',
-          value: _formatDate(date),
-          leading: Icon(Icons.calendar_today_outlined, color: accent, size: 21),
-          trailing: const Icon(Icons.calendar_month_outlined, size: 19),
-          onTap: _pickDate,
-          accent: accent,
-        ),
-        SizedBox(height: Responsive.h(context, 12)),
-        _buildNameField(accent),
         if (widget.fromQuickAdd) ...[
           SizedBox(height: Responsive.h(context, 10)),
-          const Text(
-            'From Quick Add',
+          Text(
+            AppStrings.choose('From Quick Add', 'Từ Thêm nhanh'),
             textAlign: TextAlign.center,
             style: TextStyle(
               fontFamily: 'JetBrains Mono',
               fontSize: 11,
-              color: Color(0xFF006C46),
+              color: _isDark
+                  ? const Color(0xFF82D7B8)
+                  : const Color(0xFF006C46),
             ),
           ),
         ],
-        SizedBox(height: Responsive.h(context, 18)),
+        SizedBox(height: Responsive.h(context, 24)),
         _buildPrimaryButton(
-          label: 'Save Transaction',
+          label: AppStrings.choose('Save Transaction', 'Lưu giao dịch'),
           color: const Color(0xFF006C53),
           foregroundColor: Colors.white,
           isLoading: _isSavingTransaction,
@@ -1134,33 +1380,61 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     );
   }
 
-  TextStyle get _manualSectionTitleStyle => const TextStyle(
-    fontFamily: 'Hanken Grotesk',
-    fontSize: 13,
-    fontWeight: FontWeight.w600,
-    color: Color(0xFF45534D),
+  TextStyle get _manualSectionTitleStyle => TextStyle(
+    fontFamily: 'Manrope',
+    fontSize: 11,
+    letterSpacing: 0.45,
+    fontWeight: FontWeight.w700,
+    color: _isDark ? _addTransactionDarkMutedText : const Color(0xFF263831),
   );
 
   Widget _buildTransactionTypeTabs(Color accent) {
-    return Row(
-      children: [
-        Expanded(
-          child: _buildTransactionTypeTab(
-            label: 'New Income',
-            selected: !_isExpense,
-            accent: accent,
-            onTap: () => setState(() => _isExpense = false),
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _border),
+        boxShadow: _isDark
+            ? const [
+                BoxShadow(
+                  color: Color(0x33000000),
+                  blurRadius: 12,
+                  offset: Offset(0, 5),
+                ),
+              ]
+            : const [
+                BoxShadow(
+                  color: Color(0x12004736),
+                  blurRadius: 12,
+                  offset: Offset(0, 5),
+                ),
+              ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildTransactionTypeTab(
+              label: AppStrings.income,
+              selected: !_isExpense,
+              accent: _isDark
+                  ? const Color(0xFF006C53)
+                  : const Color(0xFF007C61),
+              onTap: () => setState(() => _isExpense = false),
+            ),
           ),
-        ),
-        Expanded(
-          child: _buildTransactionTypeTab(
-            label: 'New Expense',
-            selected: _isExpense,
-            accent: accent,
-            onTap: () => setState(() => _isExpense = true),
+          Expanded(
+            child: _buildTransactionTypeTab(
+              label: AppStrings.expense,
+              selected: _isExpense,
+              accent: _isDark
+                  ? const Color(0xFFD9434E)
+                  : const Color(0xFFDF394A),
+              onTap: () => setState(() => _isExpense = true),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -1172,15 +1446,21 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   }) {
     return InkWell(
       onTap: onTap,
+      borderRadius: BorderRadius.circular(11),
       child: Container(
-        padding: EdgeInsets.symmetric(vertical: Responsive.h(context, 11)),
+        padding: EdgeInsets.symmetric(vertical: Responsive.h(context, 12)),
         decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: selected ? accent : const Color(0xFFDDE5E1),
-              width: selected ? 2 : 1,
-            ),
-          ),
+          color: selected ? accent : Colors.transparent,
+          borderRadius: BorderRadius.circular(11),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: accent.withValues(alpha: 0.2),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : null,
         ),
         child: Text(
           label,
@@ -1188,8 +1468,12 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
           style: TextStyle(
             fontFamily: 'Hanken Grotesk',
             fontSize: 13,
-            fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-            color: selected ? accent : const Color(0xFF7A8781),
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+            color: selected
+                ? Colors.white
+                : _isDark
+                ? _addTransactionDarkSecondaryText
+                : const Color(0xFF53615B),
           ),
         ),
       ),
@@ -1197,69 +1481,129 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   }
 
   Widget _buildRefinedAmountField(Color accent) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text('AMOUNT (VND)', style: _labelStyle),
-        SizedBox(height: Responsive.h(context, 4)),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Expanded(
-              child: TextField(
-                key: const Key('manual_amount_field'),
-                controller: _amountController,
-                keyboardType: TextInputType.number,
-                textAlign: TextAlign.end,
-                cursorColor: accent,
-                style: TextStyle(
-                  fontFamily: 'Manrope',
-                  fontSize: Responsive.sp(context, 44),
-                  fontWeight: FontWeight.w700,
-                  color: accent,
-                  fontFeatures: const [FontFeature.tabularFigures()],
+    final amountStyle = TextStyle(
+      fontFamily: 'Manrope',
+      fontSize: Responsive.sp(context, 36),
+      height: 1.05,
+      fontWeight: FontWeight.w700,
+      color: _isDark ? _addTransactionDarkText : accent,
+      fontFeatures: const [FontFeature.tabularFigures()],
+    );
+    return Container(
+      constraints: BoxConstraints(minHeight: Responsive.h(context, 88)),
+      padding: EdgeInsets.symmetric(
+        horizontal: Responsive.w(context, 18),
+        vertical: Responsive.h(context, 12),
+      ),
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _border),
+        boxShadow: _isDark
+            ? const [
+                BoxShadow(
+                  color: Color(0x33000000),
+                  blurRadius: 20,
+                  offset: Offset(0, 8),
                 ),
-                decoration: InputDecoration(
-                  hintText: '0',
-                  hintStyle: TextStyle(color: accent.withValues(alpha: 0.26)),
-                  border: const UnderlineInputBorder(
-                    borderSide: BorderSide(
-                      color: Color(0xFFC3C7CF),
-                      width: 1.5,
+              ]
+            : const [
+                BoxShadow(
+                  color: Color(0x16004736),
+                  blurRadius: 20,
+                  offset: Offset(0, 8),
+                ),
+              ],
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return Align(
+            alignment: Alignment.centerLeft,
+            child: ListenableBuilder(
+              listenable: _amountController,
+              builder: (context, _) {
+                final display = _amountController.text.isEmpty
+                    ? '0'
+                    : _amountController.text;
+                final maxAmountWidth = constraints.maxWidth - 42;
+                final baseFontSize = amountStyle.fontSize!;
+                var effectiveStyle = amountStyle;
+                var painter = TextPainter(
+                  text: TextSpan(text: display, style: effectiveStyle),
+                  maxLines: 1,
+                  textDirection: TextDirection.ltr,
+                )..layout();
+
+                // Preserve the complete amount for as long as possible.
+                // Only very long values fall back to a right-aligned,
+                // horizontally scrolling field so their final digits remain
+                // visible while editing.
+                if (painter.width + 10 > maxAmountWidth) {
+                  final fittedSize =
+                      (baseFontSize * maxAmountWidth / (painter.width + 10))
+                          .clamp(24.0, baseFontSize)
+                          .toDouble();
+                  effectiveStyle = amountStyle.copyWith(fontSize: fittedSize);
+                  painter = TextPainter(
+                    text: TextSpan(text: display, style: effectiveStyle),
+                    maxLines: 1,
+                    textDirection: TextDirection.ltr,
+                  )..layout();
+                }
+
+                final isTooLong = painter.width + 10 > maxAmountWidth;
+                final fieldWidth = isTooLong
+                    ? maxAmountWidth
+                    : (painter.width + 10)
+                          .clamp(46.0, maxAmountWidth)
+                          .toDouble();
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    SizedBox(
+                      width: fieldWidth,
+                      child: TextField(
+                        key: const Key('manual_amount_field'),
+                        controller: _amountController,
+                        keyboardType: TextInputType.number,
+                        textAlign: isTooLong ? TextAlign.right : TextAlign.left,
+                        cursorColor: accent,
+                        style: effectiveStyle,
+                        decoration: InputDecoration(
+                          filled: false,
+                          hintText: '0',
+                          hintStyle: effectiveStyle.copyWith(
+                            color: accent.withValues(alpha: 0.3),
+                          ),
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          disabledBorder: InputBorder.none,
+                          isCollapsed: true,
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                      ),
                     ),
-                  ),
-                  enabledBorder: const UnderlineInputBorder(
-                    borderSide: BorderSide(
-                      color: Color(0xFFC3C7CF),
-                      width: 1.5,
+                    Padding(
+                      padding: const EdgeInsets.only(left: 4, bottom: 3),
+                      child: Text(
+                        'VND',
+                        style: TextStyle(
+                          fontFamily: 'Manrope',
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: _isDark ? _addTransactionDarkText : accent,
+                        ),
+                      ),
                     ),
-                  ),
-                  focusedBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: accent, width: 1.8),
-                  ),
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: Responsive.w(context, 6),
-                    vertical: Responsive.h(context, 8),
-                  ),
-                ),
-              ),
+                  ],
+                );
+              },
             ),
-            Padding(
-              padding: EdgeInsets.only(
-                left: Responsive.w(context, 8),
-                bottom: Responsive.h(context, 18),
-              ),
-              child: Text(
-                'VND',
-                style: _labelStyle.copyWith(
-                  color: accent.withValues(alpha: 0.72),
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
+          );
+        },
+      ),
     );
   }
 
@@ -1270,43 +1614,106 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     required Color accent,
     required bool selected,
   }) {
-    return Material(
-      color: selected ? accent : Colors.white,
-      borderRadius: BorderRadius.circular(99),
-      child: InkWell(
-        onTap: () => _selectWalletType(type),
-        borderRadius: BorderRadius.circular(99),
-        child: Container(
-          constraints: BoxConstraints(minHeight: Responsive.h(context, 42)),
-          padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 14)),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(99),
-            border: Border.all(
-              color: selected ? accent : const Color(0xFFDDE5E1),
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Material(
+          color: _isDark
+              ? selected
+                    ? const Color(0xFF1B3D35)
+                    : _surface
+              : selected
+              ? accent.withValues(alpha: 0.08)
+              : Colors.white,
+          borderRadius: BorderRadius.circular(13),
+          child: InkWell(
+            onTap: () => _selectWalletType(type),
+            borderRadius: BorderRadius.circular(13),
+            child: Container(
+              constraints: BoxConstraints(minHeight: Responsive.h(context, 56)),
+              padding: EdgeInsets.symmetric(
+                horizontal: Responsive.w(context, 13),
+              ),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(13),
+                border: Border.all(
+                  color: _isDark
+                      ? _addTransactionDarkBorder
+                      : selected
+                      ? accent
+                      : const Color(0xFFE2E8E5),
+                  width: selected ? 1.4 : 1,
+                ),
+                boxShadow: _isDark
+                    ? const [
+                        BoxShadow(
+                          color: Color(0x26000000),
+                          blurRadius: 12,
+                          offset: Offset(0, 5),
+                        ),
+                      ]
+                    : const [
+                        BoxShadow(
+                          color: Color(0x10004736),
+                          blurRadius: 12,
+                          offset: Offset(0, 5),
+                        ),
+                      ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? (_isDark ? _surface : Colors.white)
+                          : accent.withValues(alpha: 0.08),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(icon, size: 17, color: accent),
+                  ),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'Hanken Grotesk',
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: _isDark
+                            ? _addTransactionDarkText
+                            : const Color(0xFF263831),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                selected ? Icons.check_rounded : icon,
-                size: 17,
-                color: selected ? Colors.white : const Color(0xFF56645E),
-              ),
-              const SizedBox(width: 7),
-              Text(
-                label,
-                style: TextStyle(
-                  fontFamily: 'Hanken Grotesk',
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: selected ? Colors.white : const Color(0xFF45534D),
-                ),
-              ),
-            ],
-          ),
         ),
-      ),
+        if (selected)
+          Positioned(
+            right: -3,
+            top: -4,
+            child: Container(
+              width: 18,
+              height: 18,
+              decoration: BoxDecoration(
+                color: accent,
+                shape: BoxShape.circle,
+                border: Border.all(color: _pageBackground, width: 2),
+              ),
+              child: Icon(
+                Icons.check_rounded,
+                size: 11,
+                color: _isDark ? _addTransactionDarkBackground : Colors.white,
+              ),
+            ),
+          ),
+      ],
     );
   }
 
@@ -1328,19 +1735,44 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   }
 
   String _sourceDisplayName(String? name) {
-    if (name == null || name.isEmpty) return 'Select payment method';
-    return name;
+    if (name == null || name.isEmpty) {
+      return AppStrings.choose(
+        'Select payment method',
+        'Chọn phương thức thanh toán',
+      );
+    }
+    return switch (name) {
+      'Cash' => AppStrings.choose('Cash', 'Tiền mặt'),
+      'Transfer' => AppStrings.choose('Transfer', 'Chuyển khoản'),
+      _ => name,
+    };
   }
 
   Widget _buildQuickMode() {
+    final displayState = switch (_voiceState) {
+      _QuickAddVoiceState.idle => QuickAddDisplayState.idle,
+      _QuickAddVoiceState.initializing ||
+      _QuickAddVoiceState.listening => QuickAddDisplayState.listening,
+      _QuickAddVoiceState.processingFinal ||
+      _QuickAddVoiceState.parsing => QuickAddDisplayState.processing,
+      _QuickAddVoiceState.error => QuickAddDisplayState.error,
+      _QuickAddVoiceState.success => QuickAddDisplayState.success,
+    };
     return QuickAddCard(
       key: const ValueKey(_AddMode.quick),
       controller: _quickAddController,
+      displayState: displayState,
+      draft: _quickAddDraft,
+      errorMessage: _quickAddErrorMessage,
       isLoading: _isQuickAddParsing,
       isRecording: _isVoiceRecording,
       isVoiceProcessing: _isVoiceProcessing,
+      voiceSoundLevel: _voiceSoundLevel,
       onSubmit: _submitQuickAdd,
       onVoiceTap: _handleVoiceTap,
+      onRetry: _retryQuickAdd,
+      onTypeInstead: _switchQuickAddToTyping,
+      onReview: _reviewQuickAddDraft,
     );
   }
 
@@ -1354,12 +1786,17 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     );
   }
 
-  Future<void> _applyScanResult(ScanResultModel result) async {
+  void _applyScanResult(ScanResultModel result) {
     final amount = result.totalAmount > 0
         ? result.totalAmount
         : result.calculatedTotal;
     if (result.items.isEmpty || amount <= 0) {
-      _showMessage('Không tìm thấy số tiền hợp lệ trên hóa đơn.');
+      _showMessage(
+        AppStrings.choose(
+          'No valid amount was found on the receipt.',
+          'Không tìm thấy số tiền hợp lệ trên hóa đơn.',
+        ),
+      );
       return;
     }
 
@@ -1376,49 +1813,18 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
           candidate.value > current.value ? candidate : current,
     );
     final merchantName = result.merchantName?.trim();
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final firstAllowedDate = DateTime(2000);
-    final detectedDate = result.receiptDate == null
-        ? today
-        : DateTime(
-            result.receiptDate!.year,
-            result.receiptDate!.month,
-            result.receiptDate!.day,
-          );
-    final selectedDate = detectedDate.isBefore(firstAllowedDate)
-        ? firstAllowedDate
-        : detectedDate.isAfter(today)
-        ? today
-        : detectedDate;
 
     setState(() {
       _isExpense = true;
       _amountController.text = _addCommas(amount.toString());
       _nameController.text = merchantName?.isNotEmpty == true
           ? merchantName!
-          : 'Hóa đơn đã quét';
+          : AppStrings.choose('Scanned receipt', 'Hóa đơn đã quét');
       _selectedCategory = TransactionCategory.fromKey(dominantCategory.key).key;
-      _transactionDate = DateTime(
-        selectedDate.year,
-        selectedDate.month,
-        selectedDate.day,
-        now.hour,
-        now.minute,
-        now.second,
-        now.millisecond,
-        now.microsecond,
-      );
+      _transactionDate = result.receiptDate;
       _mode = _AddMode.manual;
       _selectedInputMode = null;
     });
-
-    if (_selectedWalletId == null) {
-      await _showSourceSelection();
-    }
-    if (!mounted || _selectedWalletId == null) return;
-
-    await _saveManualTransaction();
   }
 
   Widget _buildSelectionField({
@@ -1430,35 +1836,44 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     required Color accent,
     Widget? trailing,
     bool highlighted = false,
+    bool embedded = false,
   }) {
     return Semantics(
       button: true,
       label: '$label, $value',
       child: Material(
         key: fieldKey,
-        color: highlighted ? accent.withValues(alpha: 0.08) : Colors.white,
-        borderRadius: BorderRadius.circular(10),
+        color: highlighted
+            ? accent.withValues(alpha: 0.08)
+            : Colors.transparent,
+        borderRadius: BorderRadius.circular(embedded ? 0 : 10),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(embedded ? 0 : 10),
           child: Container(
-            constraints: BoxConstraints(minHeight: Responsive.h(context, 70)),
+            constraints: BoxConstraints(
+              minHeight: Responsive.h(context, embedded ? 64 : 70),
+            ),
             padding: EdgeInsets.symmetric(
               horizontal: Responsive.w(context, 14),
-              vertical: Responsive.h(context, 10),
+              vertical: Responsive.h(context, embedded ? 7 : 10),
             ),
             decoration: BoxDecoration(
-              border: Border.all(
-                color: highlighted ? accent : const Color(0xFFC3C7CF),
-              ),
-              borderRadius: BorderRadius.circular(10),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x0D000000),
-                  blurRadius: 8,
-                  offset: Offset(0, 2),
-                ),
-              ],
+              border: embedded
+                  ? null
+                  : Border.all(
+                      color: highlighted ? accent : const Color(0xFFC3C7CF),
+                    ),
+              borderRadius: BorderRadius.circular(embedded ? 0 : 10),
+              boxShadow: embedded
+                  ? null
+                  : const [
+                      BoxShadow(
+                        color: Color(0x0D000000),
+                        blurRadius: 8,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
             ),
             child: Row(
               children: [
@@ -1469,16 +1884,17 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(label, style: _labelStyle.copyWith(fontSize: 10)),
+                      Text(label, style: _labelStyle.copyWith(fontSize: 9)),
                       const SizedBox(height: 2),
                       Text(
                         value,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontFamily: 'Hanken Grotesk',
-                          fontSize: 15,
-                          color: Color(0xFF1A1C1E),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: _primaryText,
                         ),
                       ),
                     ],
@@ -1493,36 +1909,73 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     );
   }
 
-  Widget _buildNameField(Color accent) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text('TRANSACTION NAME', style: _labelStyle),
-        SizedBox(height: Responsive.h(context, 4)),
-        TextField(
-          key: const Key('manual_name_field'),
-          controller: _nameController,
-          textInputAction: TextInputAction.done,
-          cursorColor: accent,
-          decoration: InputDecoration(
-            hintText: 'Enter transaction name...',
-            prefixIcon: Icon(Icons.edit_note_rounded, color: accent, size: 24),
-            border: const UnderlineInputBorder(
-              borderSide: BorderSide(color: Color(0xFFC3C7CF), width: 1.5),
+  Widget _buildNameField(Color accent, {bool embedded = false}) {
+    return Container(
+      constraints: BoxConstraints(minHeight: Responsive.h(context, 64)),
+      padding: EdgeInsets.symmetric(
+        horizontal: Responsive.w(context, 14),
+        vertical: Responsive.h(context, 7),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: _isDark
+                  ? _addTransactionDarkRaisedSurface
+                  : const Color(0xFFE1F5EF),
+              shape: BoxShape.circle,
             ),
-            enabledBorder: const UnderlineInputBorder(
-              borderSide: BorderSide(color: Color(0xFFC3C7CF), width: 1.5),
-            ),
-            focusedBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: accent, width: 1.8),
-            ),
-            isDense: true,
-            contentPadding: EdgeInsets.symmetric(
-              vertical: Responsive.h(context, 12),
+            child: Icon(Icons.edit_note_rounded, color: accent, size: 20),
+          ),
+          SizedBox(width: Responsive.w(context, 10)),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  AppStrings.choose('TRANSACTION NAME', 'TÊN GIAO DỊCH'),
+                  style: _labelStyle.copyWith(fontSize: 9),
+                ),
+                TextField(
+                  key: const Key('manual_name_field'),
+                  controller: _nameController,
+                  textInputAction: TextInputAction.done,
+                  cursorColor: accent,
+                  style: TextStyle(
+                    fontFamily: 'Hanken Grotesk',
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: _primaryText,
+                  ),
+                  decoration: InputDecoration(
+                    filled: false,
+                    hintText: AppStrings.choose(
+                      'Enter transaction name...',
+                      'Nhập tên giao dịch...',
+                    ),
+                    hintStyle: TextStyle(
+                      fontFamily: 'Hanken Grotesk',
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: _mutedText,
+                    ),
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    disabledBorder: InputBorder.none,
+                    isCollapsed: true,
+                    contentPadding: EdgeInsets.only(top: 2),
+                  ),
+                ),
+              ],
             ),
           ),
-        ),
-      ],
+          Icon(Icons.edit_outlined, color: accent, size: 19),
+        ],
+      ),
     );
   }
 
@@ -1539,8 +1992,8 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
         backgroundColor: color,
         foregroundColor: foregroundColor,
         disabledBackgroundColor: color.withValues(alpha: 0.55),
-        minimumSize: Size.fromHeight(Responsive.h(context, 54)),
-        shape: const StadiumBorder(),
+        minimumSize: Size.fromHeight(Responsive.h(context, 56)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
         elevation: 6,
         shadowColor: color.withValues(alpha: 0.35),
       ),
@@ -1553,20 +2006,31 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                 color: foregroundColor,
               ),
             )
-          : Text(
-              label,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.check_circle_outline_rounded, size: 19),
+                const SizedBox(width: 8),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontFamily: 'Manrope',
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
             ),
     );
   }
 
-  TextStyle get _labelStyle => const TextStyle(
-    fontFamily: 'JetBrains Mono',
-    fontSize: 11,
+  TextStyle get _labelStyle => TextStyle(
+    fontFamily: 'Manrope',
+    fontSize: 11.5,
     height: 1.2,
-    letterSpacing: 0.5,
-    fontWeight: FontWeight.w500,
-    color: Color(0xFF5F6368),
+    letterSpacing: 0.65,
+    fontWeight: FontWeight.w700,
+    color: _isDark ? _addTransactionDarkMutedText : const Color(0xFF53615C),
   );
 
   void _formatAmount() {
@@ -1589,16 +2053,11 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   }
 
   Future<void> _pickDate() async {
-    final today = DateTime.now();
-    final firstDate = DateTime(2000);
-    var initialDate = _transactionDate ?? today;
-    if (initialDate.isBefore(firstDate)) initialDate = firstDate;
-    if (initialDate.isAfter(today)) initialDate = today;
     final picked = await showDatePicker(
       context: context,
-      initialDate: initialDate,
-      firstDate: firstDate,
-      lastDate: today,
+      initialDate: _transactionDate ?? DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
     );
     if (picked != null && mounted) setState(() => _transactionDate = picked);
   }
@@ -1606,10 +2065,13 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   Future<void> _showCategorySelection() async {
     final result = await showModalBottomSheet<String>(
       context: context,
+      useSafeArea: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) =>
-          TransactionCategorySelectionSheet(initialKey: _selectedCategory),
+      builder: (_) => SafeArea(
+        top: false,
+        child: TransactionCategorySelectionSheet(initialKey: _selectedCategory),
+      ),
     );
     if (result != null && mounted) setState(() => _selectedCategory = result);
   }
@@ -1617,11 +2079,15 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   Future<void> _showSourceSelection() async {
     final selected = await showModalBottomSheet<WalletPreset>(
       context: context,
+      useSafeArea: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _SourceSelectionSheet(
-        selectedName: _selectedWalletName,
-        selectedType: _selectedAcctCategory,
+      builder: (_) => SafeArea(
+        top: false,
+        child: _SourceSelectionSheet(
+          selectedName: _selectedWalletName,
+          selectedType: _selectedAcctCategory,
+        ),
       ),
     );
     if (selected == null || !mounted) return;
@@ -1678,8 +2144,32 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       return;
     }
     if (_selectedWalletId == null) {
-      _showMessage('Please select a payment method');
+      _showMessage(
+        AppStrings.choose(
+          'Please select a payment method',
+          'Vui lòng chọn phương thức thanh toán',
+        ),
+      );
       return;
+    }
+    var goalWithdrawals = <String, int>{};
+    if (_isExpense) {
+      final goalService = ref.read(goalServiceProvider);
+      final transactionService = ref.read(transactionServiceProvider);
+      final shortfall =
+          (goalService.totalAllocated -
+                  (transactionService.totalBalance - amount))
+              .clamp(0, 1 << 62);
+      if (shortfall > 0 &&
+          goalService.settings.expenseShortfallPolicy ==
+              ExpenseShortfallPolicy.askEachTime) {
+        final selected = await ExpenseGoalWithdrawalSheet.show(
+          context,
+          shortfall: shortfall,
+        );
+        if (selected == null || !mounted) return;
+        goalWithdrawals = selected;
+      }
     }
     try {
       setState(() => _isSavingTransaction = true);
@@ -1693,8 +2183,28 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
         date: _transactionDate ?? DateTime.now(),
         walletId: _selectedWalletId,
       );
-      await ref.read(transactionServiceProvider).add(transaction);
+      final completedGoalIds = await ref
+          .read(transactionServiceProvider)
+          .add(transaction, goalWithdrawals: goalWithdrawals);
       if (!mounted) return;
+      for (final goalId in completedGoalIds) {
+        final completionAction = await GoalCompletionDialog.show(
+          context,
+          goalId: goalId,
+        );
+        if (!mounted) return;
+        if (completionAction == GoalCompletionAction.viewGoal ||
+            completionAction == GoalCompletionAction.editAllocation) {
+          _allowPop = true;
+          Navigator.of(context).pushReplacementNamed(
+            completionAction == GoalCompletionAction.viewGoal
+                ? AppRoutes.goalDetails
+                : AppRoutes.editGoal,
+            arguments: goalId,
+          );
+          return;
+        }
+      }
       if (widget.fromQuickAdd) {
         _popRoute(true);
       } else {
@@ -1722,16 +2232,25 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       final discard = await showDialog<bool>(
         context: context,
         builder: (dialogContext) => AlertDialog(
-          title: const Text('Discard transaction?'),
-          content: const Text('Your unsaved changes will be lost.'),
+          title: Text(
+            AppStrings.choose('Discard transaction?', 'Bỏ giao dịch?'),
+          ),
+          content: Text(
+            AppStrings.choose(
+              'Your unsaved changes will be lost.',
+              'Các thay đổi chưa lưu sẽ bị mất.',
+            ),
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Keep editing'),
+              child: Text(
+                AppStrings.choose('Keep editing', 'Tiếp tục chỉnh sửa'),
+              ),
             ),
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: const Text('Discard'),
+              child: Text(AppStrings.choose('Discard', 'Bỏ')),
             ),
           ],
         ),
@@ -1772,7 +2291,9 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   static String _formatDate(DateTime value) {
     final month = value.month.toString().padLeft(2, '0');
     final day = value.day.toString().padLeft(2, '0');
-    return '$month/$day/${value.year}';
+    return AppStrings.isVietnamese
+        ? '$day/$month/${value.year}'
+        : '$month/$day/${value.year}';
   }
 
   void _showMessage(String message) {
@@ -1791,36 +2312,80 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     }
     final text = input.trim();
     if (text.isEmpty) {
-      _showMessage(
-        AppLanguage.instance.locale == AppLocale.vietnamese
-            ? 'Vui lòng nhập nội dung giao dịch.'
-            : 'Please enter a transaction.',
-      );
+      setState(() {
+        _voiceState = _QuickAddVoiceState.error;
+        _quickAddDraft = null;
+        _quickAddErrorMessage =
+            AppLanguage.instance.locale == AppLocale.vietnamese
+            ? 'Vui lòng nói hoặc nhập nội dung giao dịch.'
+            : 'Please say or type a transaction first.';
+      });
       return;
     }
-    setState(() => _isQuickAddParsing = true);
+    final parseSession = ++_quickParseSession;
+    setState(() {
+      _isQuickAddParsing = true;
+      _voiceState = _QuickAddVoiceState.parsing;
+      _quickAddDraft = null;
+      _quickAddErrorMessage = null;
+    });
     try {
       final draft = await QuickAddService.instance.parse(text);
-      if (!mounted) return;
+      if (!mounted || parseSession != _quickParseSession) return;
       setState(() {
         _isQuickAddParsing = false;
-        _isQuickAddReviewOpen = true;
-        if (_voiceState == _QuickAddVoiceState.parsing) {
-          _voiceState = _QuickAddVoiceState.idle;
-        }
+        _quickAddDraft = draft;
+        _voiceState = _QuickAddVoiceState.success;
       });
+    } on QuickAddException {
+      if (!mounted || parseSession != _quickParseSession) return;
+      setState(() {
+        _voiceState = _QuickAddVoiceState.error;
+        _quickAddErrorMessage =
+            AppLanguage.instance.locale == AppLocale.vietnamese
+            ? 'Không thể hiểu giao dịch. Hãy thử nói rõ hơn hoặc nhập thủ công.'
+            : 'We couldn’t understand that. Try speaking clearly or type instead.';
+      });
+    } catch (_) {
+      if (!mounted || parseSession != _quickParseSession) return;
+      setState(() {
+        _voiceState = _QuickAddVoiceState.error;
+        _quickAddErrorMessage =
+            AppLanguage.instance.locale == AppLocale.vietnamese
+            ? 'Kết nối có thể chưa ổn định. Vui lòng thử lại.'
+            : 'The connection may be weak. Please try again.';
+      });
+    } finally {
+      if (mounted && parseSession == _quickParseSession && _isQuickAddParsing) {
+        setState(() => _isQuickAddParsing = false);
+      }
+    }
+  }
+
+  Future<void> _reviewQuickAddDraft() async {
+    var draft = _quickAddDraft;
+    if (draft == null || _isQuickAddReviewOpen) return;
+    final editedText = _quickAddController.text.trim();
+    if (editedText != draft.originalText.trim()) {
+      await _submitQuickAdd(editedText);
+      if (!mounted || _voiceState != _QuickAddVoiceState.success) return;
+      draft = _quickAddDraft;
+      if (draft == null) return;
+    }
+    final reviewDraft = draft;
+    setState(() => _isQuickAddReviewOpen = true);
+    try {
       final action = await QuickAddReviewSheet.show(
         context,
-        draft: draft,
-        onConfirm: () => _confirmQuickAdd(draft),
+        draft: reviewDraft,
+        onConfirm: () => _confirmQuickAdd(reviewDraft),
       );
       if (!mounted) return;
-      _isQuickAddReviewOpen = false;
       if (action == QuickAddReviewAction.confirmed) {
         _quickAddController.clear();
         final userId = ref.read(authServiceProvider).currentUser?.id;
         if (userId == null || !mounted) return;
-        final saved = draft.toTransactionModel(
+        final saved = reviewDraft.toTransactionModel(
           id: 't_${DateTime.now().millisecondsSinceEpoch}',
           userId: userId,
         );
@@ -1831,29 +2396,33 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
           ),
         );
       } else if (action == QuickAddReviewAction.editDetails) {
-        _applyDraftToManual(draft);
-      }
-    } on QuickAddException catch (error) {
-      if (mounted) _showMessage(error.message);
-    } catch (_) {
-      if (mounted) {
-        _showMessage(
-          AppLanguage.instance.locale == AppLocale.vietnamese
-              ? 'Không thể phân tích giao dịch lúc này.'
-              : 'Unable to parse the transaction right now.',
-        );
+        _applyDraftToManual(reviewDraft);
+      } else if (action == QuickAddReviewAction.retryVoice) {
+        _retryQuickAdd();
       }
     } finally {
-      if (mounted &&
-          (_isQuickAddParsing || _voiceState == _QuickAddVoiceState.parsing)) {
-        setState(() {
-          _isQuickAddParsing = false;
-          if (_voiceState == _QuickAddVoiceState.parsing) {
-            _voiceState = _QuickAddVoiceState.idle;
-          }
-        });
-      }
+      if (mounted) setState(() => _isQuickAddReviewOpen = false);
     }
+  }
+
+  void _retryQuickAdd() {
+    setState(() {
+      _voiceState = _QuickAddVoiceState.idle;
+      _quickAddDraft = null;
+      _quickAddErrorMessage = null;
+      _quickAddController.clear();
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_handleVoiceTap());
+    });
+  }
+
+  void _switchQuickAddToTyping() {
+    setState(() {
+      _voiceState = _QuickAddVoiceState.idle;
+      _quickAddDraft = null;
+      _quickAddErrorMessage = null;
+    });
   }
 
   Future<void> _confirmQuickAdd(QuickAddDraft draft) async {
@@ -1900,7 +2469,10 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     final session = ++_voiceSession;
     _voiceFinalHandled = false;
     _latestVoiceTranscript = '';
-    setState(() => _voiceState = _QuickAddVoiceState.initializing);
+    setState(() {
+      _voiceState = _QuickAddVoiceState.initializing;
+      _voiceSoundLevel = 0;
+    });
     try {
       final speech = QuickAddSpeechRecognitionService.instance;
       final available = await speech.initialize(
@@ -1923,6 +2495,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       }
       await speech.startListening(
         onResult: (result) => _handleVoiceResult(session, result),
+        onSoundLevel: (level) => _handleVoiceSoundLevel(session, level),
       );
       if (!mounted || session != _voiceSession) {
         await speech.cancelListening();
@@ -1954,6 +2527,12 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     if (result.isFinal) {
       unawaited(_submitFinalVoiceTranscript(session, transcript));
     }
+  }
+
+  void _handleVoiceSoundLevel(int session, double level) {
+    if (!mounted || session != _voiceSession || _voiceFinalHandled) return;
+    if ((_voiceSoundLevel - level).abs() < .05) return;
+    setState(() => _voiceSoundLevel = level);
   }
 
   void _handleVoiceStatus(int session, String status) {
@@ -2020,7 +2599,10 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       text: transcript,
       selection: TextSelection.collapsed(offset: transcript.length),
     );
-    setState(() => _voiceState = _QuickAddVoiceState.parsing);
+    setState(() {
+      _voiceState = _QuickAddVoiceState.parsing;
+      _voiceSoundLevel = 0;
+    });
     await _submitQuickAdd(transcript);
   }
 
@@ -2028,11 +2610,12 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     if (!mounted || session != _voiceSession || _voiceFinalHandled) return;
     _voiceFinalHandled = true;
     _voiceTimeout?.cancel();
-    setState(() => _voiceState = _QuickAddVoiceState.error);
-    _showMessage(_localizedVoiceError(code));
-    if (mounted && session == _voiceSession) {
-      setState(() => _voiceState = _QuickAddVoiceState.idle);
-    }
+    setState(() {
+      _voiceState = _QuickAddVoiceState.error;
+      _voiceSoundLevel = 0;
+      _quickAddDraft = null;
+      _quickAddErrorMessage = _localizedVoiceError(code);
+    });
   }
 
   String _localizedVoiceError(String code) {
@@ -2075,6 +2658,7 @@ class _QuickCategoryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Semantics(
       button: true,
       label: category.label,
@@ -2082,41 +2666,59 @@ class _QuickCategoryButton extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(99),
         child: SizedBox(
-          width: Responsive.w(context, 58),
+          width: Responsive.w(context, 62),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: Responsive.w(context, 42),
-                height: Responsive.w(context, 42),
+                width: Responsive.w(context, 50),
+                height: Responsive.w(context, 50),
                 decoration: BoxDecoration(
                   color: outlined
                       ? Colors.transparent
-                      : category.color.withValues(alpha: 0.2),
+                      : category.color.withValues(alpha: isDark ? 0.2 : 0.12),
                   shape: BoxShape.circle,
                   border: outlined
                       ? Border.all(
-                          color: const Color(0xFF8CB3A7),
+                          color: isDark
+                              ? _addTransactionDarkBorder
+                              : const Color(0xFF8CB3A7),
+                          width: 1.4,
                           style: BorderStyle.solid,
                         )
                       : null,
+                  boxShadow: outlined || isDark
+                      ? null
+                      : const [
+                          BoxShadow(
+                            color: Color(0x10004736),
+                            blurRadius: 9,
+                            offset: Offset(0, 4),
+                          ),
+                        ],
                 ),
-                child: Icon(
-                  category.icon,
-                  size: 20,
-                  color: outlined ? const Color(0xFF006C53) : category.color,
+                child: category.buildIcon(
+                  size: 21,
+                  color: outlined
+                      ? (isDark
+                            ? const Color(0xFF66C0AA)
+                            : const Color(0xFF006C53))
+                      : category.color,
                 ),
               ),
-              const SizedBox(height: 5),
+              const SizedBox(height: 6),
               Text(
-                category.label,
+                AppStrings.categoryName(category.label),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: 'Hanken Grotesk',
-                  fontSize: 9,
-                  color: Color(0xFF617069),
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w600,
+                  color: isDark
+                      ? _addTransactionDarkSecondaryText
+                      : const Color(0xFF586861),
                 ),
               ),
             ],
@@ -2158,10 +2760,11 @@ class _TransactionCategorySelectionSheetState
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return FractionallySizedBox(
       heightFactor: 0.86,
       child: Material(
-        color: Colors.white,
+        color: isDark ? _addTransactionDarkBackground : Colors.white,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         clipBehavior: Clip.antiAlias,
         child: SafeArea(
@@ -2170,26 +2773,52 @@ class _TransactionCategorySelectionSheetState
             children: [
               const _SheetHandle(),
               _SheetHeader(
-                title: 'Select Category',
+                title: AppStrings.choose('Select Category', 'Chọn danh mục'),
                 onClose: () => Navigator.of(context).pop(),
               ),
               Expanded(
                 child: ListView.separated(
                   padding: const EdgeInsets.symmetric(horizontal: 18),
                   itemCount: _categories.length + 1,
-                  separatorBuilder: (_, _) => const Divider(height: 1),
+                  separatorBuilder: (_, _) => Divider(
+                    height: 1,
+                    color: isDark
+                        ? _addTransactionDarkBorder
+                        : const Color(0xFFE4EAE7),
+                  ),
                   itemBuilder: (context, index) {
                     if (index == _categories.length) {
                       return ListTile(
                         contentPadding: const EdgeInsets.symmetric(vertical: 4),
-                        leading: const CircleAvatar(
-                          backgroundColor: Color(0xFFE8F5EF),
+                        leading: Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? _addTransactionDarkRaisedSurface
+                                : const Color(0xFFE8F5EF),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
                           child: Icon(
                             Icons.add_rounded,
-                            color: Color(0xFF006C46),
+                            size: 20,
+                            color: isDark
+                                ? const Color(0xFF82D7B8)
+                                : const Color(0xFF006C46),
                           ),
                         ),
-                        title: const Text('Create custom category'),
+                        title: Text(
+                          AppStrings.choose(
+                            'Create custom category',
+                            'Tạo danh mục tùy chỉnh',
+                          ),
+                          style: TextStyle(
+                            color: isDark
+                                ? _addTransactionDarkText
+                                : const Color(0xFF1A1C1E),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                         onTap: _createCustomCategory,
                       );
                     }
@@ -2200,38 +2829,44 @@ class _TransactionCategorySelectionSheetState
                       selected: selected,
                       child: ListTile(
                         contentPadding: const EdgeInsets.symmetric(vertical: 4),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        tileColor: selected && isDark
+                            ? _addTransactionDarkRaisedSurface
+                            : Colors.transparent,
                         onTap: () =>
                             setState(() => _selectedKey = category.key),
                         leading: Container(
                           width: 42,
                           height: 42,
                           decoration: BoxDecoration(
-                            color: category.color,
+                            color: category.color.withValues(
+                              alpha: isDark ? 0.2 : 0.12,
+                            ),
                             borderRadius: BorderRadius.circular(10),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Color(0x1A000000),
-                                blurRadius: 7,
-                                offset: Offset(0, 3),
-                              ),
-                            ],
                           ),
-                          child: Icon(
-                            category.icon,
-                            color: Colors.white,
-                            size: 21,
-                          ),
+                          child: category.buildIcon(size: 19),
                         ),
                         title: Text(
-                          category.label,
+                          AppStrings.categoryName(category.label),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w500),
+                          style: TextStyle(
+                            fontWeight: selected
+                                ? FontWeight.w700
+                                : FontWeight.w500,
+                            color: isDark
+                                ? _addTransactionDarkText
+                                : const Color(0xFF1A1C1E),
+                          ),
                         ),
                         trailing: selected
-                            ? const Icon(
+                            ? Icon(
                                 Icons.check_circle,
-                                color: Color(0xFF00D09E),
+                                color: isDark
+                                    ? const Color(0xFF38D6AC)
+                                    : const Color(0xFF00D09E),
                               )
                             : null,
                       ),
@@ -2240,7 +2875,7 @@ class _TransactionCategorySelectionSheetState
                 ),
               ),
               _SheetApplyButton(
-                label: 'Apply Selection',
+                label: AppStrings.choose('Apply Selection', 'Áp dụng lựa chọn'),
                 onPressed: () => Navigator.of(context).pop(_selectedKey),
               ),
             ],
@@ -2275,14 +2910,14 @@ class _SourceSelectionSheetState extends State<_SourceSelectionSheet> {
   WalletPreset? _selected;
 
   static const _cash = WalletPreset(
-    name: 'Tiền mặt',
+    name: 'Cash',
     logoAssetPath: 'assets/logos/ewallets/cash.png',
     brandColor: Color(0xFF4CAF50),
     type: WalletType.cash,
   );
 
   static const _transfer = WalletPreset(
-    name: 'Chuyển khoản',
+    name: 'Transfer',
     logoAssetPath: 'assets/logos/ewallets/other.png',
     brandColor: Color(0xFF2878D0),
     type: WalletType.transfer,
@@ -2304,10 +2939,11 @@ class _SourceSelectionSheetState extends State<_SourceSelectionSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return FractionallySizedBox(
       heightFactor: 0.9,
       child: Material(
-        color: Colors.white,
+        color: isDark ? _addTransactionDarkBackground : Colors.white,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         clipBehavior: Clip.antiAlias,
         child: SafeArea(
@@ -2316,19 +2952,28 @@ class _SourceSelectionSheetState extends State<_SourceSelectionSheet> {
             children: [
               const _SheetHandle(),
               _SheetHeader(
-                title: 'Select Payment Method',
+                title: AppStrings.choose(
+                  'Select Payment Method',
+                  'Chọn phương thức thanh toán',
+                ),
                 onClose: () => Navigator.of(context).pop(),
               ),
               Expanded(
                 child: ListView(
                   padding: const EdgeInsets.symmetric(horizontal: 14),
                   children: [
-                    _section('PAYMENT METHOD', const [_cash, _transfer]),
+                    _section(
+                      AppStrings.choose(
+                        'PAYMENT METHOD',
+                        'PHƯƠNG THỨC THANH TOÁN',
+                      ),
+                      const [_cash, _transfer],
+                    ),
                   ],
                 ),
               ),
               _SheetApplyButton(
-                label: 'Apply Selection',
+                label: AppStrings.choose('Apply Selection', 'Áp dụng lựa chọn'),
                 onPressed: _selected == null
                     ? null
                     : () => Navigator.of(context).pop(_selected),
@@ -2341,6 +2986,7 @@ class _SourceSelectionSheetState extends State<_SourceSelectionSheet> {
   }
 
   Widget _section(String title, List<WalletPreset> presets) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -2348,11 +2994,13 @@ class _SourceSelectionSheetState extends State<_SourceSelectionSheet> {
           padding: const EdgeInsets.fromLTRB(0, 10, 0, 7),
           child: Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: 'JetBrains Mono',
               fontSize: 10,
               letterSpacing: 0.8,
-              color: Color(0xFF5F6368),
+              color: isDark
+                  ? _addTransactionDarkMutedText
+                  : const Color(0xFF5F6368),
             ),
           ),
         ),
@@ -2362,6 +3010,7 @@ class _SourceSelectionSheetState extends State<_SourceSelectionSheet> {
   }
 
   Widget _sourceRow(WalletPreset preset) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final selected =
         _selected?.name == preset.name && _selected?.type == preset.type;
     return Padding(
@@ -2376,9 +3025,17 @@ class _SourceSelectionSheetState extends State<_SourceSelectionSheet> {
             height: 66,
             padding: const EdgeInsets.symmetric(horizontal: 10),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: isDark
+                  ? selected
+                        ? _addTransactionDarkRaisedSurface
+                        : _addTransactionDarkSurface
+                  : Colors.white,
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFE0E4E2)),
+              border: Border.all(
+                color: isDark
+                    ? _addTransactionDarkBorder
+                    : const Color(0xFFE0E4E2),
+              ),
             ),
             child: Row(
               children: [
@@ -2408,19 +3065,39 @@ class _SourceSelectionSheetState extends State<_SourceSelectionSheet> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        preset.name,
+                        switch (preset.name) {
+                          'Cash' => AppStrings.choose('Cash', 'Tiền mặt'),
+                          'Transfer' => AppStrings.choose(
+                            'Transfer',
+                            'Chuyển khoản',
+                          ),
+                          _ => preset.name,
+                        },
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: isDark
+                              ? _addTransactionDarkText
+                              : const Color(0xFF1A1C1E),
+                        ),
                       ),
                       Text(
                         switch (preset.type) {
-                          WalletType.cash => 'Cash payment',
-                          WalletType.transfer => 'Cashless payment',
+                          WalletType.cash => AppStrings.choose(
+                            'Cash payment',
+                            'Thanh toán tiền mặt',
+                          ),
+                          WalletType.transfer => AppStrings.choose(
+                            'Cashless payment',
+                            'Thanh toán không tiền mặt',
+                          ),
                         },
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 11,
-                          color: Color(0xFF6D7B74),
+                          color: isDark
+                              ? _addTransactionDarkSecondaryText
+                              : const Color(0xFF6D7B74),
                         ),
                       ),
                     ],
@@ -2429,8 +3106,12 @@ class _SourceSelectionSheetState extends State<_SourceSelectionSheet> {
                 Icon(
                   selected ? Icons.check_circle : Icons.circle_outlined,
                   color: selected
-                      ? const Color(0xFF00D09E)
-                      : const Color(0xFF1A1C1E),
+                      ? (isDark
+                            ? const Color(0xFF38D6AC)
+                            : const Color(0xFF00D09E))
+                      : (isDark
+                            ? _addTransactionDarkMutedText
+                            : const Color(0xFF1A1C1E)),
                   size: 22,
                 ),
               ],
@@ -2447,13 +3128,16 @@ class _SheetHandle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Center(
       child: Container(
         width: 36,
         height: 4,
         margin: const EdgeInsets.only(top: 8),
         decoration: BoxDecoration(
-          color: const Color(0xFFD5DAD7),
+          color: isDark
+              ? _addTransactionDarkMutedText
+              : const Color(0xFFD5DAD7),
           borderRadius: BorderRadius.circular(99),
         ),
       ),
@@ -2469,6 +3153,7 @@ class _SheetHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 10, 8, 8),
       child: Row(
@@ -2476,13 +3161,24 @@ class _SheetHeader extends StatelessWidget {
           Expanded(
             child: Text(
               title,
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
+                color: isDark
+                    ? _addTransactionDarkText
+                    : const Color(0xFF1A1C1E),
+              ),
             ),
           ),
           IconButton(
-            tooltip: 'Close',
+            tooltip: AppStrings.choose('Close', 'Đóng'),
             onPressed: onClose,
-            icon: const Icon(Icons.close_rounded),
+            icon: Icon(
+              Icons.close_rounded,
+              color: isDark
+                  ? _addTransactionDarkSecondaryText
+                  : const Color(0xFF43474E),
+            ),
           ),
         ],
       ),
@@ -2498,6 +3194,7 @@ class _SheetApplyButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
       child: SizedBox(
@@ -2505,8 +3202,10 @@ class _SheetApplyButton extends StatelessWidget {
         child: FilledButton(
           onPressed: onPressed,
           style: FilledButton.styleFrom(
-            backgroundColor: AppColors.primaryGreen,
-            foregroundColor: const Color(0xFF002112),
+            backgroundColor: isDark
+                ? const Color(0xFF006C53)
+                : AppColors.primaryGreen,
+            foregroundColor: isDark ? Colors.white : const Color(0xFF002112),
             minimumSize: const Size.fromHeight(52),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(7),
@@ -2543,7 +3242,7 @@ class _CreateCategoryDialogState extends State<_CreateCategoryDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Custom Category'),
+      title: Text(AppStrings.choose('Custom Category', 'Danh mục tùy chỉnh')),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -2552,10 +3251,12 @@ class _CreateCategoryDialogState extends State<_CreateCategoryDialog> {
             TextField(
               controller: _controller,
               maxLength: 24,
-              decoration: const InputDecoration(labelText: 'Category name'),
+              decoration: InputDecoration(
+                labelText: AppStrings.choose('Category name', 'Tên danh mục'),
+              ),
             ),
             const SizedBox(height: 12),
-            const Text('Icon'),
+            Text(AppStrings.choose('Icon', 'Biểu tượng')),
             Wrap(
               spacing: 6,
               children: _customIcons.map((icon) {
@@ -2571,7 +3272,7 @@ class _CreateCategoryDialogState extends State<_CreateCategoryDialog> {
               }).toList(),
             ),
             const SizedBox(height: 8),
-            const Text('Color'),
+            Text(AppStrings.choose('Color', 'Màu sắc')),
             Wrap(
               spacing: 7,
               runSpacing: 7,
@@ -2601,7 +3302,7 @@ class _CreateCategoryDialogState extends State<_CreateCategoryDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(AppStrings.cancel),
         ),
         FilledButton(
           onPressed: () {
@@ -2611,7 +3312,7 @@ class _CreateCategoryDialogState extends State<_CreateCategoryDialog> {
               CustomCategoryDef(name: name, iconData: _icon, color: _color),
             );
           },
-          child: const Text('Save Category'),
+          child: Text(AppStrings.choose('Save Category', 'Lưu danh mục')),
         ),
       ],
     );

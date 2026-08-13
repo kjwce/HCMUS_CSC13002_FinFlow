@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:finflow/features/finance/models/quick_add_draft_model.dart';
+import 'package:finflow/features/finance/models/transaction_category.dart';
 import 'package:finflow/features/finance/presentation/add_transaction_sheet.dart';
 import 'package:finflow/features/finance/presentation/quick_add_review_sheet.dart';
 import 'package:finflow/features/finance/presentation/widgets/quick_add_card.dart';
@@ -82,6 +83,17 @@ void main() {
         find.byKey(const Key('quick_add_confirm')),
       );
       expect(button.onPressed, isNotNull);
+      expect(
+        button.style?.backgroundColor?.resolve(<WidgetState>{}),
+        const Color(0xFFD83A45),
+      );
+      final summary = tester.widget<Container>(
+        find.byKey(const Key('quick_add_summary')),
+      );
+      expect(
+        (summary.decoration as BoxDecoration).color,
+        const Color(0xFFFFE9E8),
+      );
     });
 
     testWidgets('income shows positive preview and enabled Confirm', (
@@ -93,15 +105,23 @@ void main() {
       );
       expect(find.text('+50,000 VND'), findsOneWidget);
       expect(find.text('INCOME'), findsOneWidget);
+      expect(
+        TransactionCategory.fromKey('Salary').assetPath,
+        'assets/icons/categories/fill/income_salary.svg',
+      );
+      expect(find.byKey(const Key('quick_add_category_icon')), findsOneWidget);
+      expect(find.byIcon(Icons.restaurant_rounded), findsNothing);
       final button = tester.widget<ElevatedButton>(
         find.byKey(const Key('quick_add_confirm')),
       );
       expect(button.onPressed, isNotNull);
+      expect(
+        button.style?.backgroundColor?.resolve(<WidgetState>{}),
+        const Color(0xFF006C53),
+      );
     });
 
-    testWidgets('missing amount shows warning and disables Confirm', (
-      tester,
-    ) async {
+    testWidgets('missing amount shows incomplete action', (tester) async {
       await showReview(
         tester,
         draft(
@@ -110,20 +130,22 @@ void main() {
           warnings: const ['The transaction amount could not be determined.'],
         ),
       );
-      expect(find.text('Amount missing'), findsOneWidget);
+      expect(find.text('Amount not detected'), findsOneWidget);
+      expect(find.text('Amount is missing'), findsOneWidget);
+      expect(find.byKey(const Key('quick_add_confirm')), findsNothing);
       expect(
-        find.text('The transaction amount could not be determined.'),
-        findsOneWidget,
+        tester
+            .widget<ElevatedButton>(
+              find.byKey(const Key('quick_add_edit_details')),
+            )
+            .style
+            ?.backgroundColor
+            ?.resolve(<WidgetState>{}),
+        const Color(0xFFFFA000),
       );
       expect(
         tester
-            .widget<ElevatedButton>(find.byKey(const Key('quick_add_confirm')))
-            .onPressed,
-        isNull,
-      );
-      expect(
-        tester
-            .widget<OutlinedButton>(
+            .widget<ElevatedButton>(
               find.byKey(const Key('quick_add_edit_details')),
             )
             .onPressed,
@@ -131,9 +153,7 @@ void main() {
       );
     });
 
-    testWidgets('missing type displays unknown and disables Confirm', (
-      tester,
-    ) async {
+    testWidgets('missing type asks user to choose a type', (tester) async {
       await showReview(
         tester,
         draft(
@@ -141,16 +161,12 @@ void main() {
           missing: const {QuickAddMissingField.transactionType},
         ),
       );
-      expect(find.text('UNKNOWN'), findsOneWidget);
-      expect(
-        tester
-            .widget<ElevatedButton>(find.byKey(const Key('quick_add_confirm')))
-            .onPressed,
-        isNull,
-      );
+      expect(find.text('Transaction type not detected'), findsOneWidget);
+      expect(find.text('Choose Income or Expense'), findsOneWidget);
+      expect(find.byKey(const Key('quick_add_confirm')), findsNothing);
     });
 
-    testWidgets('missing wallet preserves parser hint and disables Confirm', (
+    testWidgets('missing wallet shows a missing badge and completion action', (
       tester,
     ) async {
       await showReview(
@@ -162,17 +178,9 @@ void main() {
           warnings: const ['Could not find the Unknown Wallet account.'],
         ),
       );
-      expect(find.text('Unknown Wallet'), findsOneWidget);
-      expect(
-        find.text('Could not find the Unknown Wallet account.'),
-        findsOneWidget,
-      );
-      expect(
-        tester
-            .widget<ElevatedButton>(find.byKey(const Key('quick_add_confirm')))
-            .onPressed,
-        isNull,
-      );
+      expect(find.text('Missing'), findsOneWidget);
+      expect(find.text('Choose a wallet'), findsOneWidget);
+      expect(find.byKey(const Key('quick_add_confirm')), findsNothing);
     });
 
     testWidgets('Other fallback keeps transaction name and warning', (
@@ -186,11 +194,11 @@ void main() {
           warnings: const ['No matching category was found. Other was used.'],
         ),
       );
-      expect(find.text('Cinema night'), findsOneWidget);
+      expect(find.text('Cinema night'), findsWidgets);
       expect(find.text('Other'), findsOneWidget);
       expect(
         find.text('No matching category was found. Other was used.'),
-        findsOneWidget,
+        findsNothing,
       );
     });
 
@@ -213,8 +221,8 @@ void main() {
           find.text('Transfers between accounts are not supported yet.'),
           findsOneWidget,
         );
-        await tester.tap(find.byKey(const Key('quick_add_confirm')));
-        await tester.pump();
+        expect(find.byKey(const Key('quick_add_confirm')), findsNothing);
+        expect(find.byKey(const Key('quick_add_edit_details')), findsOneWidget);
         expect(saveCount, 0);
       },
     );
@@ -317,6 +325,23 @@ void main() {
   });
 
   group('Quick Add input and Add Transaction reuse', () {
+    testWidgets('shows an animated waveform and rotates voice examples', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        const MaterialApp(home: Scaffold(body: QuickAddCard())),
+      );
+
+      expect(find.byKey(const Key('quick_add_voice_waveform')), findsOneWidget);
+      expect(find.text('Example: “Coffee 45k with friends”'), findsOneWidget);
+
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('Example: “Lunch 50k paid in cash”'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('loading Quick Add preserves text and disables both controls', (
       tester,
     ) async {
@@ -408,7 +433,7 @@ void main() {
           ),
         ),
       );
-      expect(find.text('New Expense'), findsOneWidget);
+      expect(find.text('Expense'), findsOneWidget);
       expect(find.text('From Quick Add'), findsOneWidget);
       final fields = tester
           .widgetList<TextField>(find.byType(TextField))
@@ -460,7 +485,7 @@ void main() {
       await tester.tap(find.byKey(const Key('add_mode_manual')));
       await tester.pump(const Duration(milliseconds: 190));
       await tester.pumpAndSettle();
-      expect(find.text('New Income'), findsOneWidget);
+      expect(find.text('Income'), findsOneWidget);
       expect(find.text('From Quick Add'), findsNothing);
       final fields = tester
           .widgetList<TextField>(find.byType(TextField))

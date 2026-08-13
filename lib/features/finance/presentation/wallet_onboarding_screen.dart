@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../app/shell/finflow_app.dart';
+import '../../../core/i18n/app_language.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/responsive.dart';
 import '../services/wallet_service.dart';
@@ -37,9 +38,9 @@ class _WalletOnboardingScreenState extends State<WalletOnboardingScreen> {
           icon: const Icon(Icons.arrow_back, color: Color(0xFF093030)),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: const Text(
-          'Thiết lập nguồn tiền',
-          style: TextStyle(
+        title: Text(
+          AppStrings.choose('Set Up Money Sources', 'Thiết lập nguồn tiền'),
+          style: const TextStyle(
             color: Color(0xFF093030),
             fontWeight: FontWeight.w600,
             fontSize: 18,
@@ -58,9 +59,12 @@ class _WalletOnboardingScreenState extends State<WalletOnboardingScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
-                'Nhập số dư hiện tại',
-                style: TextStyle(
+              Text(
+                AppStrings.choose(
+                  'Enter your current balances',
+                  'Nhập số dư hiện tại',
+                ),
+                style: const TextStyle(
                   fontFamily: 'Poppins',
                   fontSize: 22,
                   fontWeight: FontWeight.w700,
@@ -68,23 +72,32 @@ class _WalletOnboardingScreenState extends State<WalletOnboardingScreen> {
                 ),
               ),
               SizedBox(height: Responsive.h(context, 6)),
-              const Text(
-                'FinFlow sử dụng hai nguồn tiền chung. Bạn có thể nhập 0 và cập nhật lại sau.',
-                style: TextStyle(color: Color(0xFF5F6F6B), height: 1.45),
+              Text(
+                AppStrings.choose(
+                  'FinFlow uses two shared money sources. You can enter 0 and update them later.',
+                  'FinFlow sử dụng hai nguồn tiền chung. Bạn có thể nhập 0 và cập nhật lại sau.',
+                ),
+                style: const TextStyle(color: Color(0xFF5F6F6B), height: 1.45),
               ),
               SizedBox(height: Responsive.h(context, 24)),
               _BalanceCard(
                 controller: _cashController,
-                title: 'Tiền mặt',
-                description: 'Tiền bạn đang giữ và chi tiêu trực tiếp',
+                title: AppStrings.choose('Cash', 'Tiền mặt'),
+                description: AppStrings.choose(
+                  'Money you hold and spend directly',
+                  'Tiền bạn đang giữ và chi tiêu trực tiếp',
+                ),
                 icon: Icons.payments_outlined,
                 color: const Color(0xFF4CAF50),
               ),
               SizedBox(height: Responsive.h(context, 14)),
               _BalanceCard(
                 controller: _transferController,
-                title: 'Chuyển khoản',
-                description: 'Các khoản thanh toán không dùng tiền mặt',
+                title: AppStrings.choose('Transfer', 'Chuyển khoản'),
+                description: AppStrings.choose(
+                  'Payments made without cash',
+                  'Các khoản thanh toán không dùng tiền mặt',
+                ),
                 icon: Icons.swap_horiz_rounded,
                 color: const Color(0xFF2878D0),
               ),
@@ -103,9 +116,9 @@ class _WalletOnboardingScreenState extends State<WalletOnboardingScreen> {
                         height: 22,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text(
-                        'Tiếp tục',
-                        style: TextStyle(fontWeight: FontWeight.w700),
+                    : Text(
+                        AppStrings.choose('Continue', 'Tiếp tục'),
+                        style: const TextStyle(fontWeight: FontWeight.w700),
                       ),
               ),
             ],
@@ -129,9 +142,16 @@ class _WalletOnboardingScreenState extends State<WalletOnboardingScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _isSaving = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Không thể lưu: $error')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            AppStrings.choose(
+              'Unable to save: $error',
+              'Không thể lưu: $error',
+            ),
+          ),
+        ),
+      );
     }
   }
 
@@ -208,7 +228,7 @@ class _BalanceCard extends StatelessWidget {
             keyboardType: TextInputType.number,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             decoration: InputDecoration(
-              labelText: 'Số dư ban đầu',
+              labelText: AppStrings.choose('Opening balance', 'Số dư ban đầu'),
               hintText: '0',
               suffixText: 'VND',
               filled: true,

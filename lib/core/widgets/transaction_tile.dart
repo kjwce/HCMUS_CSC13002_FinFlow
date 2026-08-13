@@ -36,7 +36,11 @@ class TransactionTile extends StatelessWidget {
               color: iconBgColor,
               borderRadius: BorderRadius.circular(16),
             ),
-            child: Icon(icon, color: Colors.white, size: Responsive.w(context, 24)),
+            child: Icon(
+              icon,
+              color: Colors.white,
+              size: Responsive.w(context, 24),
+            ),
           ),
           SizedBox(width: Responsive.w(context, 16)),
           Expanded(

@@ -5,6 +5,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/i18n/app_language.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/responsive.dart';
 import '../models/transaction_category.dart';
@@ -24,15 +25,31 @@ class DashboardPage extends ConsumerStatefulWidget {
 }
 
 class _DashboardPageState extends ConsumerState<DashboardPage> {
-  static const _pageBg = Color(0xFFF9F9FC);
-  static const _headerBg = Color(0xFFF9F9FC);
-  static const _surfaceContainer = Color(0xFFEEEEF0);
-  static const _outlineVariant = Color(0xFFBBCAC2);
-  static const _onSurface = Color(0xFF1A1C1E);
-  static const _onSurfaceVariant = Color(0xFF3C4A44);
-  static const _primary = Color(0xFF00C49A);
-  static const _segmentBg = _surfaceContainer;
-  static const _segmentBorder = _outlineVariant;
+  static const _darkPage = Color(0xFF081C18);
+  static const _darkSurface = Color(0xFF16352E);
+  static const _darkBorder = Color(0xFF29483F);
+  static const _darkHeader = Color(0xFF005C49);
+  static const _darkText = Color(0xFFF4FBF8);
+  static const _darkSecondaryText = Color(0xFFA9C1B9);
+  static const _darkIncome = Color(0xFF38D6AC);
+  static const _darkExpense = Color(0xFFFF6B70);
+  static const _darkBalance = Color(0xFF5B9BFF);
+
+  bool get _isDark => Theme.of(context).brightness == Brightness.dark;
+  Color get _pageBg => _isDark ? _darkPage : const Color(0xFFE4F4ED);
+  Color get _headerBg => _isDark ? _darkPage : const Color(0xFFE4F4ED);
+  Color get _surfaceContainer => _isDark ? _darkPage : const Color(0xFFEEEEF0);
+  Color get _outlineVariant =>
+      _isDark ? _darkSecondaryText : const Color(0xFFBBCAC2);
+  Color get _onSurface => _isDark ? _darkText : const Color(0xFF1A1C1E);
+  Color get _onSurfaceVariant =>
+      _isDark ? _darkSecondaryText : const Color(0xFF3C4A44);
+  Color get _primary => _isDark ? _darkText : const Color(0xFF00513E);
+  Color get _chartHeader => _isDark ? _darkHeader : const Color(0xFF07513F);
+  Color get _income => _isDark ? _darkIncome : const Color(0xFF00C49A);
+  Color get _expense => _isDark ? _darkExpense : const Color(0xFFFF6B6B);
+  Color get _balance => _isDark ? _darkBalance : const Color(0xFF4A90E2);
+  Color get _segmentBg => _isDark ? _darkSurface : const Color(0xFFEEEEF0);
 
   bool _dataLoaded = false;
   bool _mounted = false;
@@ -45,6 +62,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
   // ── Toggles ──
   // ── Touch state ──
+  int _touchedLineIndex = -1; // Chart 1
   int _touchedPieIndex = -1; // Chart 2
   int _touchedIncomePieIndex = -1; // Chart 4 donut
 
@@ -136,28 +154,26 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     ref.watch(walletServiceProvider);
 
     // ── Danh sách items trong scroll view (dùng ListView.builder để lazy render) ──
-    final items = <Widget>[SizedBox(height: Responsive.h(context, 16))];
-    if (_period != ChartPeriod.day) {
-      items.addAll([
-        // ── Chart 1: Income, Expense & Balance Line ──
-        RepaintBoundary(child: _buildIncomeExpenseLineChart(ts)),
-        SizedBox(height: Responsive.h(context, 14)),
-      ]);
-    }
+    final items = <Widget>[SizedBox(height: Responsive.h(context, 24))];
+    items.addAll([
+      // ── Chart 1: Income, Expense & Balance Line ──
+      RepaintBoundary(child: _buildIncomeExpenseLineChart(ts)),
+      SizedBox(height: Responsive.h(context, 24)),
+    ]);
     items.addAll([
       // ── Chart 2: Income Donut ──
       RepaintBoundary(child: _buildIncomeDonutChart(ts)),
-      SizedBox(height: Responsive.h(context, 14)),
+      SizedBox(height: Responsive.h(context, 24)),
       // ── Chart 3: Expense Donut ──
       RepaintBoundary(child: _buildExpenseDonutChart(ts)),
-      SizedBox(height: Responsive.h(context, 14)),
+      SizedBox(height: Responsive.h(context, 24)),
       // ── Chart 4: Income & Expense by Source ──
       RepaintBoundary(child: _buildSourceGroupedBarChart(ts)),
-      SizedBox(height: Responsive.h(context, 14)),
+      SizedBox(height: Responsive.h(context, 24)),
       // ── Chart 5: Income vs Expense Grouped Bar ──
       RepaintBoundary(child: _buildIncomeVsExpenseChart(ts)),
-      SizedBox(height: Responsive.h(context, 14)),
-      SizedBox(height: Responsive.h(context, 40)),
+      SizedBox(height: Responsive.h(context, 24)),
+      SizedBox(height: Responsive.h(context, 48)),
     ]);
 
     return Material(
@@ -185,109 +201,83 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   Widget _buildChartCard({
     required String title,
     required Widget chart,
-    Widget? trailing,
     double chartHeight = 200,
-    double? chartWidth,
-    bool scrollable = false,
   }) {
+    final radiusValue = Responsive.w(context, 28);
+    final cardRadius = BorderRadius.circular(radiusValue);
     return Container(
       margin: EdgeInsets.symmetric(horizontal: Responsive.w(context, 20)),
-      padding: EdgeInsets.fromLTRB(
-        Responsive.w(context, 16),
-        Responsive.h(context, 12),
-        Responsive.w(context, 16),
-        Responsive.h(context, 16),
-      ),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _outlineVariant.withValues(alpha: 0.35)),
+        borderRadius: cardRadius,
         boxShadow: [
           BoxShadow(
-            color: _primary.withValues(alpha: 0.08),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
+            color: _isDark
+                ? const Color(0x33000000)
+                : _primary.withValues(alpha: 0.07),
+            blurRadius: _isDark ? 12 : 20,
+            offset: const Offset(0, 7),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  title,
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
-                  style: TextStyle(
-                    fontSize: Responsive.sp(context, 15),
-                    fontWeight: FontWeight.w600,
-                    color: _onSurface,
+      child: Material(
+        color: _isDark ? _darkSurface : Colors.white,
+        clipBehavior: Clip.antiAliasWithSaveLayer,
+        shape: RoundedRectangleBorder(
+          borderRadius: cardRadius,
+          side: BorderSide(
+            color: _isDark ? _darkBorder : _primary.withValues(alpha: 0.06),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.symmetric(
+                horizontal: Responsive.w(context, 16),
+                vertical: Responsive.h(context, 12),
+              ),
+              decoration: BoxDecoration(
+                color: _chartHeader,
+                borderRadius: BorderRadius.vertical(
+                  top: Radius.circular(radiusValue),
+                ),
+                border: Border(
+                  bottom: BorderSide(
+                    color: _isDark ? _darkBorder : _chartHeader,
                   ),
                 ),
               ),
-              ?trailing,
-            ],
-          ),
-          SizedBox(height: Responsive.h(context, 8)),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.chevron_left, size: 20),
-                color: _offset < 0
-                    ? _onSurface
-                    : AppColors.mutedGray.withValues(alpha: 0.4),
-                onPressed: _offset > -12
-                    ? () {
-                        setState(() => _offset--);
-                        _runChartValueAnimation();
-                      }
-                    : null,
-                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                padding: EdgeInsets.zero,
-              ),
-              Text(
-                _periodLabel(_period, _offset),
+              child: Text(
+                title,
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
                 style: TextStyle(
-                  fontSize: Responsive.sp(context, 12),
-                  fontWeight: FontWeight.w500,
-                  color: _onSurfaceVariant,
+                  fontFamily: 'Manrope',
+                  fontSize: Responsive.sp(context, 18),
+                  fontWeight: FontWeight.w700,
+                  color: _darkText,
                 ),
               ),
-              IconButton(
-                icon: const Icon(Icons.chevron_right, size: 20),
-                color: _offset < 0
-                    ? _onSurface
-                    : AppColors.mutedGray.withValues(alpha: 0.4),
-                onPressed: _offset < 0
-                    ? () {
-                        setState(() => _offset++);
-                        _runChartValueAnimation();
-                      }
-                    : null,
-                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                padding: EdgeInsets.zero,
+            ),
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.all(Responsive.w(context, 20)),
+              decoration: BoxDecoration(
+                color: _isDark
+                    ? _darkSurface
+                    : Colors.white.withValues(alpha: .92),
+                borderRadius: BorderRadius.vertical(
+                  bottom: Radius.circular(radiusValue),
+                ),
               ),
-            ],
-          ),
-          SizedBox(height: Responsive.h(context, 12)),
-          SizedBox(
-            height: Responsive.h(context, chartHeight),
-            child: scrollable
-                ? SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    physics: const BouncingScrollPhysics(),
-                    child: SizedBox(
-                      width: chartWidth ?? _chartWidth(context, _period),
-                      child: chart,
-                    ),
-                  )
-                : chart,
-          ),
-        ],
+              child: SizedBox(
+                height: Responsive.h(context, chartHeight),
+                child: chart,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -297,14 +287,16 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     switch (period) {
       case ChartPeriod.day:
         final d = now.subtract(Duration(days: -offset));
-        return offset == 0 ? 'Today' : '${d.day}/${d.month}/${d.year}';
+        return offset == 0
+            ? AppStrings.choose('Today', 'Hôm nay')
+            : '${d.day}/${d.month}/${d.year}';
       case ChartPeriod.week:
         final weekStart = now.subtract(
           Duration(days: now.weekday - 1 + (-offset * 7)),
         );
         final weekEnd = weekStart.add(const Duration(days: 6));
         return offset == 0
-            ? 'This week'
+            ? AppStrings.choose('This week', 'Tuần này')
             : '${weekStart.day}/${weekStart.month} - ${weekEnd.day}/${weekEnd.month}';
       case ChartPeriod.month:
         final d = DateTime(now.year, now.month + offset);
@@ -317,34 +309,22 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   }
 
   String _monthName(int month) {
+    if (AppStrings.isVietnamese) return 'Tháng $month';
     const names = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
+      'January',
+      'February',
+      'March',
+      'April',
       'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
     ];
     return names[month - 1];
-  }
-
-  double _chartWidth(BuildContext context, ChartPeriod period) {
-    switch (period) {
-      case ChartPeriod.day:
-        return Responsive.w(context, 360);
-      case ChartPeriod.week:
-        return Responsive.w(context, 360);
-      case ChartPeriod.month:
-        return Responsive.w(context, 660);
-      case ChartPeriod.year:
-        return Responsive.w(context, 400);
-    }
   }
 
   Widget _emptyPlaceholder() {
@@ -355,17 +335,18 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           Icon(
             Icons.inbox_rounded,
             size: Responsive.sp(context, 40),
-            color: AppColors.mutedGray.withValues(alpha: 0.5),
+            color: (_isDark ? _darkSecondaryText : AppColors.mutedGray)
+                .withValues(alpha: 0.5),
           ),
           SizedBox(height: Responsive.h(context, 8)),
           Text(
-            'No data',
+            AppStrings.choose('No data', 'Không có dữ liệu'),
             textAlign: TextAlign.center,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontSize: Responsive.sp(context, 13),
-              color: AppColors.mutedGray,
+              color: _isDark ? _darkSecondaryText : AppColors.mutedGray,
             ),
           ),
         ],
@@ -374,7 +355,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   }
 
   // ════════════════════════════════════════════════════════════════════════════
-  // 1. Header (unchanged)
+  // 1. Sticky mint header
   // ════════════════════════════════════════════════════════════════════════════
 
   Widget _buildHeader() {
@@ -383,51 +364,66 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       width: double.infinity,
       padding: EdgeInsets.fromLTRB(
         Responsive.w(context, 20),
-        topInset + Responsive.h(context, 16),
+        topInset + Responsive.h(context, 8),
         Responsive.w(context, 20),
-        Responsive.h(context, 16),
+        Responsive.h(context, 12),
       ),
-      decoration: const BoxDecoration(color: _headerBg),
+      decoration: BoxDecoration(
+        color: _headerBg,
+        border: _isDark
+            ? const Border(bottom: BorderSide(color: Color(0x4D29483F)))
+            : null,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               IconButton(
-                icon: const Icon(
-                  Icons.arrow_back_ios_new_rounded,
-                  size: 20,
-                  color: _onSurface,
-                ),
+                icon: Icon(Icons.arrow_back_rounded, color: _primary),
                 onPressed: () => Navigator.of(context).pop(),
-                tooltip: 'Back',
+                tooltip: AppStrings.choose('Back', 'Quay lại'),
                 constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
                 padding: EdgeInsets.zero,
               ),
               SizedBox(width: Responsive.w(context, 4)),
               Text(
-                'Dashboard',
+                AppStrings.choose('Financial Insights', 'Phân tích tài chính'),
                 style: TextStyle(
                   fontFamily: 'Manrope',
-                  fontWeight: FontWeight.w600,
-                  fontSize: Responsive.sp(context, 20),
-                  color: _onSurface,
+                  fontWeight: FontWeight.w700,
+                  fontSize: Responsive.sp(context, 21),
+                  color: _primary,
+                ),
+              ),
+              const Spacer(),
+              IconButton(
+                onPressed: _pickDashboardDate,
+                tooltip: AppStrings.choose('Choose date', 'Chọn ngày'),
+                icon: Icon(
+                  Icons.calendar_today_outlined,
+                  size: 21,
+                  color: _primary,
                 ),
               ),
             ],
           ),
-          SizedBox(height: Responsive.h(context, 14)),
+          SizedBox(height: Responsive.h(context, 12)),
           Container(
             width: double.infinity,
             padding: EdgeInsets.all(Responsive.w(context, 4)),
             decoration: BoxDecoration(
               color: _segmentBg,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: _segmentBorder.withValues(alpha: 0.55)),
+              borderRadius: BorderRadius.circular(99),
+              border: _isDark ? Border.all(color: _darkBorder) : null,
             ),
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final labels = ['Day', 'Week', 'Month'];
+                final labels = [
+                  AppStrings.daily,
+                  AppStrings.weekly,
+                  AppStrings.monthly,
+                ];
                 final periods = [
                   ChartPeriod.day,
                   ChartPeriod.week,
@@ -450,11 +446,12 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                         child: Container(
                           margin: EdgeInsets.all(Responsive.w(context, 1)),
                           decoration: BoxDecoration(
-                            color: _primary,
-                            borderRadius: BorderRadius.circular(15),
+                            color: _isDark ? _darkHeader : _primary,
+                            borderRadius: BorderRadius.circular(99),
                             boxShadow: [
                               BoxShadow(
-                                color: _primary.withValues(alpha: 0.18),
+                                color: (_isDark ? _darkHeader : _primary)
+                                    .withValues(alpha: 0.18),
                                 blurRadius: 14,
                                 offset: const Offset(0, 4),
                               ),
@@ -475,6 +472,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                                 setState(() {
                                   _period = nextPeriod;
                                   _offset = 0;
+                                  _touchedLineIndex = -1;
                                 });
                                 _runChartValueAnimation();
                               },
@@ -482,10 +480,11 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                                 child: Text(
                                   entry.value,
                                   style: TextStyle(
-                                    fontSize: Responsive.sp(context, 14),
+                                    fontFamily: 'Hanken Grotesk',
+                                    fontSize: Responsive.sp(context, 13),
                                     fontWeight: FontWeight.w600,
                                     color: isSelected
-                                        ? Colors.white
+                                        ? _darkText
                                         : _onSurfaceVariant,
                                   ),
                                 ),
@@ -500,9 +499,88 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               },
             ),
           ),
+          SizedBox(height: Responsive.h(context, 10)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              IconButton(
+                onPressed: _canGoBackward ? () => _shiftPeriod(-1) : null,
+                icon: const Icon(Icons.chevron_left_rounded),
+                color: _primary,
+              ),
+              SizedBox(
+                width: Responsive.w(context, 170),
+                child: Text(
+                  _periodLabel(_period, _offset),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: 'Manrope',
+                    fontSize: Responsive.sp(context, 16),
+                    fontWeight: FontWeight.w700,
+                    color: _primary,
+                  ),
+                ),
+              ),
+              IconButton(
+                onPressed: _offset < 0 ? () => _shiftPeriod(1) : null,
+                icon: const Icon(Icons.chevron_right_rounded),
+                color: _primary,
+              ),
+            ],
+          ),
         ],
       ),
     );
+  }
+
+  bool get _canGoBackward {
+    final limit = switch (_period) {
+      ChartPeriod.day => -365,
+      ChartPeriod.week => -52,
+      ChartPeriod.month => -24,
+      ChartPeriod.year => -5,
+    };
+    return _offset > limit;
+  }
+
+  void _shiftPeriod(int delta) {
+    setState(() {
+      _offset = (_offset + delta).clamp(-365, 0);
+      _touchedLineIndex = -1;
+    });
+    _runChartValueAnimation();
+  }
+
+  Future<void> _pickDashboardDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: now,
+      firstDate: DateTime(now.year - 5),
+      lastDate: now,
+    );
+    if (picked == null || !mounted) return;
+
+    final offset = switch (_period) {
+      ChartPeriod.day => DateUtils.dateOnly(
+        picked,
+      ).difference(DateUtils.dateOnly(now)).inDays,
+      ChartPeriod.week =>
+        (picked
+                    .subtract(Duration(days: picked.weekday - 1))
+                    .difference(now.subtract(Duration(days: now.weekday - 1)))
+                    .inDays /
+                7)
+            .round(),
+      ChartPeriod.month =>
+        (picked.year - now.year) * 12 + picked.month - now.month,
+      ChartPeriod.year => picked.year - now.year,
+    };
+    setState(() {
+      _offset = math.min(0, offset);
+      _touchedLineIndex = -1;
+    });
+    _runChartValueAnimation();
   }
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -514,66 +592,166 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     final hasData = buckets.any((b) => b.income > 0 || b.expense > 0);
 
     return _buildChartCard(
-      title: 'Income, Expense & Balance',
-      scrollable: true,
-      chart: hasData ? _buildLineChartBody(buckets) : _emptyPlaceholder(),
+      title: AppStrings.choose(
+        'Income, Expense & Balance',
+        'Thu nhập, chi tiêu và số dư',
+      ),
+      chartHeight: 230,
+      chart: hasData
+          ? Column(
+              children: [
+                Expanded(child: _buildLineChartBody(buckets)),
+                SizedBox(height: Responsive.h(context, 14)),
+                Row(
+                  children: [
+                    _legendPill(
+                      _balance,
+                      AppStrings.choose('Balance', 'Số dư'),
+                      selected: true,
+                    ),
+                    SizedBox(width: Responsive.w(context, 8)),
+                    _legendPill(_income, AppStrings.income),
+                    SizedBox(width: Responsive.w(context, 8)),
+                    _legendPill(_expense, AppStrings.expense),
+                  ],
+                ),
+              ],
+            )
+          : _emptyPlaceholder(),
+    );
+  }
+
+  Widget _legendPill(Color color, String label, {bool selected = false}) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: Responsive.w(context, 10),
+        vertical: Responsive.h(context, 6),
+      ),
+      decoration: BoxDecoration(
+        color: _isDark
+            ? _darkSurface
+            : selected
+            ? const Color(0xFFD3E3FF)
+            : _surfaceContainer.withValues(alpha: .72),
+        borderRadius: BorderRadius.circular(99),
+        border: _isDark ? Border.all(color: _darkBorder) : null,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'Hanken Grotesk',
+              fontSize: Responsive.sp(context, 10),
+              fontWeight: FontWeight.w600,
+              color: _onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildLineChartBody(List<PeriodBucket> buckets) {
+    if (buckets.isEmpty) return _emptyPlaceholder();
+
+    var cashflowMax = 0.0;
+    var balanceMin = buckets.first.balance.toDouble();
+    var balanceMax = balanceMin;
+    for (final bucket in buckets) {
+      cashflowMax = math.max(cashflowMax, bucket.income.toDouble());
+      cashflowMax = math.max(cashflowMax, bucket.expense.toDouble());
+      balanceMin = math.min(balanceMin, bucket.balance.toDouble());
+      balanceMax = math.max(balanceMax, bucket.balance.toDouble());
+    }
+
+    final cashflowAxisMax = _niceCeiling(
+      cashflowMax <= 0 ? 1000000 : cashflowMax * 1.12,
+    );
+    final rawBalanceRange = balanceMax - balanceMin;
+    final balancePadding = rawBalanceRange > 0
+        ? rawBalanceRange * .16
+        : math.max(balanceMax.abs() * .04, 500000);
+    final balanceAxisMin = balanceMin - balancePadding;
+    final balanceAxisMax = balanceMax + balancePadding;
+    final balanceAxisRange = math.max(1.0, balanceAxisMax - balanceAxisMin);
+
     final spotsIncome = <FlSpot>[];
     final spotsExpense = <FlSpot>[];
     final spotsBalance = <FlSpot>[];
 
     for (int i = 0; i < buckets.length; i++) {
       final x = i.toDouble();
-      spotsIncome.add(FlSpot(x, _animatedMillions(buckets[i].income)));
-      spotsExpense.add(FlSpot(x, _animatedMillions(buckets[i].expense)));
-      spotsBalance.add(FlSpot(x, _animatedMillions(buckets[i].balance)));
+      final incomeY = buckets[i].income / cashflowAxisMax;
+      final expenseY = buckets[i].expense / cashflowAxisMax;
+      final balanceY = (buckets[i].balance - balanceAxisMin) / balanceAxisRange;
+      spotsIncome.add(FlSpot(x, _chartValuesVisible ? incomeY : 0));
+      spotsExpense.add(FlSpot(x, _chartValuesVisible ? expenseY : 0));
+      spotsBalance.add(FlSpot(x, _chartValuesVisible ? balanceY : 0));
     }
 
-    // Compute Y range
-    double dataMin = 0;
-    double dataMax = 0;
-    for (final b in buckets) {
-      final income = _toMillions(b.income);
-      final expense = _toMillions(b.expense);
-      final balance = _toMillions(b.balance);
-      dataMax = math.max(dataMax, income);
-      dataMax = math.max(dataMax, expense);
-      dataMax = math.max(dataMax, balance);
-      dataMin = math.min(dataMin, balance);
-    }
-    final range = dataMax - dataMin;
-    final pad = range > 0 ? range * 0.15 : (dataMax > 0 ? dataMax * 0.3 : 1);
-    final adjMin = (dataMin - pad).clamp(0.0, double.infinity);
-    final adjMax = _safeMax(dataMax + pad, adjMin);
-    if (adjMin == 0 && adjMax == 0) return _emptyPlaceholder();
-    final yAxisInterval = _niceAxisInterval(adjMax - adjMin, 4);
+    final selectedIndex = _touchedLineIndex >= 0
+        ? _touchedLineIndex.clamp(0, buckets.length - 1)
+        : -1;
+    final selectedIndicators = selectedIndex >= 0
+        ? <int>[selectedIndex]
+        : const <int>[];
+    final lineBars = [
+      _lineBar(
+        spotsIncome,
+        _income,
+        AppStrings.income,
+        showingIndicators: selectedIndicators,
+      ),
+      _lineBar(
+        spotsExpense,
+        _expense,
+        AppStrings.expense,
+        showingIndicators: selectedIndicators,
+      ),
+      _lineBar(
+        spotsBalance,
+        _balance,
+        AppStrings.choose('Balance', 'Số dư'),
+        width: 3,
+        showingIndicators: selectedIndicators,
+      ),
+    ];
+    final showingTooltips = selectedIndex >= 0
+        ? [
+            ShowingTooltipIndicators([
+              LineBarSpot(lineBars[2], 2, lineBars[2].spots[selectedIndex]),
+              LineBarSpot(lineBars[0], 0, lineBars[0].spots[selectedIndex]),
+              LineBarSpot(lineBars[1], 1, lineBars[1].spots[selectedIndex]),
+            ]),
+          ]
+        : const <ShowingTooltipIndicators>[];
 
     return LineChart(
       LineChartData(
-        lineBarsData: [
-          _lineBar(spotsIncome, AppColors.primaryGreen, 'Income'),
-          _lineBar(spotsExpense, AppColors.coral, 'Expense'),
-          _lineBar(
-            spotsBalance,
-            AppColors.chartBlueBorder,
-            'Balance',
-            dashArray: const [6, 4],
-          ),
-        ],
+        lineBarsData: lineBars,
+        showingTooltipIndicators: showingTooltips,
         minX: 0,
-        maxX: (buckets.length - 1).toDouble(),
-        minY: adjMin,
-        maxY: adjMax,
+        maxX: math.max(1, buckets.length - 1).toDouble(),
+        minY: 0,
+        maxY: 1,
         gridData: FlGridData(
           show: true,
           drawVerticalLine: false,
-          horizontalInterval: yAxisInterval,
+          horizontalInterval: .5,
           getDrawingHorizontalLine: (_) => FlLine(
-            color: Colors.grey.withValues(alpha: 0.18),
+            color: _isDark
+                ? _darkBorder.withValues(alpha: .65)
+                : _primary.withValues(alpha: .10),
             strokeWidth: 1,
+            dashArray: const [4, 4],
           ),
         ),
         borderData: FlBorderData(show: false),
@@ -581,50 +759,66 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           topTitles: const AxisTitles(
             sideTitles: SideTitles(showTitles: false),
           ),
-          rightTitles: const AxisTitles(
-            sideTitles: SideTitles(showTitles: false),
-          ),
           leftTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              interval: yAxisInterval,
-              reservedSize: 44,
-              getTitlesWidget: (v, _) {
-                if (v == 0) return const SizedBox();
-                if (v >= adjMax - yAxisInterval * 0.35) {
-                  return const SizedBox();
-                }
-                return Padding(
-                  padding: EdgeInsets.only(right: Responsive.w(context, 4)),
-                  child: Text(
-                    '${_formatDecimal(v)}M',
-                    style: TextStyle(
-                      fontSize: Responsive.sp(context, 10),
-                      color: AppColors.mutedGray,
-                    ),
+              interval: .5,
+              reservedSize: Responsive.w(context, 38),
+              getTitlesWidget: (value, meta) => SideTitleWidget(
+                meta: meta,
+                child: Text(
+                  _formatAxisVnd(cashflowAxisMax * value),
+                  style: TextStyle(
+                    fontFamily: 'Hanken Grotesk',
+                    fontSize: Responsive.sp(context, 10),
+                    fontWeight: FontWeight.w600,
+                    color: _onSurfaceVariant.withValues(alpha: .86),
                   ),
-                );
-              },
+                ),
+              ),
+            ),
+          ),
+          rightTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              interval: .5,
+              reservedSize: Responsive.w(context, 42),
+              getTitlesWidget: (value, meta) => SideTitleWidget(
+                meta: meta,
+                child: Text(
+                  _formatAxisVnd(balanceAxisMin + balanceAxisRange * value),
+                  style: TextStyle(
+                    fontFamily: 'Hanken Grotesk',
+                    fontSize: Responsive.sp(context, 10),
+                    fontWeight: FontWeight.w700,
+                    color: _isDark ? _darkBalance : const Color(0xFF2878CF),
+                  ),
+                ),
+              ),
             ),
           ),
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              reservedSize: 28,
               interval: 1,
-              getTitlesWidget: (v, _) {
-                final i = v.toInt();
-                if (i < 0 || i >= buckets.length) return const SizedBox();
-                if (!_shouldShowLineXLabel(i, buckets.length)) {
-                  return const SizedBox();
+              reservedSize: Responsive.h(context, 26),
+              getTitlesWidget: (value, meta) {
+                final index = value.toInt();
+                if (index < 0 ||
+                    index >= buckets.length ||
+                    !_showLineXAxisLabel(index, buckets.length)) {
+                  return const SizedBox.shrink();
                 }
-                return Padding(
-                  padding: EdgeInsets.only(top: Responsive.h(context, 4)),
+                return SideTitleWidget(
+                  meta: meta,
+                  space: Responsive.h(context, 6),
                   child: Text(
-                    buckets[i].label,
+                    _localizedBucketLabel(buckets[index]),
                     style: TextStyle(
+                      fontFamily: 'Hanken Grotesk',
                       fontSize: Responsive.sp(context, 10),
-                      color: AppColors.mutedGray,
+                      fontWeight: FontWeight.w600,
+                      color: _onSurfaceVariant.withValues(alpha: .86),
                     ),
                   ),
                 );
@@ -633,11 +827,50 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           ),
         ),
         lineTouchData: LineTouchData(
-          handleBuiltInTouches: true,
+          handleBuiltInTouches: false,
+          touchSpotThreshold: Responsive.w(context, 22),
+          touchCallback: (event, response) {
+            if (event is! FlTapDownEvent &&
+                event is! FlPanUpdateEvent &&
+                event is! FlLongPressMoveUpdate) {
+              return;
+            }
+            final spots = response?.lineBarSpots;
+            final nextIndex = spots == null || spots.isEmpty
+                ? -1
+                : spots.first.spotIndex;
+            if (nextIndex == _touchedLineIndex || !_mounted) return;
+            setState(() => _touchedLineIndex = nextIndex);
+          },
+          getTouchLineStart: (_, _) => 1,
+          getTouchLineEnd: (_, _) => 0,
+          getTouchedSpotIndicator: (barData, spotIndexes) => spotIndexes
+              .map(
+                (_) => TouchedSpotIndicatorData(
+                  FlLine(
+                    color: _isDark
+                        ? _darkBorder
+                        : _primary.withValues(alpha: .18),
+                    strokeWidth: 1,
+                  ),
+                  FlDotData(
+                    show: true,
+                    getDotPainter: (spot, percent, bar, index) =>
+                        FlDotCirclePainter(
+                          radius: 4,
+                          color: _isDark ? _darkSurface : Colors.white,
+                          strokeWidth: 2,
+                          strokeColor: bar.color ?? _primary,
+                        ),
+                  ),
+                ),
+              )
+              .toList(),
           touchTooltipData: LineTouchTooltipData(
-            getTooltipColor: (_) => AppColors.darkGray.withValues(alpha: 0.92),
+            getTooltipColor: (_) => _isDark ? _darkHeader : _primary,
             tooltipRoundedRadius: 8,
             tooltipMargin: 8,
+            maxContentWidth: Responsive.w(context, 132),
             fitInsideHorizontally: true,
             fitInsideVertically: true,
             tooltipPadding: const EdgeInsets.symmetric(
@@ -646,9 +879,21 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             ),
             getTooltipItems: (touchedSpots) {
               if (touchedSpots.isEmpty) return [];
-              final idx = touchedSpots.first.spotIndex;
+              final idx = touchedSpots.first.spotIndex.clamp(
+                0,
+                buckets.length - 1,
+              );
               final b = buckets[idx];
               final title = _tooltipBucketTitle(b);
+              final balanceText = _formatVNDCompact(b.balance);
+              final incomeText = _formatVNDCompact(b.income);
+              final expenseText = _formatVNDCompact(b.expense);
+              final amountWidth = math.max(
+                balanceText.length,
+                math.max(incomeText.length, expenseText.length),
+              );
+              String rightAligned(String value) => value.padLeft(amountWidth);
+              final divider = '─' * (amountWidth + 7);
               final items = <LineTooltipItem?>[
                 LineTooltipItem(
                   title,
@@ -656,25 +901,41 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                     color: Colors.white,
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
+                    fontFamily: 'monospace',
                   ),
+                  textAlign: TextAlign.left,
                   children: [
                     TextSpan(
-                      text: '\nIncome: ${_formatVNDCompact(b.income)}',
+                      text: '\n$divider\n',
                       style: TextStyle(
-                        color: AppColors.primaryGreen,
-                        fontSize: 11,
+                        color: Colors.white.withValues(alpha: .16),
+                        fontSize: 10,
+                        height: 1.5,
                       ),
                     ),
                     TextSpan(
-                      text: '\nExpense: ${_formatVNDCompact(b.expense)}',
-                      style: TextStyle(color: AppColors.coral, fontSize: 11),
+                      text: AppStrings.choose('Bal:', 'Số dư:'),
+                      style: const TextStyle(color: Colors.white, fontSize: 11),
                     ),
                     TextSpan(
-                      text: '\nBalance: ${_formatVNDCompact(b.balance)}',
-                      style: TextStyle(
-                        color: AppColors.chartBlueBorder,
-                        fontSize: 11,
-                      ),
+                      text: '   ${rightAligned(balanceText)}\n',
+                      style: TextStyle(color: _balance, fontSize: 11),
+                    ),
+                    TextSpan(
+                      text: AppStrings.choose('Inc:', 'Thu:'),
+                      style: const TextStyle(color: Colors.white, fontSize: 11),
+                    ),
+                    TextSpan(
+                      text: '   ${rightAligned(incomeText)}\n',
+                      style: TextStyle(color: _income, fontSize: 11),
+                    ),
+                    TextSpan(
+                      text: AppStrings.choose('Exp:', 'Chi:'),
+                      style: const TextStyle(color: Colors.white, fontSize: 11),
+                    ),
+                    TextSpan(
+                      text: '   ${rightAligned(expenseText)}',
+                      style: TextStyle(color: _expense, fontSize: 11),
                     ),
                   ],
                 ),
@@ -693,63 +954,65 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     );
   }
 
+  bool _showLineXAxisLabel(int index, int bucketCount) {
+    return switch (_period) {
+      ChartPeriod.day => index % 4 == 0,
+      ChartPeriod.week => true,
+      ChartPeriod.month => const {1, 7, 14, 21, 28}.contains(index + 1),
+      ChartPeriod.year => true,
+    };
+  }
+
   LineChartBarData _lineBar(
     List<FlSpot> spots,
     Color color,
     String label, {
     List<int>? dashArray,
+    double width = 2.5,
+    List<int> showingIndicators = const [],
   }) {
     return LineChartBarData(
       spots: spots,
       isCurved: true,
       curveSmoothness: 0.3,
       color: color,
-      barWidth: 2.5,
+      barWidth: width,
       isStrokeCapRound: true,
       isStrokeJoinRound: true,
       dashArray: dashArray,
-      dotData: FlDotData(
-        show: true,
-        getDotPainter: (spot, percent, barData, index) {
-          return FlDotCirclePainter(
-            radius: spots.length > 12 ? 2 : 3,
-            color: Colors.white,
-            strokeWidth: 2,
-            strokeColor: color,
-          );
-        },
-      ),
-      belowBarData: BarAreaData(
-        show: true,
-        color: color.withValues(alpha: 0.08),
-      ),
+      showingIndicators: showingIndicators,
+      dotData: const FlDotData(show: false),
+      belowBarData: BarAreaData(show: false),
     );
-  }
-
-  bool _shouldShowLineXLabel(int index, int bucketCount) {
-    if (_period == ChartPeriod.week) return true;
-    if (_period == ChartPeriod.month) {
-      final day = index + 1;
-      return day == 1 ||
-          day == 7 ||
-          day == 14 ||
-          day == 21 ||
-          day == 28 ||
-          day == bucketCount;
-    }
-    return true;
   }
 
   String _tooltipBucketTitle(PeriodBucket bucket) {
     final start = bucket.start;
-    if (start == null) return bucket.label;
+    if (start == null) return _localizedBucketLabel(bucket);
     if (_period == ChartPeriod.month) {
       return '${start.day} ${_monthName(start.month)}';
     }
     if (_period == ChartPeriod.week) {
-      return '${bucket.label}, ${start.day} ${_monthName(start.month)}';
+      return '${_localizedBucketLabel(bucket)}, '
+          '${start.day} ${_monthName(start.month)}';
     }
+    if (_period == ChartPeriod.day) return _localizedBucketLabel(bucket);
     return '${start.day}/${start.month}/${start.year}';
+  }
+
+  String _localizedBucketLabel(PeriodBucket bucket) {
+    final start = bucket.start;
+    if (_period != ChartPeriod.week || start == null) return bucket.label;
+    return switch (start.weekday) {
+      DateTime.monday => AppStrings.choose('Mon', 'T2'),
+      DateTime.tuesday => AppStrings.choose('Tue', 'T3'),
+      DateTime.wednesday => AppStrings.choose('Wed', 'T4'),
+      DateTime.thursday => AppStrings.choose('Thu', 'T5'),
+      DateTime.friday => AppStrings.choose('Fri', 'T6'),
+      DateTime.saturday => AppStrings.choose('Sat', 'T7'),
+      DateTime.sunday => AppStrings.choose('Sun', 'CN'),
+      _ => bucket.label,
+    };
   }
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -761,7 +1024,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     final totalIncome = catIncome.values.fold(0, (a, b) => a + b);
 
     return _buildChartCard(
-      title: 'Income by Category',
+      title: AppStrings.choose('Income by Category', 'Thu nhập theo danh mục'),
       chartHeight: _donutChartHeight(catIncome, totalIncome),
       chart: totalIncome > 0
           ? _buildDonutBody(
@@ -769,7 +1032,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               totalIncome,
               _touchedIncomePieIndex,
               (i) => setState(() => _touchedIncomePieIndex = i),
-              Colors.transparent,
               isIncome: true,
             )
           : _emptyPlaceholder(),
@@ -785,12 +1047,12 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     final totalExpense = catExpense.values.fold(0, (a, b) => a + b);
 
     return _buildChartCard(
-      title: 'Expense by Category',
+      title: AppStrings.choose('Expense by Category', 'Chi tiêu theo danh mục'),
       chartHeight: _donutChartHeight(catExpense, totalExpense),
       chart: totalExpense > 0
           ? _buildDonutBody(catExpense, totalExpense, _touchedPieIndex, (i) {
               setState(() => _touchedPieIndex = i);
-            }, Colors.transparent)
+            })
           : _emptyPlaceholder(),
     );
   }
@@ -800,68 +1062,124 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     Map<String, int> data,
     int total,
     int touchedIndex,
-    ValueChanged<int> onTouch,
-    Color centerColor, {
-    bool useCategoryColors = true,
+    ValueChanged<int> onTouch, {
     bool isIncome = false,
   }) {
     if (data.isEmpty) return _emptyPlaceholder();
 
-    final mainEntries = _donutEntries(data, total);
-    final donutRadius = Responsive.w(context, 48);
-    final touchedDonutRadius = Responsive.w(context, 54);
-    final centerSpaceRadius = Responsive.w(context, 40);
-    final legendRows = _donutLegendRows(mainEntries.length);
-    final legendHeight = _donutLegendHeight(legendRows);
+    final mainEntries = _donutEntries(data);
+    final palette = isIncome
+        ? _isDark
+              ? const [
+                  _darkIncome,
+                  Color(0xFF86C232),
+                  Color(0xFF36A2A8),
+                  Color(0xFF007A5E),
+                  Color(0xFFA3D65C),
+                  Color(0xFF5C8D89),
+                  Color(0xFF45B97C),
+                  Color(0xFFB1C94E),
+                  Color(0xFF2E8B78),
+                  Color(0xFF78958B),
+                  Color(0xFF19A974),
+                  Color(0xFF6FAF45),
+                  Color(0xFF248F9D),
+                  Color(0xFFC1A83B),
+                  Color(0xFF577D70),
+                ]
+              : const [
+                  Color(0xFF00C49A),
+                  Color(0xFF86C232),
+                  Color(0xFF36A2A8),
+                  Color(0xFF007A5E),
+                  Color(0xFFA3D65C),
+                  Color(0xFF5C8D89),
+                  Color(0xFF45B97C),
+                  Color(0xFFB1C94E),
+                  Color(0xFF2E8B78),
+                  Color(0xFF8A9690),
+                  Color(0xFF19A974),
+                  Color(0xFF6FAF45),
+                  Color(0xFF248F9D),
+                  Color(0xFFC1A83B),
+                  Color(0xFF577D70),
+                ]
+        : _isDark
+        ? const [
+            _darkExpense,
+            _darkBalance,
+            Color(0xFFFFBF47),
+            Color(0xFFB58CFF),
+            Color(0xFFFF9457),
+            Color(0xFF36B5A0),
+            Color(0xFFEF5DA8),
+            Color(0xFF5B6EE1),
+            Color(0xFFB8A12E),
+            Color(0xFF78958B),
+            Color(0xFF26A69A),
+            Color(0xFFE76F51),
+            Color(0xFF7E57C2),
+            Color(0xFF42A5F5),
+            Color(0xFFA1887F),
+          ]
+        : const [
+            Color(0xFFFF6B6B),
+            Color(0xFF4A90E2),
+            Color(0xFFFBBF24),
+            Color(0xFF9B72CF),
+            Color(0xFFFF8A4C),
+            Color(0xFF36B5A0),
+            Color(0xFFEF5DA8),
+            Color(0xFF5B6EE1),
+            Color(0xFFB8A12E),
+            Color(0xFF7A8B85),
+            Color(0xFF26A69A),
+            Color(0xFFE76F51),
+            Color(0xFF7E57C2),
+            Color(0xFF42A5F5),
+            Color(0xFFA1887F),
+          ];
 
     final sections = mainEntries.asMap().entries.map((entry) {
       final i = entry.key;
       final e = entry.value;
       final isTouched = touchedIndex == i;
-      final pct = (e.value / total * 100);
-      Color color;
-      if (useCategoryColors) {
-        color = e.key == 'Other'
-            ? Colors.grey
-            : TransactionCategory.resolve(e.key).color;
-      } else {
-        // Wallet type colors
-        color = _walletTypeColor(e.key);
-      }
+      final color = palette[i % palette.length];
 
       return PieChartSectionData(
         value: _chartValuesVisible ? e.value.toDouble() : e.value * 0.001,
         color: color,
         radius: _chartValuesVisible
-            ? (isTouched ? touchedDonutRadius : donutRadius)
+            ? Responsive.w(context, isTouched ? 22 : 20)
             : 0,
-        title: _chartValuesVisible && isTouched
-            ? '${pct.toStringAsFixed(1)}%'
-            : '',
-        titleStyle: TextStyle(
-          fontSize: Responsive.sp(context, 11),
-          fontWeight: FontWeight.bold,
-          color: Colors.white,
+        title: '',
+        borderSide: BorderSide(
+          color: _isDark ? _darkSurface : Colors.white,
+          width: isTouched ? 2 : 0,
         ),
-        titlePositionPercentageOffset: 0.6,
-        borderSide: isTouched
-            ? BorderSide(color: Colors.white, width: 2)
-            : BorderSide.none,
       );
     }).toList();
 
-    return Column(
+    final roundedPercentages = _roundedDonutPercentages(mainEntries, total);
+    final isDenseLegend = mainEntries.length > 5;
+    final isVeryDenseLegend = mainEntries.length > 8;
+
+    return Row(
+      crossAxisAlignment: mainEntries.length > 5
+          ? CrossAxisAlignment.start
+          : CrossAxisAlignment.center,
       children: [
         SizedBox(
-          height: Responsive.h(context, 210),
+          width: Responsive.w(context, 160),
+          height: Responsive.w(context, 160),
           child: Stack(
             alignment: Alignment.center,
             children: [
               PieChart(
                 PieChartData(
                   sections: sections,
-                  centerSpaceRadius: centerSpaceRadius,
-                  sectionsSpace: 2,
+                  centerSpaceRadius: Responsive.w(context, 42),
+                  sectionsSpace: 3,
                   startDegreeOffset: _chartValuesVisible ? -90 : -450,
                   pieTouchData: PieTouchData(
                     enabled: true,
@@ -883,18 +1201,20 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      _formatVNDCompact(total),
+                      AppStrings.choose('Total', 'Tổng'),
                       style: TextStyle(
-                        fontSize: Responsive.sp(context, 16),
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.darkGray,
+                        fontFamily: 'Hanken Grotesk',
+                        fontSize: Responsive.sp(context, 10),
+                        color: _outlineVariant,
                       ),
                     ),
                     Text(
-                      isIncome ? 'Income' : 'Expense',
+                      _formatChartCompact(total),
                       style: TextStyle(
-                        fontSize: Responsive.sp(context, 10),
-                        color: AppColors.mutedGray,
+                        fontFamily: 'Manrope',
+                        fontSize: Responsive.sp(context, 17),
+                        fontWeight: FontWeight.w800,
+                        color: _primary,
                       ),
                     ),
                   ],
@@ -903,113 +1223,104 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             ],
           ),
         ),
-        SizedBox(height: Responsive.h(context, 10)),
-        SizedBox(
-          height: Responsive.h(context, legendHeight),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final spacing = Responsive.w(context, 10);
-              final itemWidth = math.max(
-                (constraints.maxWidth - spacing) / 2,
-                Responsive.w(context, 120),
-              );
-
-              return SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                child: Wrap(
-                  spacing: spacing,
-                  runSpacing: Responsive.h(context, 8),
-                  children: mainEntries.map((e) {
-                    Color color;
-                    if (useCategoryColors) {
-                      color = e.key == 'Other'
-                          ? Colors.grey
-                          : TransactionCategory.resolve(e.key).color;
-                    } else {
-                      color = _walletTypeColor(e.key);
-                    }
-                    final pct = (e.value / total * 100);
-                    return SizedBox(
-                      width: itemWidth,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: Responsive.w(context, 8),
-                            height: Responsive.w(context, 8),
-                            decoration: BoxDecoration(
-                              color: color,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          SizedBox(width: Responsive.w(context, 6)),
-                          Expanded(
-                            child: Text(
-                              '${e.key} ${pct.toStringAsFixed(1)}%',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: Responsive.sp(context, 10),
-                                color: AppColors.mutedGray,
-                              ),
-                            ),
-                          ),
-                        ],
+        SizedBox(width: Responsive.w(context, 16)),
+        Expanded(
+          child: Column(
+            mainAxisAlignment: mainEntries.length > 5
+                ? MainAxisAlignment.start
+                : MainAxisAlignment.center,
+            children: mainEntries.asMap().entries.map((entry) {
+              final i = entry.key;
+              final e = entry.value;
+              final color = palette[i % palette.length];
+              final category = TransactionCategory.resolve(e.key);
+              return Padding(
+                padding: EdgeInsets.symmetric(
+                  vertical: Responsive.h(
+                    context,
+                    isVeryDenseLegend ? 2.5 : (isDenseLegend ? 4 : 7),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    category.buildIcon(
+                      size: Responsive.sp(
+                        context,
+                        isVeryDenseLegend ? 14 : (isDenseLegend ? 16 : 18),
                       ),
-                    );
-                  }).toList(),
+                      color: color,
+                    ),
+                    SizedBox(width: Responsive.w(context, 8)),
+                    Expanded(
+                      child: Text(
+                        AppStrings.categoryName(e.key),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'Hanken Grotesk',
+                          fontSize: Responsive.sp(
+                            context,
+                            isVeryDenseLegend
+                                ? 10.5
+                                : (isDenseLegend ? 12 : 13),
+                          ),
+                          fontWeight: FontWeight.w600,
+                          color: _onSurface,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '${roundedPercentages[i]}%',
+                      style: TextStyle(
+                        fontFamily: 'Manrope',
+                        fontSize: Responsive.sp(
+                          context,
+                          isVeryDenseLegend ? 10.5 : (isDenseLegend ? 12 : 13),
+                        ),
+                        fontWeight: FontWeight.w800,
+                        color: color,
+                      ),
+                    ),
+                  ],
                 ),
               );
-            },
+            }).toList(),
           ),
         ),
       ],
     );
   }
 
-  List<MapEntry<String, int>> _donutEntries(Map<String, int> data, int total) {
+  List<MapEntry<String, int>> _donutEntries(Map<String, int> data) {
     final entries = data.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
-    final threshold = total * 0.05;
-    final mainEntries = <MapEntry<String, int>>[];
-    int otherSum = 0;
-
-    for (final e in entries) {
-      if (e.value < threshold && mainEntries.length >= 6) {
-        otherSum += e.value;
-      } else {
-        mainEntries.add(e);
-      }
-    }
-    if (otherSum > 0) {
-      mainEntries.add(MapEntry('Other', otherSum));
-    }
-    return mainEntries;
+    return entries;
   }
 
-  int _donutLegendRows(int itemCount) => math.max(1, (itemCount / 2).ceil());
-
-  double _donutLegendHeight(int rows) {
-    const rowHeight = 18.0;
-    const rowGap = 8.0;
-    return rows * rowHeight + math.max(0, rows - 1) * rowGap;
+  List<int> _roundedDonutPercentages(
+    List<MapEntry<String, int>> entries,
+    int total,
+  ) {
+    final exact = entries.map((e) => e.value / total * 100).toList();
+    final result = exact.map((value) => value.floor()).toList();
+    var remaining = 100 - result.fold<int>(0, (sum, value) => sum + value);
+    final remainderOrder = List<int>.generate(entries.length, (i) => i)
+      ..sort(
+        (a, b) => (exact[b] - exact[b].floor()).compareTo(
+          exact[a] - exact[a].floor(),
+        ),
+      );
+    for (var i = 0; i < remaining; i++) {
+      result[remainderOrder[i % remainderOrder.length]]++;
+    }
+    return result;
   }
 
   double _donutChartHeight(Map<String, int> data, int total) {
-    if (total <= 0 || data.isEmpty) return 200;
-    final rows = _donutLegendRows(_donutEntries(data, total).length);
-    return 210 + 10 + _donutLegendHeight(rows);
-  }
-
-  Color _walletTypeColor(String type) {
-    switch (type) {
-      case 'transfer':
-        return AppColors.ingBlue;
-      case 'cash':
-        return AppColors.chartOrangeBorder;
-      default:
-        return AppColors.mutedGray;
-    }
+    if (total <= 0 || data.isEmpty) return 180;
+    final count = data.length;
+    final rowHeight = count > 8 ? 25.0 : (count > 5 ? 29.0 : 34.0);
+    return math.max(170, count * rowHeight);
   }
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -1020,19 +1331,17 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     final income = ts.incomeByWalletTypeForPeriod(_period, offset: _offset);
     final expense = ts.expenseByWalletTypeForPeriod(_period, offset: _offset);
     final sources = [
-      'transfer',
       'cash',
+      'transfer',
     ].where((s) => (income[s] ?? 0) > 0 || (expense[s] ?? 0) > 0).toList();
     final hasData = sources.isNotEmpty;
 
     return _buildChartCard(
-      title: 'Income & Expense by Source',
-      chartHeight: 360,
-      chartWidth: math.max(
-        Responsive.w(context, 760),
-        sources.length * Responsive.w(context, 220),
+      title: AppStrings.choose(
+        'Income & Expense by Source',
+        'Thu nhập và chi tiêu theo nguồn',
       ),
-      scrollable: true,
+      chartHeight: math.max(94, sources.length * 94),
       chart: hasData
           ? _buildSourceGroupedBarBody(sources, income, expense)
           : _emptyPlaceholder(),
@@ -1049,140 +1358,97 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       maxVal = math.max(maxVal, (income[source] ?? 0).toDouble());
       maxVal = math.max(maxVal, (expense[source] ?? 0).toDouble());
     }
-    final maxY = _safeMax(maxVal * 1.2, 0);
-    final axisInterval = _niceAxisInterval(maxY, 4);
-
-    return BarChart(
-      BarChartData(
-        rotationQuarterTurns: 1,
-        alignment: BarChartAlignment.spaceAround,
-        maxY: maxY,
-        minY: 0,
-        barGroups: sources.asMap().entries.map((entry) {
-          final i = entry.key;
-          final source = entry.value;
-          return BarChartGroupData(
-            x: i,
-            barsSpace: 0,
-            barRods: [
-              BarChartRodData(
-                toY: _animatedAmount(income[source] ?? 0),
-                color: AppColors.primaryGreen,
-                width: Responsive.w(context, 34),
-                borderRadius: const BorderRadius.only(
-                  topRight: Radius.circular(7),
-                  bottomRight: Radius.circular(7),
-                ),
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.start,
+      children: sources.map((source) {
+        final incomeValue = income[source] ?? 0;
+        final expenseValue = expense[source] ?? 0;
+        return Padding(
+          padding: EdgeInsets.only(bottom: Responsive.h(context, 14)),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    source == 'cash'
+                        ? Icons.payments_outlined
+                        : Icons.account_balance_outlined,
+                    size: 19,
+                    color: _primary,
+                  ),
+                  const SizedBox(width: 7),
+                  Text(
+                    _sourceLabel(source),
+                    style: TextStyle(
+                      fontFamily: 'Hanken Grotesk',
+                      fontSize: Responsive.sp(context, 13),
+                      fontWeight: FontWeight.w700,
+                      color: _onSurface,
+                    ),
+                  ),
+                ],
               ),
-              BarChartRodData(
-                toY: _animatedAmount(expense[source] ?? 0),
-                color: AppColors.coral,
-                width: Responsive.w(context, 34),
-                borderRadius: const BorderRadius.only(
-                  topRight: Radius.circular(7),
-                  bottomRight: Radius.circular(7),
-                ),
-              ),
+              SizedBox(height: Responsive.h(context, 10)),
+              _sourceBar(incomeValue, maxVal, _income),
+              SizedBox(height: Responsive.h(context, 7)),
+              _sourceBar(expenseValue, maxVal, _expense),
             ],
-          );
-        }).toList(),
-        titlesData: FlTitlesData(
-          topTitles: const AxisTitles(
-            sideTitles: SideTitles(showTitles: false),
           ),
-          rightTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              interval: axisInterval,
-              reservedSize: 44,
-              getTitlesWidget: (v, meta) {
-                if (v <= 0) return const SizedBox();
-                if ((maxY - v).abs() < axisInterval * 0.35) {
-                  return const SizedBox();
-                }
-                return SideTitleWidget(
-                  meta: meta,
-                  child: Text(
-                    _formatCompact(v.toInt()),
-                    style: TextStyle(
-                      fontSize: Responsive.sp(context, 9),
-                      color: AppColors.mutedGray,
-                    ),
-                  ),
-                );
-              },
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _sourceBar(int value, double maxValue, Color color) {
+    final ratio = maxValue <= 0 ? 0.0 : (value / maxValue).clamp(0.0, 1.0);
+    return Row(
+      children: [
+        Expanded(
+          child: Container(
+            height: 11,
+            decoration: BoxDecoration(
+              color: _surfaceContainer.withValues(alpha: .75),
+              borderRadius: BorderRadius.circular(99),
             ),
-          ),
-          bottomTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: Responsive.w(context, 64),
-              interval: 1,
-              getTitlesWidget: (v, meta) {
-                final i = v.toInt();
-                if (i < 0 || i >= sources.length) return const SizedBox();
-                return SideTitleWidget(
-                  meta: meta,
-                  child: Text(
-                    _sourceLabel(sources[i]),
-                    style: TextStyle(
-                      fontSize: Responsive.sp(context, 10),
-                      color: AppColors.mutedGray,
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
-        gridData: FlGridData(
-          show: true,
-          drawVerticalLine: false,
-          getDrawingHorizontalLine: (_) => FlLine(
-            color: Colors.grey.withValues(alpha: 0.15),
-            strokeWidth: 1,
-          ),
-        ),
-        borderData: FlBorderData(show: false),
-        barTouchData: BarTouchData(
-          enabled: true,
-          touchTooltipData: BarTouchTooltipData(
-            getTooltipColor: (_) => AppColors.darkGray.withValues(alpha: 0.92),
-            tooltipRoundedRadius: 8,
-            tooltipMargin: 8,
-            fitInsideHorizontally: true,
-            fitInsideVertically: true,
-            tooltipPadding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 8,
-            ),
-            getTooltipItem: (group, groupIndex, rod, rodIndex) {
-              final source = sources[group.x];
-              final label = rodIndex == 0 ? 'Income' : 'Expense';
-              final value = rod.toY.toInt();
-              return BarTooltipItem(
-                '${_sourceLabel(source)}\n$label: ${_formatVNDCompact(value)}',
-                TextStyle(
-                  color: rod.color ?? Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
+            alignment: Alignment.centerLeft,
+            child: AnimatedFractionallySizedBox(
+              duration: const Duration(milliseconds: 700),
+              curve: Curves.easeOutCubic,
+              widthFactor: _chartValuesVisible ? ratio : 0,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(99),
                 ),
-              );
-            },
+              ),
+            ),
           ),
         ),
-      ),
-      duration: const Duration(milliseconds: 850),
-      curve: Curves.easeOutBack,
+        SizedBox(width: Responsive.w(context, 12)),
+        SizedBox(
+          width: Responsive.w(context, 82),
+          child: Text(
+            _formatVndFull(value),
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              fontFamily: 'Hanken Grotesk',
+              fontSize: Responsive.sp(context, 10),
+              fontWeight: FontWeight.w700,
+              color: _onSurfaceVariant,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
   String _sourceLabel(String source) {
     switch (source) {
       case 'transfer':
-        return 'Chuyển khoản';
+        return AppStrings.choose('Bank Transfer', 'Chuyển khoản ngân hàng');
       case 'cash':
-        return 'Tiền mặt';
+        return AppStrings.choose('Cash', 'Tiền mặt');
       default:
         return source;
     }
@@ -1199,219 +1465,209 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     final hasData = income > 0 || expense > 0;
 
     return _buildChartCard(
-      title: 'Total Income vs Expense',
-      chartHeight: 260,
+      title: AppStrings.choose(
+        'Total Income vs Expense',
+        'Tổng thu nhập so với chi tiêu',
+      ),
+      chartHeight: 250,
       chart: hasData
-          ? _buildGroupedBarBody([
-              PeriodBucket(
-                label: _periodLabel(_period, _offset),
-                income: income,
-                expense: expense,
-              ),
-            ])
+          ? _buildIncomeComparisonBody(income, expense)
           : _emptyPlaceholder(),
     );
   }
 
-  Widget _buildGroupedBarBody(List<PeriodBucket> buckets) {
-    double maxVal = 0;
-    for (final b in buckets) {
-      maxVal = math.max(maxVal, b.income.toDouble());
-      maxVal = math.max(maxVal, b.expense.toDouble());
-    }
-    final adjMax = _safeMax(maxVal * 1.2, 0);
+  Widget _buildIncomeComparisonBody(int income, int expense) {
+    final maxValue = math.max(income, expense);
+    final net = income - expense;
+    final incomeHeight = maxValue <= 0 ? 0.0 : 110.0 * income / maxValue;
+    final expenseHeight = maxValue <= 0 ? 0.0 : 110.0 * expense / maxValue;
+    final incomeIsHigher = income >= expense;
+    final base = incomeIsHigher ? expense : income;
+    final differencePercent = base <= 0
+        ? 100
+        : ((income - expense).abs() / base * 100).round();
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: BarChart(
-            BarChartData(
-              alignment: BarChartAlignment.spaceAround,
-              maxY: adjMax,
-              minY: 0,
-              groupsSpace: Responsive.w(context, 8),
-              barGroups: buckets.asMap().entries.map((entry) {
-                final i = entry.key;
-                final b = entry.value;
-                return BarChartGroupData(
-                  x: i,
-                  barsSpace: Responsive.w(context, 8),
-                  barRods: [
-                    BarChartRodData(
-                      toY: _animatedAmount(b.income),
-                      color: AppColors.primaryGreen,
-                      width: Responsive.w(context, 34),
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(7),
-                        topRight: Radius.circular(7),
-                      ),
-                    ),
-                    BarChartRodData(
-                      toY: _animatedAmount(b.expense),
-                      color: AppColors.coral,
-                      width: Responsive.w(context, 34),
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(7),
-                        topRight: Radius.circular(7),
-                      ),
-                    ),
-                  ],
-                );
-              }).toList(),
-              titlesData: FlTitlesData(
-                topTitles: const AxisTitles(
-                  sideTitles: SideTitles(showTitles: false),
-                ),
-                rightTitles: const AxisTitles(
-                  sideTitles: SideTitles(showTitles: false),
-                ),
-                leftTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    reservedSize: 44,
-                    getTitlesWidget: (v, _) {
-                      if (v <= 0) return const SizedBox();
-                      return Padding(
-                        padding: EdgeInsets.only(
-                          right: Responsive.w(context, 4),
-                        ),
-                        child: Text(
-                          _formatCompact(v.toInt()),
-                          style: TextStyle(
-                            fontSize: Responsive.sp(context, 10),
-                            color: AppColors.mutedGray,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                bottomTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    reservedSize: 28,
-                    interval: 1,
-                    getTitlesWidget: (v, _) {
-                      final i = v.toInt();
-                      if (i < 0 || i >= buckets.length) {
-                        return const SizedBox();
-                      }
-                      return Padding(
-                        padding: EdgeInsets.only(top: Responsive.h(context, 4)),
-                        child: Text(
-                          buckets[i].label,
-                          style: TextStyle(
-                            fontSize: Responsive.sp(context, 10),
-                            color: AppColors.mutedGray,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-              gridData: FlGridData(
-                show: true,
-                drawVerticalLine: false,
-                getDrawingHorizontalLine: (_) => FlLine(
-                  color: Colors.grey.withValues(alpha: 0.15),
-                  strokeWidth: 1,
-                ),
-              ),
-              borderData: FlBorderData(show: false),
-              barTouchData: BarTouchData(
-                enabled: true,
-                touchTooltipData: BarTouchTooltipData(
-                  getTooltipColor: (_) =>
-                      AppColors.darkGray.withValues(alpha: 0.92),
-                  tooltipRoundedRadius: 8,
-                  tooltipMargin: 8,
-                  fitInsideHorizontally: true,
-                  fitInsideVertically: true,
-                  tooltipPadding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                    final b = buckets[group.x];
-                    final inc = group.barRods[0].toY;
-                    final exp = group.barRods[1].toY;
-                    final diff = inc - exp;
-                    final isSurplus = diff >= 0;
-                    return BarTooltipItem(
-                      b.label,
-                      TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      children: [
-                        TextSpan(
-                          text: '\n● Income: ${_formatVNDCompact(inc.toInt())}',
-                          style: TextStyle(
-                            color: AppColors.primaryGreen,
-                            fontSize: 11,
-                          ),
-                        ),
-                        TextSpan(
-                          text:
-                              '\n● Expense: ${_formatVNDCompact(exp.toInt())}',
-                          style: TextStyle(
-                            color: AppColors.coral,
-                            fontSize: 11,
-                          ),
-                        ),
-                        TextSpan(
-                          text:
-                              '\n${isSurplus ? "✅ Surplus" : "⚠️ Deficit"}: ${_formatVNDCompact(diff.abs().toInt())}',
-                          style: TextStyle(
-                            color: isSurplus
-                                ? AppColors.primaryGreen
-                                : AppColors.coral,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              ),
+        Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: Responsive.w(context, 10),
+            vertical: Responsive.h(context, 5),
+          ),
+          decoration: BoxDecoration(
+            color: _income.withValues(alpha: .07),
+            borderRadius: BorderRadius.circular(99),
+          ),
+          child: Text(
+            AppStrings.choose(
+              'Net Cash Flow: ${net >= 0 ? '+' : '-'}${_formatVndFull(net.abs())} VND',
+              'Dòng tiền ròng: ${net >= 0 ? '+' : '-'}${_formatVndFull(net.abs())} VND',
             ),
-            duration: const Duration(milliseconds: 850),
-            curve: Curves.easeOutBack,
+            style: TextStyle(
+              fontFamily: 'Hanken Grotesk',
+              fontSize: Responsive.sp(context, 10),
+              fontWeight: FontWeight.w700,
+              color: net >= 0 ? _income : _expense,
+            ),
           ),
         ),
-        SizedBox(height: Responsive.h(context, 8)),
-        // Legend
+        SizedBox(height: Responsive.h(context, 14)),
+        SizedBox(
+          height: Responsive.h(context, 160),
+          child: Stack(
+            children: [
+              Positioned.fill(
+                bottom: Responsive.h(context, 34),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: List.generate(
+                    4,
+                    (_) => Container(
+                      height: 1,
+                      color: _isDark
+                          ? _darkBorder.withValues(alpha: .55)
+                          : _primary.withValues(alpha: .06),
+                    ),
+                  ),
+                ),
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  _comparisonBar(
+                    value: income,
+                    height: incomeHeight,
+                    label: AppStrings.income,
+                    icon: Icons.payments_outlined,
+                    colors: _isDark
+                        ? const [_darkIncome, _darkIncome]
+                        : const [Color(0xFF006C53), Color(0xFF00CFA6)],
+                  ),
+                  SizedBox(width: Responsive.w(context, 46)),
+                  _comparisonBar(
+                    value: expense,
+                    height: expenseHeight,
+                    label: AppStrings.expense,
+                    icon: Icons.shopping_cart_outlined,
+                    colors: _isDark
+                        ? const [_darkExpense, _darkExpense]
+                        : const [Color(0xFFD83B3B), Color(0xFFFF7A70)],
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        Divider(
+          height: Responsive.h(context, 18),
+          color: _isDark ? _darkBorder : const Color(0x1600513E),
+        ),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            legendDot(AppColors.primaryGreen, 'Income'),
-            SizedBox(width: Responsive.w(context, 20)),
-            legendDot(AppColors.coral, 'Expense'),
+            Icon(
+              incomeIsHigher
+                  ? Icons.trending_up_rounded
+                  : Icons.trending_down_rounded,
+              size: 19,
+              color: incomeIsHigher ? _income : _expense,
+            ),
+            const SizedBox(width: 7),
+            Text.rich(
+              TextSpan(
+                text: incomeIsHigher
+                    ? AppStrings.choose('Income is ', 'Thu nhập ')
+                    : AppStrings.choose('Expense is ', 'Chi tiêu '),
+                children: [
+                  TextSpan(
+                    text: AppStrings.choose(
+                      '$differencePercent% higher',
+                      'cao hơn $differencePercent%',
+                    ),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      color: incomeIsHigher ? _income : _expense,
+                    ),
+                  ),
+                  TextSpan(
+                    text: incomeIsHigher
+                        ? AppStrings.choose(' than expense', ' so với chi tiêu')
+                        : AppStrings.choose(' than income', ' so với thu nhập'),
+                  ),
+                ],
+              ),
+              style: TextStyle(
+                fontFamily: 'Hanken Grotesk',
+                fontSize: Responsive.sp(context, 11),
+                color: _onSurfaceVariant,
+              ),
+            ),
           ],
         ),
       ],
     );
   }
 
-  Widget legendDot(Color color, String label) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+  Widget _comparisonBar({
+    required int value,
+    required double height,
+    required String label,
+    required IconData icon,
+    required List<Color> colors,
+  }) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        Container(
-          width: Responsive.w(context, 8),
-          height: Responsive.w(context, 8),
-          decoration: BoxDecoration(shape: BoxShape.circle, color: color),
-        ),
-        SizedBox(width: Responsive.w(context, 4)),
         Text(
-          label,
+          '${_formatVndFull(value)} VND',
           style: TextStyle(
-            fontSize: Responsive.sp(context, 11),
-            color: AppColors.mutedGray,
+            fontFamily: 'Hanken Grotesk',
+            fontSize: Responsive.sp(context, 9),
+            fontWeight: FontWeight.w700,
+            color: colors.first,
           ),
+        ),
+        SizedBox(height: Responsive.h(context, 6)),
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 750),
+          curve: Curves.easeOutCubic,
+          width: Responsive.w(context, 64),
+          height: Responsive.h(context, _chartValuesVisible ? height : 0),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.bottomCenter,
+              end: Alignment.topCenter,
+              colors: colors,
+            ),
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(18),
+              bottom: Radius.circular(8),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: colors.first.withValues(alpha: .14),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(height: Responsive.h(context, 9)),
+        Row(
+          children: [
+            Icon(icon, size: 17, color: _outlineVariant),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontFamily: 'Hanken Grotesk',
+                fontSize: Responsive.sp(context, 10),
+                color: _outlineVariant,
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -1421,11 +1677,40 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   // Formatting helpers
   // ════════════════════════════════════════════════════════════════════════════
 
-  /// Ensure maxY > minY so fl_chart never gets zero-range that crashes the engine.
-  static double _safeMax(double val, double min) {
-    if (val > min) return val;
-    return min + 1000; // fallback range
+  static double _niceCeiling(double value) {
+    if (value <= 0) return 1;
+    final magnitude = math
+        .pow(10, (math.log(value) / math.ln10).floor())
+        .toDouble();
+    final normalized = value / magnitude;
+    final step = normalized <= 1
+        ? 1
+        : normalized <= 2
+        ? 2
+        : normalized <= 5
+        ? 5
+        : 10;
+    return step * magnitude;
   }
+
+  static String _formatAxisVnd(double value) {
+    final sign = value < 0 ? '-' : '';
+    final absolute = value.abs();
+    if (absolute >= 1000000000) {
+      return '$sign${_axisNumber(absolute / 1000000000)}B';
+    }
+    if (absolute >= 1000000) {
+      return '$sign${_axisNumber(absolute / 1000000)}M';
+    }
+    if (absolute >= 1000) {
+      return '$sign${_axisNumber(absolute / 1000)}K';
+    }
+    return '$sign${absolute.round()}';
+  }
+
+  static String _axisNumber(double value) => value == value.roundToDouble()
+      ? value.toInt().toString()
+      : value.toStringAsFixed(1);
 
   static String _formatVNDCompact(int amount) {
     if (amount >= 1000000000) {
@@ -1440,7 +1725,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     return '$amount₫';
   }
 
-  static String _formatCompact(int amount) {
+  static String _formatChartCompact(int amount) {
     if (amount >= 1000000000) {
       return '${(amount / 1000000000).toStringAsFixed(1)}B';
     }
@@ -1448,41 +1733,14 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       return '${(amount / 1000000).toStringAsFixed(1)}M';
     }
     if (amount >= 1000) {
-      return '${(amount / 1000).toStringAsFixed(1)}K';
+      return '${(amount / 1000).toStringAsFixed(0)}K';
     }
     return '$amount';
   }
 
-  static double _toMillions(int amount) => amount / 1000000;
-
-  double _animatedAmount(int amount) =>
-      _chartValuesVisible ? amount.toDouble() : 0;
-
-  double _animatedMillions(int amount) =>
-      _chartValuesVisible ? _toMillions(amount) : 0;
-
-  static String _formatDecimal(double value) {
-    if (value == value.roundToDouble()) return value.toInt().toString();
-    return value.toStringAsFixed(1);
-  }
-
-  static double _niceAxisInterval(double range, int targetSteps) {
-    if (range <= 0) return 1;
-    final roughStep = range / targetSteps;
-    final magnitude = math
-        .pow(10, (math.log(roughStep) / math.ln10).floor())
-        .toDouble();
-    final residual = roughStep / magnitude;
-    double niceStep;
-    if (residual <= 1.5) {
-      niceStep = 1;
-    } else if (residual <= 3) {
-      niceStep = 2;
-    } else if (residual <= 7) {
-      niceStep = 5;
-    } else {
-      niceStep = 10;
-    }
-    return niceStep * magnitude;
-  }
+  static String _formatVndFull(int amount) =>
+      amount.toString().replaceAllMapped(
+        RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+        (match) => '${match[1]},',
+      );
 }

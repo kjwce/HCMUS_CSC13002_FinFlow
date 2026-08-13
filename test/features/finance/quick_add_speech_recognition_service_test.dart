@@ -57,9 +57,7 @@ void main() {
   });
 
   test('system locale is the safe fallback', () async {
-    driver.availableLocales = const [
-      QuickAddSpeechLocale('en_GB', 'English'),
-    ];
+    driver.availableLocales = const [QuickAddSpeechLocale('en_GB', 'English')];
     driver.deviceLocale = const QuickAddSpeechLocale(
       'en_US',
       'English (United States)',
@@ -103,6 +101,17 @@ void main() {
     expect(received.first.isFinal, isFalse);
     expect(received.last.text, 'Ăn trưa 50k');
     expect(received.last.isFinal, isTrue);
+  });
+
+  test('listening forwards the microphone sound level', () async {
+    final received = <double>[];
+    final speech = service();
+    await speech.initialize();
+    await speech.startListening(onResult: (_) {}, onSoundLevel: received.add);
+
+    driver.emitSoundLevel(7.5);
+
+    expect(received, [7.5]);
   });
 
   test('duplicate listening start is rejected', () async {
@@ -164,6 +173,7 @@ class _FakeSpeechDriver implements QuickAddSpeechDriver {
     'English (United States)',
   );
   ValueChanged<QuickAddSpeechResult>? resultListener;
+  ValueChanged<double>? soundLevelListener;
   ValueChanged<QuickAddSpeechException>? errorListener;
 
   @override
@@ -191,17 +201,21 @@ class _FakeSpeechDriver implements QuickAddSpeechDriver {
   @override
   Future<void> listen({
     required ValueChanged<QuickAddSpeechResult> onResult,
+    ValueChanged<double>? onSoundLevel,
     String? localeId,
   }) async {
     listenCount++;
     listening = true;
     listenLocale = localeId;
     resultListener = onResult;
+    soundLevelListener = onSoundLevel;
   }
 
   void emit(String text, {required bool isFinal}) {
     resultListener?.call(QuickAddSpeechResult(text: text, isFinal: isFinal));
   }
+
+  void emitSoundLevel(double level) => soundLevelListener?.call(level);
 
   void raiseError(QuickAddSpeechException error) => errorListener?.call(error);
 

@@ -73,7 +73,7 @@ class WalletService extends ChangeNotifier {
       WalletModel(
         id: WalletModel.systemId(userId, WalletType.cash),
         userId: userId,
-        name: 'Tiền mặt',
+        name: 'Cash',
         logoAssetPath: 'assets/logos/ewallets/cash.png',
         brandColor: const Color(0xFF4CAF50),
         type: WalletType.cash,
@@ -82,7 +82,7 @@ class WalletService extends ChangeNotifier {
       WalletModel(
         id: WalletModel.systemId(userId, WalletType.transfer),
         userId: userId,
-        name: 'Chuyển khoản',
+        name: 'Transfer',
         logoAssetPath: 'assets/logos/ewallets/other.png',
         brandColor: const Color(0xFF2878D0),
         type: WalletType.transfer,

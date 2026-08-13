@@ -43,6 +43,7 @@ abstract class QuickAddSpeechDriver {
   Future<QuickAddSpeechLocale?> systemLocale();
   Future<void> listen({
     required ValueChanged<QuickAddSpeechResult> onResult,
+    ValueChanged<double>? onSoundLevel,
     String? localeId,
   });
   Future<void> stop();
@@ -138,6 +139,7 @@ class QuickAddSpeechRecognitionService {
 
   Future<void> startListening({
     required ValueChanged<QuickAddSpeechResult> onResult,
+    ValueChanged<double>? onSoundLevel,
   }) async {
     if (!_available) {
       throw const QuickAddSpeechException(
@@ -158,7 +160,11 @@ class QuickAddSpeechRecognitionService {
         'Microphone permission was denied.',
       );
     }
-    await _driver.listen(onResult: onResult, localeId: _selectedLocaleId);
+    await _driver.listen(
+      onResult: onResult,
+      onSoundLevel: onSoundLevel,
+      localeId: _selectedLocaleId,
+    );
   }
 
   Future<void> stopListening() => _driver.stop();
@@ -212,6 +218,7 @@ class _SpeechToTextDriver implements QuickAddSpeechDriver {
   @override
   Future<void> listen({
     required ValueChanged<QuickAddSpeechResult> onResult,
+    ValueChanged<double>? onSoundLevel,
     String? localeId,
   }) {
     return _speech.listen(
@@ -223,6 +230,7 @@ class _SpeechToTextDriver implements QuickAddSpeechDriver {
           ),
         );
       },
+      onSoundLevelChange: onSoundLevel,
       listenOptions: SpeechListenOptions(
         partialResults: true,
         cancelOnError: true,

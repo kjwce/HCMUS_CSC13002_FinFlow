@@ -27,7 +27,12 @@ class TransactionSavedScreen extends StatelessWidget {
     final isExpense = transaction.amount < 0;
     final absAmount = transaction.amount.abs();
     final wallet = WalletService.instance.byId(transaction.walletId);
-    final walletName = wallet?.name ?? '—';
+    final walletName = switch (wallet?.name) {
+      'Cash' => AppStrings.choose('Cash', 'Tiền mặt'),
+      'Transfer' => AppStrings.choose('Transfer', 'Chuyển khoản'),
+      final name? => name,
+      null => '—',
+    };
     final balance = TransactionService.instance.balanceByWallet(
       transaction.walletId ?? '',
     );
@@ -129,7 +134,9 @@ class TransactionSavedScreen extends StatelessWidget {
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
-                        isExpense ? 'EXPENSE' : 'INCOME',
+                        isExpense
+                            ? AppStrings.choose('EXPENSE', 'CHI TIÊU')
+                            : AppStrings.choose('INCOME', 'THU NHẬP'),
                         style: TextStyle(
                           fontFamily: _bodyFont,
                           fontSize: Responsive.sp(context, 12),
@@ -170,7 +177,9 @@ class TransactionSavedScreen extends StatelessWidget {
                     // Category row
                     _detailRow(
                       context,
-                      icon: category.icon,
+                      leadingIcon: category.buildIcon(
+                        size: Responsive.w(context, 20),
+                      ),
                       iconColor: category.color,
                       label: AppStrings.category,
                       value: AppStrings.categoryName(transaction.category),
@@ -181,7 +190,7 @@ class TransactionSavedScreen extends StatelessWidget {
                       context,
                       icon: Icons.account_balance_wallet_outlined,
                       iconColor: const Color(0xFF006C53),
-                      label: AppStrings.navHome, // "Wallet" equivalent
+                      label: AppStrings.choose('Wallet', 'Ví'),
                       value: walletName,
                     ),
                     SizedBox(height: Responsive.h(context, 18)),
@@ -289,7 +298,8 @@ class TransactionSavedScreen extends StatelessWidget {
 
   Widget _detailRow(
     BuildContext context, {
-    required IconData icon,
+    IconData? icon,
+    Widget? leadingIcon,
     required Color iconColor,
     required String label,
     required String value,
@@ -303,7 +313,9 @@ class TransactionSavedScreen extends StatelessWidget {
             color: iconColor.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Icon(icon, size: Responsive.w(context, 20), color: iconColor),
+          child:
+              leadingIcon ??
+              Icon(icon, size: Responsive.w(context, 20), color: iconColor),
         ),
         SizedBox(width: Responsive.w(context, 14)),
         Text(

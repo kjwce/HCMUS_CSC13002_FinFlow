@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 /// Single source of truth for all transaction categories.
 ///
@@ -10,12 +11,33 @@ class TransactionCategory {
     required this.label,
     required this.icon,
     required this.color,
+    this.assetPath,
   });
 
   final String key;
   final String label;
   final IconData icon;
   final Color color;
+  final String? assetPath;
+
+  Widget buildIcon({double? size, Color? color, Key? widgetKey}) {
+    final resolvedColor = color ?? this.color;
+    if (assetPath != null) {
+      return Align(
+        key: widgetKey,
+        widthFactor: 1,
+        heightFactor: 1,
+        child: SvgPicture.asset(
+          assetPath!,
+          width: size,
+          height: size,
+          fit: BoxFit.contain,
+          colorFilter: ColorFilter.mode(resolvedColor, BlendMode.srcIn),
+        ),
+      );
+    }
+    return Icon(icon, key: widgetKey, size: size, color: resolvedColor);
+  }
 
   /// All 15 built-in categories.
   static const List<TransactionCategory> all = [
@@ -24,92 +46,107 @@ class TransactionCategory {
       key: 'Food',
       label: 'Food',
       icon: Icons.restaurant,
-      color: Color(0xFF50D244),
+      color: Color(0xFFE87516),
+      assetPath: 'assets/icons/categories/fill/expense_food.svg',
     ),
     TransactionCategory(
       key: 'Car',
       label: 'Car',
       icon: Icons.directions_car,
-      color: Color(0xFFFF8C21),
+      color: Color(0xFFD97706),
+      assetPath: 'assets/icons/categories/fill/expense_car.svg',
     ),
     TransactionCategory(
       key: 'Gift',
       label: 'Gift',
       icon: Icons.card_giftcard,
-      color: Color(0xFF0076E3),
+      color: Color(0xFF2D6FC2),
+      assetPath: 'assets/icons/categories/fill/expense_gift.svg',
     ),
     TransactionCategory(
       key: 'Health',
       label: 'Health',
       icon: Icons.favorite,
-      color: Color(0xFF1ABF97),
+      color: Color(0xFF159A7D),
+      assetPath: 'assets/icons/categories/fill/expense_health.svg',
     ),
     TransactionCategory(
       key: 'Clothes',
       label: 'Clothes',
       icon: Icons.checkroom,
-      color: Color(0xFFA854EA),
+      color: Color(0xFF6F56C9),
+      assetPath: 'assets/icons/categories/fill/expense_clothes.svg',
     ),
     TransactionCategory(
       key: 'Home',
       label: 'Home',
       icon: Icons.home,
-      color: Color(0xFFFF5843),
+      color: Color(0xFFE05252),
+      assetPath: 'assets/icons/categories/fill/expense_home.svg',
     ),
     TransactionCategory(
       key: 'Donation',
       label: 'Donation',
       icon: Icons.volunteer_activism,
-      color: Color(0xFFFF7AE2),
+      color: Color(0xFFC54886),
+      assetPath: 'assets/icons/categories/fill/expense_donation.svg',
     ),
     TransactionCategory(
       key: 'Beauty',
       label: 'Beauty',
       icon: Icons.face,
-      color: Color(0xFF5E957D),
+      color: Color(0xFFD64F91),
+      assetPath: 'assets/icons/categories/fill/expense_beauty.svg',
     ),
     // ── Extended (shown in "More" sheet) ──
     TransactionCategory(
       key: 'Transport',
       label: 'Transport',
       icon: Icons.directions_bus,
-      color: Color(0xFF3799D2),
+      color: Color(0xFF2878B5),
+      assetPath: 'assets/icons/categories/fill/expense_transport.svg',
     ),
     TransactionCategory(
       key: 'Shopping',
       label: 'Shopping',
       icon: Icons.shopping_bag,
-      color: Color(0xFFFF6384),
+      color: Color(0xFFCF4F75),
+      assetPath: 'assets/icons/categories/fill/expense_shopping.svg',
     ),
     TransactionCategory(
       key: 'Subscription',
       label: 'Subscription',
       icon: Icons.subscriptions,
-      color: Color(0xFF9C27B0),
+      color: Color(0xFF7C4DB4),
+      assetPath: 'assets/icons/categories/fill/expense_subscription.svg',
     ),
     TransactionCategory(
       key: 'Bills',
       label: 'Bills',
       icon: Icons.receipt,
-      color: Color(0xFF795548),
+      color: Color(0xFF64748B),
+      assetPath: 'assets/icons/categories/fill/expense_bills.svg',
     ),
     TransactionCategory(
       key: 'Salary',
       label: 'Salary',
       icon: Icons.account_balance_wallet,
       color: Color(0xFF00897B),
+      assetPath: 'assets/icons/categories/fill/income_salary.svg',
     ),
     TransactionCategory(
       key: 'Service',
       label: 'Service',
       icon: Icons.room_service_outlined,
-      color: Color(0xFF6C63FF),
+      color: Color(0xFF168A83),
+      assetPath: 'assets/icons/categories/fill/expense_service.svg',
     ),
     TransactionCategory(
       key: 'Other',
       label: 'Other',
       icon: Icons.receipt_long,
-      color: Color(0xFF9E9E9E),
+      color: Color(0xFF7A8580),
+      assetPath: 'assets/icons/categories/fill/expense_other.svg',
     ),
   ];
 
