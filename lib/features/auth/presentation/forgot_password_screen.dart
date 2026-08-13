@@ -30,7 +30,11 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     final email = _emailController.text.trim().toLowerCase();
     if (email.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Please enter your email')),
+        SnackBar(
+          content: Text(
+            AppStrings.choose('Please enter your email', 'Vui lòng nhập email'),
+          ),
+        ),
       );
       return;
     }
@@ -41,21 +45,18 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
       if (!mounted) return;
       setState(() => _isSubmitting = false);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(AppStrings.checkEmailToReset)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(AppStrings.checkEmailToReset)));
 
       // Navigate to Verification screen
-      Navigator.of(context).pushReplacementNamed(
-        AppRoutes.verification,
-        arguments: email,
-      );
+      Navigator.of(
+        context,
+      ).pushReplacementNamed(AppRoutes.verification, arguments: email);
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSubmitting = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$e')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
     }
   }
 

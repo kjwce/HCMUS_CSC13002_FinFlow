@@ -32,16 +32,16 @@ class _NewPasswordScreenState extends ConsumerState<NewPasswordScreen> {
     final confirm = _confirmController.text;
 
     if (password.length < 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(AppStrings.passwordTooShort)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(AppStrings.passwordTooShort)));
       return;
     }
 
     if (password != confirm) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(AppStrings.passwordsDoNotMatch)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(AppStrings.passwordsDoNotMatch)));
       return;
     }
 
@@ -53,21 +53,18 @@ class _NewPasswordScreenState extends ConsumerState<NewPasswordScreen> {
       // Sign out to clear recovery session before navigating to sign-in
       await ref.read(authServiceProvider).signOut();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(AppStrings.passwordResetSuccess)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(AppStrings.passwordResetSuccess)));
       if (!mounted) return;
-      Navigator.of(context).pushNamedAndRemoveUntil(
-        AppRoutes.signIn,
-        (route) => false,
-      );
+      Navigator.of(
+        context,
+      ).pushNamedAndRemoveUntil(AppRoutes.signIn, (route) => false);
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSubmitting = false);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$e')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
     }
   }
 
@@ -80,15 +77,18 @@ class _NewPasswordScreenState extends ConsumerState<NewPasswordScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.lock_outline,
-                  size: Responsive.w(context, 72), color: AppColors.emerald),
+              Icon(
+                Icons.lock_outline,
+                size: Responsive.w(context, 72),
+                color: AppColors.emerald,
+              ),
               SizedBox(height: Responsive.h(context, 24)),
               Text(
                 AppStrings.newPassword,
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: AppColors.ink,
-                      fontWeight: FontWeight.w800,
-                    ),
+                  color: AppColors.ink,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
               SizedBox(height: Responsive.h(context, 8)),
               Text(
@@ -126,7 +126,9 @@ class _NewPasswordScreenState extends ConsumerState<NewPasswordScreen> {
                       ? SizedBox(
                           height: Responsive.h(context, 20),
                           width: Responsive.w(context, 20),
-                          child: const CircularProgressIndicator(strokeWidth: 2),
+                          child: const CircularProgressIndicator(
+                            strokeWidth: 2,
+                          ),
                         )
                       : Text(AppStrings.reset),
                 ),

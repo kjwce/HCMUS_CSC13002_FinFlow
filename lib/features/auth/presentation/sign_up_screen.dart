@@ -62,7 +62,8 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
               icon: Icon(
                 _obscurePassword ? Icons.visibility_off : Icons.visibility,
               ),
-              onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+              onPressed: () =>
+                  setState(() => _obscurePassword = !_obscurePassword),
             ),
           ),
         ),
@@ -74,9 +75,13 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
             labelText: AppStrings.confirmPassword,
             suffixIcon: IconButton(
               icon: Icon(
-                _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
+                _obscureConfirmPassword
+                    ? Icons.visibility_off
+                    : Icons.visibility,
               ),
-              onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
+              onPressed: () => setState(
+                () => _obscureConfirmPassword = !_obscureConfirmPassword,
+              ),
             ),
           ),
         ),
@@ -103,9 +108,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                     if (!context.mounted) return;
                     setState(() => _isSubmitting = false);
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(AppStrings.passwordsDoNotMatch),
-                      ),
+                      SnackBar(content: Text(AppStrings.passwordsDoNotMatch)),
                     );
                     return;
                   }
@@ -133,9 +136,9 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                   } on ArgumentError catch (e) {
                     if (!context.mounted) return;
                     setState(() => _isSubmitting = false);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(e.message)),
-                    );
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(SnackBar(content: Text(e.message)));
                   } catch (e) {
                     if (!context.mounted) return;
                     setState(() => _isSubmitting = false);

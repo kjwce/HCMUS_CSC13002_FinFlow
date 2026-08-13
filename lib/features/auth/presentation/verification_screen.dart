@@ -14,8 +14,7 @@ class VerificationScreen extends ConsumerStatefulWidget {
   const VerificationScreen({super.key});
 
   @override
-  ConsumerState<VerificationScreen> createState() =>
-      _VerificationScreenState();
+  ConsumerState<VerificationScreen> createState() => _VerificationScreenState();
 }
 
 class _VerificationScreenState extends ConsumerState<VerificationScreen> {
@@ -61,7 +60,9 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
       final authService = ref.read(authServiceProvider);
       if (_isSignUpFlow) {
         await authService.sendOtpForSignUp(
-          fullName: _fullName ?? 'New FinFlow User',
+          fullName:
+              _fullName ??
+              AppStrings.choose('New FinFlow User', 'Người dùng FinFlow mới'),
           email: email,
           password: _password!,
         );
@@ -70,13 +71,20 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
       }
       _startCountdown();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(AppStrings.otpSent)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(AppStrings.otpSent)));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to resend code: $e')),
+        SnackBar(
+          content: Text(
+            AppStrings.choose(
+              'Failed to resend code: $e',
+              'Không thể gửi lại mã: $e',
+            ),
+          ),
+        ),
       );
     } finally {
       if (mounted) setState(() => _isResending = false);
@@ -110,7 +118,14 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
     final code = _codeController.text.trim();
     if (code.length != 8 || email == null || email.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Please enter the 8-digit code')),
+        SnackBar(
+          content: Text(
+            AppStrings.choose(
+              'Please enter the 8-digit code',
+              'Vui lòng nhập mã 8 chữ số',
+            ),
+          ),
+        ),
       );
       return;
     }
@@ -124,7 +139,9 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
             email: email,
             token: code,
             password: _password!,
-            fullName: _fullName ?? 'New FinFlow User',
+            fullName:
+                _fullName ??
+                AppStrings.choose('New FinFlow User', 'Người dùng FinFlow mới'),
           );
 
       if (!mounted) return;
@@ -132,41 +149,36 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
 
       if (success) {
         if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(AppStrings.otpVerified)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(AppStrings.otpVerified)));
         // New user → go to wallet onboarding first, then budget setup
-        Navigator.of(context).pushNamedAndRemoveUntil(
-          AppRoutes.walletOnboarding,
-          (route) => false,
-        );
+        Navigator.of(
+          context,
+        ).pushNamedAndRemoveUntil(AppRoutes.walletOnboarding, (route) => false);
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(AppStrings.invalidOtp)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(AppStrings.invalidOtp)));
       }
     } else {
       // -- FORGOT PASSWORD FLOW --
       final success = await ref
           .read(authServiceProvider)
-          .verifyOtp(
-            email: email,
-            token: code,
-          );
+          .verifyOtp(email: email, token: code);
 
       if (!mounted) return;
       setState(() => _isSubmitting = false);
 
       if (success) {
         if (!context.mounted) return;
-        Navigator.of(context).pushReplacementNamed(
-          AppRoutes.newPassword,
-          arguments: email,
-        );
+        Navigator.of(
+          context,
+        ).pushReplacementNamed(AppRoutes.newPassword, arguments: email);
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(AppStrings.invalidOtp)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(AppStrings.invalidOtp)));
       }
     }
   }
@@ -213,7 +225,7 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
                   children: [
                     // Title
                     Text(
-                      'Verification Code',
+                      AppStrings.choose('Verification Code', 'Mã xác minh'),
                       style: TextStyle(
                         fontSize: Responsive.sp(context, 22),
                         fontWeight: FontWeight.w700,
@@ -224,7 +236,10 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
 
                     // Description
                     Text(
-                      'A verification code has been sent to your mail.',
+                      AppStrings.choose(
+                        'A verification code has been sent to your mail.',
+                        'Mã xác minh đã được gửi đến email của bạn.',
+                      ),
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: Responsive.sp(context, 13),
@@ -260,7 +275,9 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
                           ),
                           border: InputBorder.none,
                           counterText: '',
-                          contentPadding: EdgeInsets.symmetric(vertical: Responsive.h(context, 14)),
+                          contentPadding: EdgeInsets.symmetric(
+                            vertical: Responsive.h(context, 14),
+                          ),
                         ),
                       ),
                     ),
@@ -271,12 +288,17 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
                       onTap: () {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text('Change email feature coming soon'),
+                            content: Text(
+                              AppStrings.choose(
+                                'Change email feature coming soon',
+                                'Tính năng đổi email sẽ sớm ra mắt',
+                              ),
+                            ),
                           ),
                         );
                       },
                       child: Text(
-                        'Change Email',
+                        AppStrings.choose('Change Email', 'Đổi email'),
                         style: TextStyle(
                           fontSize: Responsive.sp(context, 13),
                           color: const Color(0xFF0068FF),
@@ -301,16 +323,20 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
                               ),
                             )
                           : GestureDetector(
-                              onTap:
-                                  _secondsRemaining > 0 ? null : _handleResend,
+                              onTap: _secondsRemaining > 0
+                                  ? null
+                                  : _handleResend,
                               child: Center(
                                 child: RichText(
                                   text: TextSpan(
                                     children: [
                                       TextSpan(
                                         text: _secondsRemaining > 0
-                                            ? 'Resend in '
-                                            : 'Resend code',
+                                            ? AppStrings.choose(
+                                                'Resend in ',
+                                                'Gửi lại sau ',
+                                              )
+                                            : AppStrings.resendCode,
                                         style: TextStyle(
                                           fontSize: Responsive.sp(context, 13),
                                           color: _secondsRemaining > 0
@@ -323,7 +349,10 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
                                         TextSpan(
                                           text: '$_secondsRemaining\'s',
                                           style: TextStyle(
-                                            fontSize: Responsive.sp(context, 13),
+                                            fontSize: Responsive.sp(
+                                              context,
+                                              13,
+                                            ),
                                             color: AppColors.muted,
                                             fontWeight: FontWeight.w700,
                                           ),
@@ -362,7 +391,9 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
                                 ),
                               )
                             : Text(
-                                _isSignUpFlow ? 'Next' : 'Reset Password',
+                                _isSignUpFlow
+                                    ? AppStrings.choose('Next', 'Tiếp tục')
+                                    : AppStrings.resetPassword,
                                 style: TextStyle(
                                   fontWeight: FontWeight.w500,
                                   fontSize: Responsive.sp(context, 15),
@@ -381,7 +412,7 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    'Already a member?',
+                    AppStrings.choose('Already a member?', 'Đã là thành viên?'),
                     style: TextStyle(
                       color: AppColors.muted,
                       fontSize: Responsive.sp(context, 14),
@@ -396,7 +427,7 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
                       );
                     },
                     child: Text(
-                      'Sign in',
+                      AppStrings.signIn,
                       style: TextStyle(
                         color: AppColors.blueAccent,
                         fontSize: Responsive.sp(context, 14),

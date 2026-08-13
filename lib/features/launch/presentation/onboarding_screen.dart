@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../app/shell/finflow_app.dart';
+import '../../../core/i18n/app_language.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/responsive.dart';
 
@@ -74,7 +75,7 @@ class OnboardingScreen extends StatelessWidget {
                         padding: EdgeInsets.zero,
                       ),
                       child: Text(
-                        'Log In',
+                        AppStrings.choose('Log In', 'Đăng nhập'),
                         style: TextStyle(
                           fontFamily: 'Poppins',
                           fontSize: Responsive.sp(context, 20),
@@ -102,7 +103,7 @@ class OnboardingScreen extends StatelessWidget {
                         padding: EdgeInsets.zero,
                       ),
                       child: Text(
-                        'Sign Up',
+                        AppStrings.signUp,
                         style: TextStyle(
                           fontFamily: 'Poppins',
                           fontSize: Responsive.sp(context, 20),
@@ -114,10 +115,11 @@ class OnboardingScreen extends StatelessWidget {
                   SizedBox(height: Responsive.h(context, 20)),
                   // Forgot Password link
                   GestureDetector(
-                    onTap: () =>
-                        Navigator.of(context).pushNamed(AppRoutes.forgotPassword),
+                    onTap: () => Navigator.of(
+                      context,
+                    ).pushNamed(AppRoutes.forgotPassword),
                     child: Text(
-                      'Forgot Password?',
+                      AppStrings.choose('Forgot Password?', 'Quên mật khẩu?'),
                       style: TextStyle(
                         fontFamily: 'Poppins',
                         fontSize: Responsive.sp(context, 14),

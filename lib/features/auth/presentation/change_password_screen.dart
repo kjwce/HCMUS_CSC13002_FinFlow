@@ -34,7 +34,12 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     final newPassword = _newController.text;
     final confirmation = _confirmController.text;
     if (currentPassword.isEmpty) {
-      _showMessage('Please enter your current password.');
+      _showMessage(
+        AppStrings.choose(
+          'Please enter your current password.',
+          'Vui lòng nhập mật khẩu hiện tại.',
+        ),
+      );
       return;
     }
     if (newPassword.length < 6) {
@@ -46,7 +51,12 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       return;
     }
     if (newPassword == currentPassword) {
-      _showMessage('The new password must be different.');
+      _showMessage(
+        AppStrings.choose(
+          'The new password must be different.',
+          'Mật khẩu mới phải khác mật khẩu hiện tại.',
+        ),
+      );
       return;
     }
 
@@ -59,13 +69,25 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       if (!mounted) return;
       setState(() => _isSaving = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Password changed successfully.')),
+        SnackBar(
+          content: Text(
+            AppStrings.choose(
+              'Password changed successfully.',
+              'Đổi mật khẩu thành công.',
+            ),
+          ),
+        ),
       );
       Navigator.of(context).pop();
     } catch (_) {
       if (!mounted) return;
       setState(() => _isSaving = false);
-      _showMessage('Current password is incorrect or could not be verified.');
+      _showMessage(
+        AppStrings.choose(
+          'Current password is incorrect or could not be verified.',
+          'Mật khẩu hiện tại không đúng hoặc không thể xác minh.',
+        ),
+      );
     }
   }
 
@@ -90,9 +112,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
           icon: const Icon(Icons.arrow_back_rounded),
         ),
         centerTitle: true,
-        title: const Text(
-          'Change Password',
-          style: TextStyle(
+        title: Text(
+          AppStrings.choose('Change Password', 'Đổi mật khẩu'),
+          style: const TextStyle(
             color: Color(0xFF00785D),
             fontFamily: 'Hanken Grotesk',
             fontWeight: FontWeight.w700,
@@ -123,7 +145,10 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
             ),
             SizedBox(height: Responsive.h(context, 10)),
             Text(
-              'Create a strong password you do not use for other accounts.',
+              AppStrings.choose(
+                'Create a strong password you do not use for other accounts.',
+                'Tạo mật khẩu mạnh mà bạn không dùng cho tài khoản khác.',
+              ),
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: colors.secondaryText,
@@ -133,7 +158,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
             SizedBox(height: Responsive.h(context, 28)),
             _PasswordField(
               controller: _currentController,
-              label: 'Current Password',
+              label: AppStrings.choose('Current Password', 'Mật khẩu hiện tại'),
               obscureText: _hideCurrent,
               onToggleVisibility: () =>
                   setState(() => _hideCurrent = !_hideCurrent),
@@ -141,14 +166,14 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
             SizedBox(height: Responsive.h(context, 16)),
             _PasswordField(
               controller: _newController,
-              label: 'New Password',
+              label: AppStrings.newPasswordLabel,
               obscureText: _hideNew,
               onToggleVisibility: () => setState(() => _hideNew = !_hideNew),
             ),
             SizedBox(height: Responsive.h(context, 16)),
             _PasswordField(
               controller: _confirmController,
-              label: 'Confirm New Password',
+              label: AppStrings.confirmNewPasswordLabel,
               obscureText: _hideConfirm,
               onToggleVisibility: () =>
                   setState(() => _hideConfirm = !_hideConfirm),
@@ -171,7 +196,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                         strokeWidth: 2,
                       ),
                     )
-                  : const Text('Update Password'),
+                  : Text(
+                      AppStrings.choose('Update Password', 'Cập nhật mật khẩu'),
+                    ),
             ),
           ],
         ),

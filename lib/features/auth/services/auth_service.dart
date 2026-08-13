@@ -26,6 +26,10 @@ class AuthService extends ChangeNotifier {
 
   UserModel? get currentUser => _currentUser;
 
+  /// True when Supabase restored a persisted session for this installation.
+  bool get hasActiveSession =>
+      _initialized && Supabase.instance.client.auth.currentSession != null;
+
   /// Effective selected category: local override wins, then DB value.
   String? get selectedCategory =>
       _selectedCategoryOverride ?? _currentUser?.selectedCategory;
@@ -39,19 +43,38 @@ class AuthService extends ChangeNotifier {
   /// Safe to call multiple times — subsequent calls are a no-op.
   Future<void> init() async {
     if (_initialized) return;
-    _initialized = true;
 
-    await Supabase.initialize(
-      url: SupabaseConstants.url,
-      publishableKey: SupabaseConstants.anonKey,
-    );
+    try {
+      await Supabase.initialize(
+        url: SupabaseConstants.url,
+        publishableKey: SupabaseConstants.anonKey,
+      );
+      _initialized = true;
+    } catch (_) {
+      // Allow a later retry instead of leaving AuthService permanently in a
+      // partially initialized state.
+      _initialized = false;
+      rethrow;
+    }
 
     _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((
       authState,
-    ) {
-      if (authState.session != null) {
-        // Session is present — signIn() / completeRegistration() already
-        // fetched the profile synchronously, so there is nothing to do.
+    ) async {
+      final session = authState.session;
+      if (session != null) {
+        // Session is present. For email sign-in the profile was already
+        // fetched synchronously, but for OAuth (Google) the session arrives
+        // asynchronously via a deep-link callback, so fetch the profile the
+        // first time the session becomes available — and only then notify
+        // listeners, so anything waiting on currentUser fires at the right
+        // time.
+        final needsProfileFetch = _currentUser?.id != session.user.id;
+        if (needsProfileFetch) {
+          try {
+            await _fetchCurrentUserProfile();
+          } catch (_) {}
+          notifyListeners();
+        }
       } else {
         _currentUser = null;
         notifyListeners();
@@ -357,8 +380,16 @@ class AuthService extends ChangeNotifier {
         OAuthProvider.google,
         redirectTo: 'io.supabase.flutter://login-callback',
       );
-      await _fetchCurrentUserProfile();
-      notifyListeners();
+      // On Android this method returns as soon as the external browser is
+      // opened — the auth callback (via deep link) arrives later and syncs
+      // the session via Supabase's onAuthStateChange listener. On iOS the
+      // callback is completed synchronously, so the session is already set
+      // here.
+      final sessionReady = Supabase.instance.client.auth.currentSession != null;
+      if (sessionReady) {
+        await _fetchCurrentUserProfile();
+        notifyListeners();
+      }
       return _currentUser != null;
     } on AuthException {
       return false;
