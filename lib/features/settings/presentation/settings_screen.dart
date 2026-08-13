@@ -73,9 +73,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onPressed: () => Navigator.of(context).pop(),
               icon: const Icon(Icons.arrow_back_rounded),
             ),
-            title: const Text(
-              'Settings',
-              style: TextStyle(
+            title: Text(
+              AppStrings.settings,
+              style: const TextStyle(
                 fontFamily: 'Hanken Grotesk',
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
@@ -116,21 +116,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
             children: [
               _SettingsCard(
                 icon: Icons.account_balance_wallet_outlined,
-                title: 'Budget Limit',
+                title: AppStrings.budgetLimit,
                 onTap: () =>
                     Navigator.of(context).pushNamed(AppRoutes.budgetLimits),
               ),
               SizedBox(height: Responsive.h(context, 12)),
               _SettingsCard(
                 icon: Icons.notifications_none_rounded,
-                title: 'Push Notifications',
+                title: AppStrings.pushNotifications,
                 switchValue: _notificationsEnabled,
                 onSwitchChanged: _setNotifications,
               ),
               SizedBox(height: Responsive.h(context, 12)),
               _SettingsCard(
+                icon: Icons.account_balance_rounded,
+                title: AppStrings.automaticTransactionDetection,
+                subtitle: AppStrings.bankAndEwalletNotifications,
+                onTap: () => Navigator.of(
+                  context,
+                ).pushNamed(AppRoutes.bankNotificationImport),
+              ),
+              SizedBox(height: Responsive.h(context, 12)),
+              _SettingsCard(
                 icon: Icons.dark_mode_outlined,
-                title: 'Dark Mode',
+                title: AppStrings.darkMode,
                 switchValue: AppThemeManager.instance.isDark,
                 onSwitchChanged: (value) => AppThemeManager.instance.setMode(
                   value ? ThemeMode.dark : ThemeMode.light,
@@ -139,10 +148,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               SizedBox(height: Responsive.h(context, 12)),
               _SettingsCard(
                 icon: Icons.language_rounded,
-                title: 'Language',
-                subtitle: isVietnamese
-                    ? 'Tiếng Việt / English'
-                    : 'English / Tiếng Việt',
+                title: AppStrings.language,
+                subtitle: AppStrings.selectedLanguage,
                 switchValue: isVietnamese,
                 onSwitchChanged: (value) => AppLanguage.instance.setLocale(
                   value ? AppLocale.vietnamese : AppLocale.english,

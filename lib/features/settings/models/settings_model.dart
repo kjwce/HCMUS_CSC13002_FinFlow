@@ -16,11 +16,11 @@ class SettingsModel {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': userId,
-        'notifications_enabled': notificationsEnabled,
-        'dark_mode': darkMode,
-        'language': language,
-      };
+    'id': userId,
+    'notifications_enabled': notificationsEnabled,
+    'dark_mode': darkMode,
+    'language': language,
+  };
 
   final String userId;
   final bool notificationsEnabled;
