@@ -24,13 +24,13 @@ class AiScreen extends ConsumerWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'AI Assistant',
+                AppStrings.choose('AI Assistant', 'Trợ lý AI'),
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontFamily: 'Poppins',
-                      fontWeight: FontWeight.w600,
-                      fontSize: Responsive.sp(context, 20),
-                      color: const Color(0xFF093030),
-                    ),
+                  fontFamily: 'Poppins',
+                  fontWeight: FontWeight.w600,
+                  fontSize: Responsive.sp(context, 20),
+                  color: const Color(0xFF093030),
+                ),
               ),
               const NotificationBell(),
             ],
@@ -74,7 +74,10 @@ class AiScreen extends ConsumerWidget {
                 SizedBox(width: Responsive.w(context, 12)),
                 Expanded(
                   child: Text(
-                    'More features coming soon!',
+                    AppStrings.choose(
+                      'More features coming soon!',
+                      'Nhiều tính năng khác sắp ra mắt!',
+                    ),
                     style: TextStyle(
                       fontFamily: 'Roboto',
                       fontWeight: FontWeight.w500,

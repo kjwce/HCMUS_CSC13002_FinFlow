@@ -179,7 +179,7 @@ AMOUNT AND TYPE
 - Never invent an amount. Do not mistake dates, phone numbers, account numbers, invoice numbers, or wallet IDs for an amount.
 - If amount is unsafe or unclear, return null, lower confidence, and add a localized warning.
 - A transfer between the user's own sources such as "Chuyển 500k từ A sang B" is unsupported: return type null and a localized warning.
-- "Chuyển khoản" used as a payment method is not an account-to-account transfer; resolve it as walletName Chuyển khoản.
+- "Chuyển khoản" used as a payment method is not an account-to-account transfer; resolve it as walletName Transfer.
 
 DATE
 - Resolve relative dates only from currentDate, currentDateTime, and timezone.
@@ -198,8 +198,8 @@ NAME AND CATEGORY
 WALLET
 - walletName is only a concise hint explicitly mentioned by the user. Never return walletId.
 - Do not claim a wallet match, select a default wallet, or return a wallet that was not mentioned.
-- The only wallet names are Tiền mặt and Chuyển khoản.
-- Normalize tien mat/cash to Tiền mặt. Normalize bank, ngân hàng, ví điện tử, e-wallet, and transfer to Chuyển khoản.
+- The only wallet names are Cash and Transfer.
+- Normalize tien mat/cash/tiền mặt to Cash. Normalize bank, ngân hàng, ví điện tử, e-wallet, chuyển khoản, and transfer to Transfer.
 - If no wallet is mentioned, return null.
 
 OUTPUT

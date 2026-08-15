@@ -28,7 +28,7 @@ void main() {
 
     expect(find.text('AI Assistant'), findsOneWidget);
     expect(find.byKey(const Key('chat-input')), findsOneWidget);
-    expect(find.byIcon(Icons.smart_toy_rounded), findsOneWidget);
+    expect(find.byKey(const Key('chat-user-avatar')), findsOneWidget);
     expect(find.byKey(const Key('chat-quick-prompts')), findsOneWidget);
     expect(find.byIcon(Icons.add_rounded), findsNothing);
     expect(find.byKey(const Key('chat-image-button')), findsOneWidget);

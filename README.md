@@ -1,19 +1,20 @@
-# Người 2 — Nhiệm vụ 01
+# Người 3 — Nhiệm vụ 04
 
-Category budget và budget limits.
+AI screen, chatbot, parser và chatbot assets/tests.
 
 - Nguồn: `MyFinFlow`
 - Repo đích: `HCMUS_CSC13002_FinFlow`
-- Số file sao chép: **7**
-- Commit đề xuất: `feat: add category budgets`
+- Số file sao chép: **8**
+- Commit đề xuất: `feat: update chatbot and AI parser`
 - Thực hiện: sao chép các đường dẫn bên dưới vào đúng đường dẫn tương ứng của repo đích, giữ nguyên tên file.
 
 ## Danh sách file
 
-- [A] [lib/features/budget/models/category_budget_model.dart](./lib/features/budget/models/category_budget_model.dart)
-- [M] [lib/features/budget/presentation/budget_setup_screen.dart](./lib/features/budget/presentation/budget_setup_screen.dart)
-- [A] [lib/features/budget/presentation/category_budget_dialog.dart](./lib/features/budget/presentation/category_budget_dialog.dart)
-- [A] [lib/features/budget/presentation/category_budgets_screen.dart](./lib/features/budget/presentation/category_budgets_screen.dart)
-- [A] [lib/features/budget/providers/category_budget_provider.dart](./lib/features/budget/providers/category_budget_provider.dart)
-- [A] [lib/features/budget/services/category_budget_service.dart](./lib/features/budget/services/category_budget_service.dart)
-- [M] [lib/features/settings/presentation/budget_limits_screen.dart](./lib/features/settings/presentation/budget_limits_screen.dart)
+- [A] [assets/icons/chatbot/finflow_chatbot_circle.svg](./assets/icons/chatbot/finflow_chatbot_circle.svg)
+- [A] [assets/icons/chatbot/finflow_chatbot_stitch_circle.png](./assets/icons/chatbot/finflow_chatbot_stitch_circle.png)
+- [A] [assets/icons/chatbot/finflow_chatbot.svg](./assets/icons/chatbot/finflow_chatbot.svg)
+- [M] [lib/app/screens/ai_screen.dart](./lib/app/screens/ai_screen.dart)
+- [M] [lib/features/chatbot/presentation/chat_screen.dart](./lib/features/chatbot/presentation/chat_screen.dart)
+- [M] [supabase/functions/parse-natural-language-transaction/index.ts](./supabase/functions/parse-natural-language-transaction/index.ts)
+- [A] [test/features/chatbot/chat_language_test.dart](./test/features/chatbot/chat_language_test.dart)
+- [M] [test/features/chatbot/chat_screen_test.dart](./test/features/chatbot/chat_screen_test.dart)

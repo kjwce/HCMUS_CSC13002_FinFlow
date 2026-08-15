@@ -9,7 +9,7 @@ import '../../../core/i18n/app_language.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/notification_bell.dart';
-import '../../auth/providers/auth_provider.dart';
+import '../../auth/services/auth_service.dart';
 import '../models/chat_model.dart';
 import '../providers/chat_provider.dart';
 import '../services/chat_service.dart';
@@ -63,7 +63,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       useSafeArea: true,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (_) => const _ChatHistorySheet(),
+      builder: (_) => const SafeArea(top: false, child: _ChatHistorySheet()),
     );
   }
 
@@ -71,19 +71,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _focusNode.unfocus();
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
+      useSafeArea: true,
       showDragHandle: true,
       builder: (context) => SafeArea(
+        top: false,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
               leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('Chọn từ thư viện'),
+              title: Text(
+                AppStrings.choose('Choose from library', 'Chọn từ thư viện'),
+              ),
               onTap: () => Navigator.pop(context, ImageSource.gallery),
             ),
             ListTile(
               leading: const Icon(Icons.photo_camera_outlined),
-              title: const Text('Chụp ảnh'),
+              title: Text(AppStrings.choose('Take a photo', 'Chụp ảnh')),
               onTap: () => Navigator.pop(context, ImageSource.camera),
             ),
             const SizedBox(height: 10),
@@ -102,16 +106,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       if (picked == null || !mounted) return;
       final bytes = await picked.readAsBytes();
       if (bytes.length > 6 * 1024 * 1024) {
-        throw const ChatException(
+        throw ChatException(
           'IMAGE_TOO_LARGE',
-          'Ảnh không được vượt quá 6 MB.',
+          AppStrings.choose(
+            'The image must not exceed 6 MB.',
+            'Ảnh không được vượt quá 6 MB.',
+          ),
         );
       }
       final mimeType = picked.mimeType ?? _mimeTypeFromName(picked.name);
       if (!{'image/jpeg', 'image/png', 'image/webp'}.contains(mimeType)) {
-        throw const ChatException(
+        throw ChatException(
           'INVALID_IMAGE',
-          'Chỉ hỗ trợ ảnh JPG, PNG hoặc WebP.',
+          AppStrings.choose(
+            'Only JPG, PNG, or WebP images are supported.',
+            'Chỉ hỗ trợ ảnh JPG, PNG hoặc WebP.',
+          ),
         );
       }
       setState(() {
@@ -125,7 +135,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Không thể chọn ảnh. Vui lòng thử lại.')),
+        SnackBar(
+          content: Text(
+            AppStrings.choose(
+              'Unable to select the image. Please try again.',
+              'Không thể chọn ảnh. Vui lòng thử lại.',
+            ),
+          ),
+        ),
       );
     }
   }
@@ -151,10 +168,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(chatControllerProvider);
-    final user = ref.watch(authServiceProvider).currentUser;
+    final user = AuthService.instance.currentUser;
     final displayName = user?.fullName.trim().isNotEmpty == true
         ? user!.fullName.trim()
-        : 'FinFlow User';
+        : AppStrings.choose('FinFlow User', 'Người dùng FinFlow');
     final avatarUrl = user?.avatarUrl?.trim();
     final showTyping = state.isSending && !state.isReceivingText;
     ref.listen(chatControllerProvider, (_, _) => _scrollToBottom());
@@ -237,6 +254,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       title: Row(
         children: [
           Container(
+            key: const Key('chat-user-avatar'),
             width: Responsive.w(context, 42),
             height: Responsive.w(context, 42),
             padding: const EdgeInsets.all(2),
@@ -257,7 +275,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           SizedBox(width: Responsive.w(context, 10)),
           Flexible(
             child: Text(
-              'AI Assistant',
+              AppStrings.choose('AI Assistant', 'Trợ lý AI'),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
@@ -439,17 +457,27 @@ class _AssistantAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
+      key: const Key('finflow-chatbot-message-icon'),
       width: Responsive.w(context, 32),
       height: Responsive.w(context, 32),
-      decoration: const BoxDecoration(
-        color: Color(0xFFC3ECD7),
-        shape: BoxShape.circle,
-      ),
-      child: const Icon(
-        Icons.smart_toy_rounded,
-        color: Color(0xFF064E3B),
-        size: 18,
+      child: ClipOval(
+        child: Transform.scale(
+          scale: 1.47,
+          child: Image.asset(
+            'assets/icons/chatbot/finflow_chatbot_stitch_circle.png',
+            fit: BoxFit.cover,
+            filterQuality: FilterQuality.high,
+            errorBuilder: (_, _, _) => const ColoredBox(
+              color: Color(0xFFC3ECD7),
+              child: Icon(
+                Icons.smart_toy_rounded,
+                color: Color(0xFF006C53),
+                size: 18,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -839,7 +867,9 @@ class _ChatHistorySheet extends ConsumerWidget {
     final title = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Rename conversation'),
+        title: Text(
+          AppStrings.choose('Rename conversation', 'Đổi tên cuộc trò chuyện'),
+        ),
         content: TextFormField(
           initialValue: conversation.title,
           autofocus: true,
@@ -851,11 +881,11 @@ class _ChatHistorySheet extends ConsumerWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
+            child: Text(AppStrings.choose('Cancel', 'Hủy')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, draftTitle.trim()),
-            child: const Text('Save'),
+            child: Text(AppStrings.choose('Save', 'Lưu')),
           ),
         ],
       ),
@@ -935,7 +965,7 @@ class _ErrorBanner extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(child: Text(message)),
               IconButton(
-                tooltip: 'Dismiss',
+                tooltip: AppStrings.choose('Dismiss', 'Đóng'),
                 onPressed: onDismiss,
                 icon: const Icon(Icons.close_rounded, size: 18),
               ),
