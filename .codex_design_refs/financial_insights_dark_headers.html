@@ -1,0 +1,407 @@
+<!DOCTYPE html><html class="light" lang="en" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport">
+<title>Financial Insights — Refined Mint Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Hanken+Grotesk:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface-container-high": "#e8e8ea",
+                    "on-primary": "#ffffff",
+                    "on-background": "#1a1c1e",
+                    "tertiary-container": "#426900",
+                    "error-container": "#ffdad6",
+                    "error-alert": "#ba1a1a",
+                    "on-surface": "#1a1c1e",
+                    "success-emerald": "#00c49a",
+                    "on-primary-fixed-variant": "#00513e",
+                    "surface-container-highest": "#e2e2e5",
+                    "outline-variant": "#bec9c3",
+                    "surface-faint": "#f9f9fc",
+                    "on-tertiary": "#ffffff",
+                    "on-surface-variant": "#3e4944",
+                    "secondary": "#0060ab",
+                    "expense-blue": "#4a90e2",
+                    "primary-fixed": "#9ef3d3",
+                    "primary": "#00513e",
+                    "inverse-primary": "#82d7b8",
+                    "error": "#ba1a1a",
+                    "tertiary": "#314f00",
+                    "background": "#E4F4ED",
+                    "outline": "#6f7a74",
+                    "inverse-on-surface": "#f0f0f3",
+                    "surface-tint": "#006c53",
+                    "secondary-fixed": "#d3e3ff",
+                    "on-primary-container": "#94eaca",
+                    "on-secondary": "#ffffff",
+                    "surface-container-lowest": "#ffffff",
+                    "surface-container-low": "#f3f3f6",
+                    "on-tertiary-fixed": "#112000",
+                    "on-secondary-fixed-variant": "#004883",
+                    "on-secondary-container": "#004076",
+                    "primary-container": "#006c53",
+                    "inverse-surface": "#2f3133",
+                    "secondary-fixed-dim": "#a3c9ff",
+                    "surface": "#f9f9fc",
+                    "growth-lime": "#86c232",
+                    "surface-bright": "#f9f9fc",
+                    "on-tertiary-fixed-variant": "#314f00",
+                    "on-tertiary-container": "#b8e878",
+                    "tertiary-fixed-dim": "#a6d568",
+                    "tertiary-fixed": "#c1f281",
+                    "surface-variant": "#e2e2e5",
+                    "primary-fixed-dim": "#82d7b8",
+                    "on-error": "#ffffff",
+                    "on-secondary-fixed": "#001c39",
+                    "on-error-container": "#93000a",
+                    "surface-container": "#eeeef0",
+                    "on-primary-fixed": "#002117",
+                    "surface-dim": "#dadadc",
+                    "secondary-container": "#6eaeff",
+                    "coral-red": "#ff6b6b"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "2xl": "20px",
+                    "3xl": "24px",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "sm": "16px",
+                    "lg": "32px",
+                    "xs": "8px",
+                    "margin-mobile": "20px",
+                    "gutter": "16px",
+                    "xl": "48px",
+                    "md": "24px",
+                    "base": "4px"
+            },
+            "fontFamily": {
+                    "display": ["Manrope"],
+                    "body-md": ["Hanken Grotesk"],
+                    "label-lg": ["Hanken Grotesk"],
+                    "headline-lg": ["Manrope"],
+                    "label-sm": ["Hanken Grotesk"],
+                    "body-lg": ["Hanken Grotesk"],
+                    "headline-md": ["Manrope"],
+                    "headline-lg-mobile": ["Manrope"]
+            },
+            "fontSize": {
+                    "display": ["40px", {"lineHeight": "48px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "label-lg": ["14px", {"lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "600"}],
+                    "headline-lg": ["28px", {"lineHeight": "36px", "fontWeight": "600"}],
+                    "label-sm": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                    "body-lg": ["18px", {"lineHeight": "26px", "fontWeight": "400"}],
+                    "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                    "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "600"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body {
+            background-color: #E4F4ED;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        .glass-card-dark {
+            background: rgba(0, 81, 62, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(0, 108, 83, 0.2);
+        }
+        .inner-glass {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        .chart-gradient-blue { fill: url(#blueGradient); opacity: 0.2; }
+        .chart-gradient-emerald { fill: url(#emeraldGradient); opacity: 0.2; }
+        .chart-gradient-coral { fill: url(#coralGradient); opacity: 0.2; }
+        
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+    </style>
+</head>
+<body class="font-body-md text-on-surface overflow-x-hidden">
+<!-- Top App Bar -->
+<header class="w-full top-0 sticky z-50 bg-background/80 backdrop-blur-md px-margin-mobile h-16 flex items-center justify-between">
+<div class="flex items-center gap-4">
+<button class="w-10 h-10 flex items-center justify-center rounded-full active:scale-95 transition-transform hover:bg-surface-container-low">
+<span class="material-symbols-outlined text-primary">arrow_back</span>
+</button>
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile text-primary font-bold">Financial Insights</h1>
+</div>
+<button class="w-10 h-10 flex items-center justify-center rounded-full active:scale-95 transition-transform hover:bg-surface-container-low">
+<span class="material-symbols-outlined text-primary">calendar_today</span>
+</button>
+</header>
+<main class="max-w-[576px] mx-auto pb-32 px-margin-mobile">
+<!-- Segmented Control & Date Picker -->
+<section class="mt-4 space-y-4">
+<div class="bg-surface-container-high rounded-full p-1 flex justify-between items-center w-full">
+<button class="flex-1 py-2 rounded-full font-label-lg text-label-lg transition-all text-on-surface-variant">Daily</button>
+<button class="flex-1 py-2 rounded-full font-label-lg text-label-lg transition-all text-on-surface-variant">Weekly</button>
+<button class="flex-1 py-2 rounded-full font-label-lg text-label-lg transition-all bg-primary-container text-on-primary-container shadow-sm font-bold">Monthly</button>
+</div>
+<div class="flex items-center justify-center gap-6 py-2">
+<button class="material-symbols-outlined text-outline">chevron_left</button>
+<span class="font-headline-md text-headline-md text-primary font-bold">August 2024</span>
+<button class="material-symbols-outlined text-outline">chevron_right</button>
+</div>
+</section>
+<!-- Summary Section -->
+<section class="mt-6">
+</section>
+<!-- Smart Insight Card -->
+<section class="mt-lg">
+</section>
+<!-- Chart 1: Area Line Chart -->
+<section class="mt-lg">
+<div class="bg-white rounded-3xl border border-primary/5 shadow-sm overflow-hidden">
+<div class="bg-[#07513F] px-4 py-3 flex justify-between items-center border-b border-[#07513F]">
+<h2 class="font-headline-md text-headline-md text-white font-bold">Income, Expense &amp; Balance</h2>
+
+</div>
+<div class="p-6">
+<div class="h-48 w-full relative mb-6">
+<div class="absolute left-0 top-0 bottom-8 flex flex-col justify-between text-[8px] text-outline pr-1 border-r border-primary/5">
+<span class="">15M</span><span class="">10M</span><span class="">5M</span><span class="">0</span>
+</div>
+<div class="absolute right-0 top-0 bottom-8 flex flex-col justify-between text-[8px] text-expense-blue pl-1 border-l border-primary/5">
+<span class="">25M</span><span class="">20M</span><span class="">15M</span>
+</div>
+<div class="absolute left-6 right-6 top-0 bottom-8">
+<div class="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-10">
+<div class="border-b border-dashed border-primary w-full"></div>
+<div class="border-b border-dashed border-primary w-full"></div>
+<div class="border-b border-dashed border-primary w-full"></div>
+<div class="border-b border-primary w-full"></div>
+</div>
+<div class="absolute left-[60%] top-0 bottom-0 border-l border-primary/20 z-0"></div>
+<div class="absolute left-[60%] top-[15%] -translate-x-1/2 z-20">
+<div class="bg-[#004d3d] text-white text-[9px] p-2 rounded-lg shadow-xl whitespace-nowrap flex flex-col gap-0.5">
+<span class="font-bold border-b border-white/10 mb-1">Aug 18</span>
+<span class="flex justify-between gap-4">Bal: <span class="font-bold">21.4M</span></span>
+<span class="flex justify-between gap-4">Inc: <span class="font-bold">1.2M</span></span>
+<span class="flex justify-between gap-4">Exp: <span class="font-bold">0.8M</span></span>
+</div>
+<div class="w-2 h-2 bg-white border-2 border-primary rounded-full mx-auto mt-1"></div>
+</div>
+<svg class="w-full h-full overflow-visible" preserveAspectRatio="none" viewBox="0 0 100 100">
+<path d="M0,80 C10,75 20,85 30,70 C40,65 50,75 60,55 C70,50 80,60 90,40 L100,35" fill="none" stroke="#00c49a" stroke-linecap="round" stroke-width="2.5"></path>
+<path d="M0,90 C15,85 25,95 40,88 C55,82 70,90 85,75 L100,78" fill="none" stroke="#ff6b6b" stroke-linecap="round" stroke-width="2.5"></path>
+<path d="M0,60 C20,55 40,65 60,45 C80,35 90,25 100,15" fill="none" stroke="#4a90e2" stroke-linecap="round" stroke-width="3"></path>
+</svg>
+</div>
+<div class="absolute bottom-0 left-6 right-6 flex justify-between text-[10px] text-outline pt-2">
+<span class="">1</span><span class="">7</span><span class="">14</span><span class="">21</span><span class="">28</span>
+</div>
+</div>
+<div class="flex flex-wrap gap-2">
+<button class="bg-secondary-fixed text-on-secondary-fixed-variant px-3 py-1.5 rounded-full text-label-sm font-bold flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-secondary"></span> Balance</button>
+<button class="bg-surface-container-low text-on-surface-variant px-3 py-1.5 rounded-full text-label-sm font-medium flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-success-emerald"></span> Income</button>
+<button class="bg-surface-container-low text-on-surface-variant px-3 py-1.5 rounded-full text-label-sm font-medium flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-coral-red"></span> Expense</button>
+</div>
+</div>
+</div>
+</section>
+<!-- Donut Charts Grid -->
+<div class="grid grid-cols-1 gap-lg mt-lg">
+<!-- Chart 2: Income by Category -->
+<section class="bg-white rounded-3xl border border-primary/5 shadow-sm overflow-hidden">
+<div class="bg-[#07513F] px-4 py-3 border-b border-[#07513F]">
+<h2 class="font-headline-md text-headline-md text-white font-bold">Income by Category</h2>
+</div>
+<div class="p-6">
+<div class="flex items-center justify-between gap-8 mb-8">
+<div class="relative w-32 h-32 flex items-center justify-center">
+<svg class="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+<circle cx="18" cy="18" fill="transparent" r="16" stroke="#f3f3f6" stroke-width="4"></circle>
+<circle cx="18" cy="18" fill="transparent" r="16" stroke="#00c49a" stroke-dasharray="75, 100" stroke-dashoffset="0" stroke-linecap="round" stroke-width="4"></circle>
+<circle cx="18" cy="18" fill="transparent" r="16" stroke="#86c232" stroke-dasharray="20, 100" stroke-dashoffset="-77" stroke-linecap="round" stroke-width="4"></circle>
+</svg>
+<div class="absolute inset-0 flex flex-col items-center justify-center">
+<p class="font-label-sm text-label-sm text-outline">Total</p>
+<p class="font-headline-md text-headline-md text-primary font-bold">9.7M</p>
+</div>
+</div>
+<div class="flex-1 space-y-4">
+<div class="flex justify-between items-center">
+<div class="flex items-center gap-2"><span class="material-symbols-outlined text-success-emerald text-[20px]">payments</span><span class="font-label-lg text-label-lg">Salary</span></div>
+<span class="font-bold text-primary">75%</span>
+</div>
+<div class="flex justify-between items-center">
+<div class="flex items-center gap-2"><span class="material-symbols-outlined text-growth-lime text-[20px]">handyman</span><span class="font-label-lg text-label-lg">Side Hustle</span></div>
+<span class="font-bold text-primary">20%</span>
+</div>
+<div class="flex justify-between items-center">
+<div class="flex items-center gap-2"><span class="material-symbols-outlined text-outline text-[20px]">more_horiz</span><span class="font-label-lg text-label-lg">Others</span></div>
+<span class="font-bold text-primary">5%</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Chart 3: Expense by Category -->
+<section class="bg-white rounded-3xl border border-primary/5 shadow-sm overflow-hidden">
+<div class="bg-[#07513F] px-4 py-3 border-b border-[#07513F]">
+<h2 class="font-headline-md text-headline-md text-white font-bold">Expense by Category</h2>
+</div>
+<div class="p-6">
+<div class="flex items-center justify-between gap-8 mb-8">
+<div class="relative w-32 h-32 flex items-center justify-center">
+<svg class="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+<circle cx="18" cy="18" fill="transparent" r="16" stroke="#f3f3f6" stroke-width="4"></circle>
+<circle cx="18" cy="18" fill="transparent" r="16" stroke="#ff6b6b" stroke-dasharray="44, 100" stroke-dashoffset="0" stroke-linecap="round" stroke-width="4"></circle>
+<circle cx="18" cy="18" fill="transparent" r="16" stroke="#4a90e2" stroke-dasharray="29, 100" stroke-dashoffset="-45" stroke-linecap="round" stroke-width="4"></circle>
+<circle cx="18" cy="18" fill="transparent" r="16" stroke="#fbbf24" stroke-dasharray="24, 100" stroke-dashoffset="-75" stroke-linecap="round" stroke-width="4"></circle>
+</svg>
+<div class="absolute inset-0 flex flex-col items-center justify-center">
+<p class="font-label-sm text-label-sm text-outline">Total</p>
+<p class="font-headline-md text-headline-md text-primary font-bold">5.3M</p>
+</div>
+</div>
+<div class="flex-1 space-y-4">
+<div class="flex justify-between items-center">
+<div class="flex items-center gap-2"><span class="material-symbols-outlined text-coral-red text-[20px]">restaurant</span><span class="font-label-lg text-label-lg">Food</span></div>
+<span class="font-bold text-coral-red">45%</span>
+</div>
+<div class="flex justify-between items-center">
+<div class="flex items-center gap-2"><span class="material-symbols-outlined text-expense-blue text-[20px]">directions_car</span><span class="font-label-lg text-label-lg">Transport</span></div>
+<span class="font-bold text-expense-blue">30%</span>
+</div>
+<div class="flex justify-between items-center">
+<div class="flex items-center gap-2"><span class="material-symbols-outlined text-[#fbbf24] text-[20px]">more_horiz</span><span class="font-label-lg text-label-lg">Others</span></div>
+<span class="font-bold text-[#fbbf24]">25%</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+</div>
+<!-- Chart 4: Horizontal Bar Chart -->
+<section class="mt-lg">
+<div class="bg-white rounded-3xl border border-primary/5 shadow-sm overflow-hidden">
+<div class="bg-[#07513F] px-4 py-3 border-b border-[#07513F]">
+<h2 class="font-headline-md text-headline-md text-white font-bold">Total Income vs Expense</h2>
+</div>
+<div class="p-6 space-y-6">
+<div class="space-y-3">
+<div class="flex items-center gap-2"><span class="material-symbols-outlined text-primary text-[20px]">payments</span><span class="font-label-lg text-label-lg font-bold">Cash</span></div>
+<div class="grid grid-cols-1 gap-2">
+<div class="flex items-center gap-4">
+<div class="flex-1 h-3 bg-surface-container-low rounded-full overflow-hidden"><div class="h-full bg-success-emerald rounded-full" style="width: 65%;"></div></div>
+<span class="text-label-sm font-bold min-w-[70px] text-right">3,200,000</span>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex-1 h-3 bg-surface-container-low rounded-full overflow-hidden"><div class="h-full bg-coral-red rounded-full" style="width: 40%;"></div></div>
+<span class="text-label-sm font-bold min-w-[70px] text-right">1,850,000</span>
+</div>
+</div>
+</div>
+<div class="space-y-3">
+<div class="flex items-center gap-2"><span class="material-symbols-outlined text-primary text-[20px]">account_balance</span><span class="font-label-lg text-label-lg font-bold">Bank Transfer</span></div>
+<div class="grid grid-cols-1 gap-2">
+<div class="flex items-center gap-4">
+<div class="flex-1 h-3 bg-surface-container-low rounded-full overflow-hidden"><div class="h-full bg-success-emerald rounded-full" style="width: 90%;"></div></div>
+<span class="text-label-sm font-bold min-w-[70px] text-right">6,529,000</span>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex-1 h-3 bg-surface-container-low rounded-full overflow-hidden"><div class="h-full bg-coral-red rounded-full" style="width: 70%;"></div></div>
+<span class="text-label-sm font-bold min-w-[70px] text-right">3,469,810</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Chart 5: Vertical Comparison -->
+<section class="mt-lg">
+<div class="bg-white rounded-3xl border border-primary/10 shadow-sm overflow-hidden">
+<div class="bg-[#07513F] px-4 py-3 border-b border-[#07513F]">
+<h2 class="font-headline-md text-headline-md text-white font-bold">Income &amp; Expense by Source</h2>
+</div>
+<div class="p-6">
+<div class="inline-flex mb-6 px-3 py-1 bg-primary/5 rounded-full">
+<p class="font-label-sm text-label-sm text-success-emerald font-bold">Net Cash Flow: +4,409,190 VND</p>
+</div>
+<div class="relative h-[200px] flex items-end justify-center gap-12 pb-8">
+<div class="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-10">
+<div class="border-b border-dashed border-primary w-full"></div>
+<div class="border-b border-dashed border-primary w-full"></div>
+<div class="border-b border-dashed border-primary w-full"></div>
+<div class="border-b border-primary w-full"></div>
+</div>
+<div class="relative flex flex-col items-center z-10">
+<span class="text-[10px] font-bold text-primary mb-2">9,729,000 VND</span>
+<div class="relative w-16 h-[140px]">
+<div class="absolute inset-0 bg-success-emerald/5 rounded-t-2xl rounded-b-lg"></div>
+<div class="absolute bottom-0 w-full h-full bg-gradient-to-t from-[#006c53] to-[#00cfa6] rounded-t-2xl rounded-b-lg shadow-sm"></div>
+</div>
+<div class="mt-3 flex items-center gap-1 text-outline">
+<span class="material-symbols-outlined text-[18px]">payments</span>
+<span class="font-label-sm text-label-sm">Income</span>
+</div>
+</div>
+<div class="relative flex flex-col items-center z-10">
+<span class="text-[10px] font-bold text-coral-red mb-2">5,319,810 VND</span>
+<div class="relative w-16 h-[77px]">
+<div class="absolute inset-0 bg-coral-red/5 rounded-t-2xl rounded-b-lg"></div>
+<div class="absolute bottom-0 w-full h-full bg-gradient-to-t from-[#d83b3b] to-[#ff7a70] rounded-t-2xl rounded-b-lg shadow-sm"></div>
+</div>
+<div class="mt-3 flex items-center gap-1 text-outline">
+<span class="material-symbols-outlined text-[18px]">shopping_cart</span>
+<span class="font-label-sm text-label-sm">Expense</span>
+</div>
+</div>
+</div>
+<div class="mt-4 pt-4 border-t border-primary/5 flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-success-emerald text-[20px]">trending_up</span>
+<p class="font-label-sm text-label-sm text-on-surface-variant">Income is <span class="font-bold text-success-emerald">83% higher</span> than expense</p>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Bottom Navigation Bar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 bg-surface-container-lowest/80 backdrop-blur-xl px-4 py-3 pb-safe flex justify-around items-center rounded-t-3xl shadow-[0_-4px_12px_rgba(0,108,83,0.08)]">
+<button class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 hover:bg-surface-container-high transition-colors rounded-2xl active:scale-90">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-label-sm text-label-sm">Dashboard</span>
+</button>
+<button class="flex flex-col items-center justify-center bg-primary-container text-on-primary-container rounded-2xl px-4 py-1 active:scale-90 transition-all shadow-sm">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">insights</span>
+<span class="font-label-sm text-label-sm">Analytics</span>
+</button>
+<!-- Floating-like FAB style addition would go here if needed, but per JSON we use standard row -->
+<button class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 hover:bg-surface-container-high transition-colors rounded-2xl active:scale-90">
+<span class="material-symbols-outlined">account_balance_wallet</span>
+<span class="font-label-sm text-label-sm">Budget</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 hover:bg-surface-container-high transition-colors rounded-2xl active:scale-90">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-label-sm text-label-sm">Settings</span>
+</button>
+</nav>
+
+
+</body></html>

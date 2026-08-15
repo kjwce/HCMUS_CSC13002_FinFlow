@@ -1,6 +1,6 @@
-/// Script tải logo ngân hàng & ví điện tử Việt Nam về assets/logos/
-/// Chạy bằng lệnh: dart run download_logos.dart
-/// Đặt file này ở thư mục gốc của Flutter project (cùng cấp pubspec.yaml)
+// Script tải logo ngân hàng & ví điện tử Việt Nam về assets/logos/
+// Chạy bằng lệnh: dart run download_logos.dart
+// Đặt file này ở thư mục gốc của Flutter project (cùng cấp pubspec.yaml)
 
 import 'dart:io';
 
@@ -132,8 +132,7 @@ Future<bool> _downloadLogo(
   String savePath,
 ) async {
   try {
-    final url =
-        _useClearbit ? _clearbitUrl(domain) : _logoUrl(domain);
+    final url = _useClearbit ? _clearbitUrl(domain) : _logoUrl(domain);
     final uri = Uri.parse(url);
 
     final request = await client.getUrl(uri);

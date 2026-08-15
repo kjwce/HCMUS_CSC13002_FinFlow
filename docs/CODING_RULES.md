@@ -29,6 +29,8 @@ Shared app-level code belongs in:
 - `app/` for shell, routes, tab-level screens.
 - `core/` for theme, utilities, constants, app-wide widgets.
 
+Feature-local widgets live under `features/<feature>/presentation/widgets/` (e.g. `QuickAddCard`, `GoalUi`).
+
 ## File Naming
 
 - Screen files end in `_screen.dart` or `_page.dart`.
@@ -46,6 +48,7 @@ Current project style:
 - Use providers as thin accessors to singleton services.
 - Read services with `ref.read(...)` for actions.
 - Watch services with `ref.watch(...)` for UI state, but remember plain `Provider` does not react to `notifyListeners`.
+- Expose `ChangeNotifier` services as `ChangeNotifierProvider` when UI must rebuild from `notifyListeners` (e.g. `authServiceProvider`, `chatControllerProvider`).
 
 When changing provider patterns:
 
@@ -60,6 +63,8 @@ When changing provider patterns:
 - Services should update local cached state after successful writes.
 - Services should notify listeners after state changes.
 - Services should guard against missing authenticated users.
+- Keep services as singletons (`.instance`) unless there is a reason not to; expose testing seams via a private constructor + `forTesting()` factory (see `QuickAddService`, `ReceiptScanService`).
+- For transactional writes that touch multiple tables, prefer a Supabase SECURITY DEFINER RPC so invariants and validation live server-side (see the goal-aware transaction RPCs).
 
 ## Async Rules
 
@@ -68,6 +73,7 @@ When changing provider patterns:
 - Use `try/catch` around network/database operations.
 - Do not fetch data repeatedly from `build`.
 - Use `Future.microtask` in `initState` only when matching existing pattern.
+- Use `unawaited(...)` for intentionally fire-and-forget calls (e.g. background coordinator polling).
 
 ## Error Handling
 
@@ -75,13 +81,14 @@ When changing provider patterns:
 - UI should show `SnackBar` for failed save/add/update actions.
 - Services may log non-fatal errors with `debugPrint`.
 - Avoid crashing the app for Supabase initialization failures; current startup intentionally continues in a no-backend mode.
+- Edge Function errors: surface the `code`/`message` from the function error payload (see `ChatException`, `ReceiptScanException`).
 
 ## Logging
 
 - Use `debugPrint` for development logs.
 - Keep logs short and useful.
 - Do not log passwords, OTP tokens, or private user data.
-- Existing code logs some auth/debug events; follow that style only when needed.
+- Edge Functions log structured JSON metadata (`console.info(JSON.stringify({...}))`).
 
 ## Comments
 
@@ -90,6 +97,8 @@ When changing provider patterns:
   - Why startup does not wait for network.
   - Why a route redirect is delayed with post-frame callback.
   - Why a cache is cleared on notify.
+  - Why a withdrawal cap uses a sentinel value (`1 << 62`) so the RPC reads the real balance.
+  - Why a backward-compat alias is kept (e.g. `GoalSetupSheet`, `activeGoal`).
 - Do not add comments that restate obvious assignments.
 
 ## Code Formatting
@@ -107,13 +116,26 @@ Use `core/widgets` for shared widgets used across multiple features, such as:
 - Notification bell.
 - Transaction tile.
 - Language switcher.
+- Type chip.
 - Shared scaffolds.
 
-Keep feature-specific widgets private in the feature file or folder.
+Keep feature-specific widgets private in the feature file or folder (or under `presentation/widgets/`).
+
+## Theme Usage
+
+- Use `Theme.of(context)`, `AppColors`, and `context.finFlowColors` for colors.
+- `FinFlowColors` is the semantic `ThemeExtension` (light + dark) — prefer it over raw hex in new code.
+- Use `AppThemeManager.instance` for theme toggling.
+- Support both light and dark theme where practical (the redesigned screens do this).
+
+## Responsive Usage
+
+- Use `Responsive.w/h/sp(context, px)` for mobile-scaled dimensions (reference: Pixel 9, 393×852).
+- Do not introduce another responsive utility.
 
 ## Extension Methods
 
-The project has a context extension for language helpers in `app_language.dart`.
+The project has context extensions for language (`BuildContextStrings`) and theme colors (`FinFlowThemeContext`).
 
 Rules:
 
@@ -129,12 +151,14 @@ Rules:
 - Theme/colors stay in `core/theme`.
 - Static strings should use `AppStrings` where practical.
 - Assets should be referenced from declared `pubspec.yaml` paths.
+- RPC/SQL logic lives in `supabase/migrations/` — keep migrations as the single source of database structure.
+- Native Android logic (bank notification listener, MethodChannel) lives under `android/`.
 
 ## Best Practices Already Used
 
 - Guarding startup with `runZonedGuarded`.
 - Rendering app immediately while Supabase initializes in background.
-- Disposing controllers.
+- Disposing controllers and removing listeners.
 - Checking `mounted` after async calls.
 - Using RLS in Supabase migrations.
 - Keeping route names centralized in `AppRoutes`.
@@ -142,6 +166,8 @@ Rules:
 - Using services as the boundary for backend operations.
 - Using empty chart placeholders instead of rendering broken charts.
 - Using cached computed values in `TransactionService`.
+- Using SECURITY DEFINER RPCs for multi-table transactional writes (goal handling).
+- Abstracting platform seams for testability (`QuickAddRecorderDriver`, `QuickAddSpeechDriver`, function invokers, image pickers).
 
 ## Important Cautions
 
@@ -150,3 +176,4 @@ Rules:
 - Keep SQL migrations as the source of database structure.
 - Avoid reintroducing standalone schema files that can drift from migrations.
 - Preserve current app flows unless the task explicitly asks to change them.
+- Do not redeploy/replace Edge Functions or add new ones without checking the Dart callers and env-var needs.

@@ -10,7 +10,10 @@ void main() {
     });
 
     expect(configuration.enabled, isTrue);
-    expect(configuration.packages, {'com.VCB', 'com.mservice.momotransfer'});
+    expect(
+      configuration.packages,
+      {'com.VCB', 'com.mservice.momotransfer'},
+    );
     expect(configuration.packagesConfigured, isTrue);
   });
 

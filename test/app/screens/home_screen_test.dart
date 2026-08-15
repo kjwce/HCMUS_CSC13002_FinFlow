@@ -1,13 +1,18 @@
 import 'package:finflow/app/screens/home_screen.dart';
 import 'package:finflow/core/i18n/app_language.dart';
+import 'package:finflow/core/theme/app_theme_manager.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 void main() {
   setUpAll(() async {
+    SharedPreferencesAsyncPlatform.instance =
+        InMemorySharedPreferencesAsync.empty();
     SharedPreferences.setMockInitialValues({});
     await Supabase.initialize(
       url: 'https://example.supabase.co',
@@ -17,6 +22,11 @@ void main() {
 
   setUp(() {
     AppLanguage.instance.setLocale(AppLocale.english);
+    AppThemeManager.instance.setMode(ThemeMode.light);
+  });
+
+  tearDownAll(() {
+    SharedPreferencesAsyncPlatform.instance = null;
   });
 
   Future<void> pumpHome(WidgetTester tester, Size size) async {

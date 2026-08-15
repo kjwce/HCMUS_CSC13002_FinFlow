@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../core/i18n/app_language.dart';
+import '../../core/widgets/home_header_controls.dart';
 import '../../core/utils/responsive.dart';
 import '../../core/widgets/notification_bell.dart';
 import '../../features/auth/providers/auth_provider.dart';
@@ -297,6 +298,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
               ],
             ),
           ),
+          const HomeLanguageSelector(),
+          SizedBox(width: Responsive.w(context, 8)),
+          const HomeThemeToggle(),
+          SizedBox(width: Responsive.w(context, 8)),
           const NotificationBell(),
         ],
       ),

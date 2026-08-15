@@ -2,43 +2,45 @@
 
 ## Project Purpose
 
-FinFlow is a Flutter mobile app for personal finance tracking. It helps users record income and expenses, connect those transactions to wallets or bank accounts, monitor monthly and weekly spending against budget limits, and view dashboard charts and transaction history for financial insight. The app also features AI-powered natural-language and voice transaction input via Supabase Edge Functions.
+FinFlow is a Flutter mobile app for personal finance tracking. It helps users record income and expenses, connect those transactions to wallets (cash / transfer), monitor daily/weekly/monthly spending against budget limits, and view dashboard charts and transaction history for financial insight. The app features AI-powered natural-language, voice, receipt-scanning, bank-notification import, and a conversational financial assistant, all via Supabase Edge Functions.
 
 The app is currently a mobile-first Flutter project backed by:
-- **Supabase** for authentication, database (PostgreSQL), storage (avatars), Edge Functions runtime, and **Realtime** for community live updates.
-- **Google Gemini 2.5 Flash** for natural-language transaction parsing (via Edge Function).
+- **Supabase** for authentication, database (PostgreSQL), storage (avatars, chat images), Edge Functions runtime, and **Realtime** for community live updates.
+- **Google Gemini** for natural-language transaction parsing, receipt extraction, bank-notification parsing, and the financial chatbot (via Edge Functions; default `gemini-3.1-flash-lite`).
 - **Deepgram Nova-3** for speech-to-text transcription (via Edge Function).
+- **Android NotificationListenerService** (Kotlin) for native bank/e-wallet transaction detection.
 
 ## Target Users
 
 - Students and young professionals tracking daily income and spending.
 - Users who want a simple personal finance assistant with Vietnamese banking and e-wallet concepts.
 - Users who need budget monitoring, saving goals, and basic spending analytics.
-- Vietnamese users who prefer natural-language and voice input for transaction recording.
+- Vietnamese users who prefer natural-language, voice, and receipt input for transaction recording.
 - Users who engage in a community for financial tips and discussions.
 
 ## Main Features
 
 ### Core Features
-- Launch, onboarding, full auth flow (email/password, OTP, password reset).
+- Launch, onboarding, full auth flow (email/password, OTP, password reset, change password, account deletion).
 - Payment-source onboarding for cash and a shared transfer source.
-- Monthly budget setup and weekly budget editing.
-- Transaction CRUD with wallet awareness.
+- Monthly + daily + weekly budget setup and editing.
+- Transaction CRUD with wallet awareness and goal-aware RPCs.
 - Transaction History screen with day grouping, filters, and quick insights.
-- Goal CRUD and progress display.
+- Advanced saving goals (auto allocation, protection, redirect, shortfall handling).
 - Profile display, edit, and avatar upload.
+- Per-category monthly budgets.
 
 ### Home Dashboard
-- Total balance and monthly expense summary with budget progress bar.
-- Configurable goal summary card with metric picker (revenue/expense by day/week/month/year).
-- Category expense tracking (selectable from all categories).
+- Stitch hero + balance glass card with budget progress.
+- Refined goals section + configurable goal summary card (metric picker).
+- Category expense tracking and **category budget section**.
 - Period tabs (Daily/Weekly/Monthly) for transaction list.
 - **Quick Add card** with text input, mic button, and submit.
 - Floating "View All" entry to Transaction History.
 
 ### Quick Add (Natural Language)
 - Type or paste transaction description (e.g. "Ăn trưa 50k bằng MoMo hôm qua").
-- Sent to `parse-natural-language-transaction` Edge Function → Gemini 2.5 Flash.
+- Sent to `parse-natural-language-transaction` Edge Function → Gemini.
 - Returns structured data: type, amount, name, category, wallet, date, confidence, warnings.
 - Review sheet shows detected fields with missing-field tracking.
 - Confirm directly or edit details in the Add Transaction form.
@@ -49,49 +51,54 @@ The app is currently a mobile-first Flutter project backed by:
 - Tap mic → record audio (WAV, 16kHz, mono, 30s max).
 - Audio sent to `speech-to-text` Edge Function → Deepgram Nova-3 (Vietnamese).
 - Transcript auto-injected into Quick Add text field and submitted.
-- Full permission handling (microphone denied → user-friendly error).
-- Temporary audio files cleaned up after use.
+- Full permission handling; temporary audio files cleaned up.
 
 ### Quick Add (Voice — On-device Speech Recognition)
-- Tap mic → on-device `speech_to_text` recognition.
-- No Edge Function needed, works offline.
-- Automatic Vietnamese locale detection (vi_VN/vi-VN → system locale fallback).
-- Partial results delivered in real time, final transcript auto-injected.
-- Separate from the recording-based flow (uses `SpeechToText` platform plugin).
+- Tap mic → on-device `speech_to_text` recognition (works offline).
+- Automatic Vietnamese locale detection; partial results in real time.
+
+### Receipt Scanning
+- Take/select a receipt image in `ScanScreen` (tab or embedded in Add Transaction).
+- Sent to `parse-receipt` Edge Function → Gemini extracts merchant, date, currency, line items, total, warnings.
+- Review UI adjusts items before saving as transactions.
+
+### Bank Notification Import (Android)
+- Native listener reads bank/e-wallet notifications (Notification Access), redacts account numbers, filters OTP/security, enqueues in SQLite.
+- `parse-bank-notification` Edge Function decides if a notification is a transaction and parses it.
+- `QuickAddReviewSheet` lets the user confirm; saves with `isImported: true` (auto-withdraw goal shortfall policy).
+- Configuration screen with 14 supported banks/e-wallets and permission guidance.
+
+### AI Financial Assistant (Chatbot)
+- Real conversation with the `finance-chatbot` Edge Function (Gemini + financial context).
+- Intent classification: general chat vs. app finance questions.
+- Streaming responses, conversation history (rename/delete/switch), image attachments.
+- Insight cards and chart cards (bar/donut) from reply presets.
 
 ### Transaction Saved Confirmation
-- Full-screen confirmation after saving a transaction.
-- Shows signed amount with INCOME/EXPENSE badge.
-- Details card: category icon+name, wallet, current wallet balance.
-- [Done] → pop to home. [Add Another] → reopen AddTransactionSheet.
+- Full-screen confirmation after saving (signed amount, category, wallet, current balance).
+- [Done] → pop to home; [Add Another] → reopen AddTransactionSheet.
 
 ### Analytics Dashboard
 - 5 chart types with period selector (Day/Week/Month) and offset navigation.
 - Income/Expense/Balance line chart, category donuts, source grouped bars, income-vs-expense comparison.
-- Touch tooltips with VND formatting, animated entry (850ms).
+- Touch tooltips with VND formatting, animated entry.
 
 ### Categories
 - 14 built-in categories (8 popular + 6 extended), each with key, label, icon, color.
 - In-memory custom category store with icon/color picker.
-- Category fallback to "Other" when no match found.
+- Category fallback to "Other".
 
 ### Community (Social Features)
-- **Post CRUD**: create with composer, read in feed/detail, edit, delete with authorization.
-- **Comment system**: add, delete, anonymous toggle, author info enrichment.
-- **Like/Unlike**: optimistic UI updates with Supabase sync and rollback.
-- **Save/Bookmark**: optimistic toggle with rollback.
-- **Realtime**: Supabase Realtime pushes new posts, like count changes, and comment updates.
-- **Rich text formatting**: posts use marker-based formatting (`**bold**`, `_italic_`, `~underline~`, `• bullet`, `||spoiler||`).
-- **Composer**: formatting toolbar, category picker, anonymous toggle, edit mode.
-- **Post detail**: full post view, comment list, live comment input bar.
-- **CommunityPostCard**: avatar with color-palette initials, category badge, date, formatted body, like/save/comment actions, owner menu.
+- **Post CRUD**, **comments** (anonymous toggle, author enrichment), **recursive replies**, **comment likes**.
+- **Like/Unlike**, **Save/Bookmark** with optimistic updates.
+- **Realtime** channels for posts, likes, comments, notifications.
+- **Rich text formatting** (`**bold**`, `_italic_`, `~underline~`, `• bullet`, `||spoiler||`).
+- **Composer** with formatting toolbar; **post detail** with thread view; **topic-driven feed** tab.
 
 ### Notifications
-- Notifications for: new posts from others, comments on posts, likes on posts.
-- Realtime delivery via Supabase Realtime (filtered by user_id).
-- Notification screen with Today/Earlier grouping, "N New" badge, "Mark all as read".
-- NotificationBell widget with live unread count.
-- Tap notification → mark as read → navigate to post detail.
+- Notifications for: new posts, comments, likes, comment replies, comment likes.
+- Realtime delivery; Today/Earlier grouping; "N New" badge; Mark all as read.
+- NotificationBell widget with live unread count; tap → post detail.
 
 ## Folder Structure
 
@@ -99,83 +106,88 @@ The app is currently a mobile-first Flutter project backed by:
 lib/
   main.dart
   app/
-    screens/          # Home, AI, Community, Profile, CommunityPostDetail screens
-    shell/            # MainShell, FinFlowApp, BottomNavBar
+    screens/          # Home, Community, Profile, CommunityPostDetail, AiScreen (roadmap)
+    shell/            # MainShell, FinFlowApp (AppRoutes), BottomNavBar
   core/
     config/           # Environment configuration
     constants/        # Supabase URL/keys
     i18n/             # AppLanguage, AppStrings (bilingual)
     services/         # App init notifier
-    theme/            # AppColors, AppTheme, AppThemeManager
+    theme/            # AppColors, FinFlowColors, AppTheme, AppThemeManager
     utils/            # Responsive helper
-    widgets/          # NotificationBell, FinFlowLogo, LanguageSwitcher, DecoratedPhoneScaffold
+    widgets/          # NotificationBell, FinFlowLogo, LanguageSwitcher, TransactionTile,
+                      # TypeChip, DecoratedPhoneScaffold
   features/
-    auth/             # Auth screens, provider, service (Supabase auth)
-    budget/           # Budget setup screen
-    chatbot/          # Chat screen (static)
-    community/        # COMMUNITY (FULLY IMPLEMENTED)
-      models/         # CommunityPostModel, CommunityCommentModel, NotificationModel
-      presentation/   # CommunityScreen (legacy), CommunityComposerScreen, NotificationScreen
-                      # widgets/PostCard
-      providers/      # CommunityService provider, NotificationService provider
-      services/       # CommunityService (CRUD + realtime), NotificationService (realtime + fetch)
-      utils/          # RichTextFormatter, CommunityDateFormat
+    auth/             # Auth screens, provider, service
+    budget/           # Budget setup + per-category budgets (model/service/provider/screens)
+    chatbot/          # Real AI assistant: models, provider, service, presentation
+    community/        # FULL community: models, presentation (feed, composer, detail,
+                      #   notifications, activity), providers, services, utils
     debug/            # Database viewer
     finance/          # FINANCE CORE
-      models/         # TransactionModel, WalletModel, GoalModel, QuickAddDraft,
-                      # TransactionCategory, WalletModel, QuickAddDraftModel
-      presentation/   # AddTransactionSheet, DashboardPage, GoalSetupSheet,
-                      # QuickAddReviewSheet, TransactionSavedScreen,
-                      # WalletOnboardingScreen, TransactionHistoryScreen,
-                      # EditTransactionScreen, Widgets/QuickAddCard
+      models/         # TransactionModel, WalletModel, GoalModel (+GoalFundEntry, GoalSettings),
+                      # QuickAddDraft, TransactionCategory, QuickAddDraftModel
+      presentation/   # AddTransactionSheet, DashboardPage, GoalSetupSheet, GoalSheets,
+                      # GoalFormScreen, GoalDetailsScreen, SavingGoalsScreen,
+                      # QuickAddReviewSheet, TransactionSavedScreen, WalletOnboardingScreen,
+                      # TransactionHistoryScreen, EditTransactionScreen,
+                      # Widgets/QuickAddCard, Widgets/GoalUi
       providers/      # Transaction, Wallet, Goal providers
       services/       # TransactionService, WalletService, GoalService,
                       # QuickAddService, QuickAddVoiceService, QuickAddSpeechRecognitionService
     launch/           # Launch, Onboarding screens
+    notification_import/ # Bank notification import (models, presentation, services)
     profile/          # Edit profile screen
-    scan/             # Scan screen (placeholder)
-    settings/         # Settings screen
+    scan/             # Real receipt scanning (models, presentation, services)
+    settings/         # Settings, budget limits, security screens
+android/app/src/main/kotlin/com/finflow/
+  BankNotificationListenerService.kt
+  BankNotificationStore.kt
+  BankTransactionNotificationPresenter.kt
+  NotificationListenerRebindReceiver.kt
+  MainActivity.kt
 assets/
-  icons/              # SVG icons
-  icons/home/         # Home-specific SVG icons (flag, etc.)
+  icons/              # SVG icons (incl. categories, chatbot, home, profile)
+  images/             # Cover/background images
   logos/banks/        # 27 bank logos (PNG)
   logos/ewallets/     # 9 e-wallet + cash + other logos (PNG)
-  *.png               # Cover/background images
+  fonts/              # Manrope, Hanken Grotesk
 supabase/
   functions/
     parse-natural-language-transaction/index.ts  # Gemini NL parser
     speech-to-text/index.ts                      # Deepgram STT
-  migrations/         # 12 SQL migrations (001-012)
-  .temp/              # Local Supabase temp files
+    parse-receipt/index.ts                       # Gemini receipt parser
+    parse-bank-notification/index.ts             # Gemini bank-notification parser
+    finance-chatbot/index.ts                     # Gemini financial chatbot
+    _shared/chat_intent.ts                       # intent classifier
+    _shared/receipt_parser.ts                    # receipt validation/sanitization
+  migrations/         # 25 SQL migrations (001-025)
 scripts/
   test_parse_natural_language_transaction.ps1    # Test script for Edge Function
-test/
-  features/finance/
-    quick_add_service_test.dart      # 15+ unit tests
-    quick_add_voice_service_test.dart # 10 unit tests
-    quick_add_flow_test.dart         # 15+ widget tests
-  widget_test.dart
+test/                 # Unit + widget tests across features
 ```
 
 ## Packages Used
 
 - `flutter_riverpod`: provider layer and dependency access.
 - `supabase_flutter`: authentication, database, storage, Edge Functions, **Realtime**.
-- `fl_chart`: analytics dashboard charts.
+- `fl_chart`: dashboard + chatbot chart rendering.
 - `flutter_svg`: SVG icon rendering.
-- `image_picker`: profile avatar image selection.
+- `image_picker`: profile avatar, receipt, and chat image selection.
 - `record`: audio recording for voice Quick Add (WAV, 16kHz, mono).
 - `speech_to_text`: on-device speech recognition for live dictation.
+- `http`: streaming SSE from `finance-chatbot`.
+- `shared_preferences`: language + legacy bank-import config.
 - `visibility_detector`: screen visibility tracking.
-- `sqflite` and `path`: present in dependencies, but current data flow uses Supabase cloud storage.
+- `sqflite` and `path`: present in Flutter deps (the native Kotlin layer has its own SQLite); current Flutter data flow uses Supabase cloud storage.
 - `flutter_lints`: lint rules.
 
 ## State Management
 
 The project uses Riverpod, but many state objects are singleton services:
 
-- `AuthService` is a singleton `ChangeNotifier` exposed through `ChangeNotifierProvider`.
-- `TransactionService`, `GoalService`, `WalletService`, `CommunityService`, and `NotificationService` are singleton `ChangeNotifier`s exposed through plain `Provider`.
+- `AuthService` and `ChatController` are singletons exposed through `ChangeNotifierProvider`.
+- `TransactionService`, `GoalService`, `WalletService`, `CommunityService`, `NotificationService`, and `CategoryBudgetService` are singleton `ChangeNotifier`s exposed through plain `Provider`.
 - Some screens manually subscribe to service listeners because plain `Provider` does not rebuild on `notifyListeners`.
 
 Important providers:
@@ -186,80 +198,99 @@ Important providers:
 - `walletServiceProvider`
 - `communityServiceProvider`
 - `notificationServiceProvider`
+- `categoryBudgetServiceProvider`
+- `chatControllerProvider`
 - `languageProvider`
 
 Key behavior:
 - `HomeScreen` subscribes to `TransactionService` and `GoalService` via `addListener` in `initState`.
-- `QuickAddService`, `QuickAddVoiceService`, and `QuickAddSpeechRecognitionService` are pure controllers (no `ChangeNotifier`), used directly.
-- `AddTransactionSheet` and `DashboardPage` use `ref.watch` for services.
+- `QuickAddService`, `QuickAddVoiceService`, `QuickAddSpeechRecognitionService`, `ReceiptScanService`, and `ChatService` are controllers used directly.
 - `NotificationBell` uses `ListenableBuilder` wrapping the notification service for live unread count updates.
-- `CommunityService` uses `notifyListeners()` after every mutation (create, edit, delete, like, save, comment).
+- `CommunityService` uses `notifyListeners()` after every mutation.
 
 ## Backend
 
 ### Supabase
 Supabase provides authentication, PostgreSQL database, storage, and Edge Functions runtime.
 
-Tables:
-- `profiles`: public user profile linked to `auth.users`.
-- `transactions`: user transactions with name, category, amount, date, optional wallet_id.
-- `wallets`: exactly two system sources per user (`cash`, `transfer`) with initial balances.
-- `goals`: saving goals with target_amount.
-- `budgets`: per-category budget table (schema only, not used by app UI).
-- `community_posts`: posts with content, category, anonymous/spoiler flags, likes_count, comments_count.
-- `community_likes`: likes (unique per post_id + user_id), auto-updates likes_count via trigger.
-- `community_saves`: bookmarks (unique per post_id + user_id).
-- `community_comments`: comments with post_id, user_id, content, anonymous flag.
-- `community_post_reports`: report posts (unique per post_id + reporter_id).
-- `community_comment_reports`: report comments (unique per comment_id + reporter_id).
-- `community_notifications`: activity notifications (user_id type actor_id post_id), marked is_read.
-- `community_media`: post image/media attachments (schema exists, not used by UI).
+Tables (current, after 25 migrations):
+- `profiles`: public user profile (id, full_name, email, phone, avatar_url, budget_limit, daily_budget, weekly_budget, selected_category).
+- `transactions`: user transactions (id, user_id UUID→profiles, name, category, amount, date, wallet_id).
+- `wallets`: exactly two system sources per user (`cash` / `transfer`), display names `Cash` / `Transfer`, with initial balances; created by a profile trigger.
+- `goals`: saving goals with target_amount (BIGINT), category, target_date, funding_method, auto_allocation_percent, is_primary, is_protected, withdrawal_priority, status, completion_behavior, redirect_goal_id, image_url.
+- `goal_fund_entries`: ledger of allocations/withdrawals (entry_type: initial, manual_allocation, automatic_allocation, manual_withdrawal, expense_withdrawal, completion_transfer).
+- `goal_settings`: per-user expense shortfall policy (ask_each_time / auto_withdraw) and imported transaction policy (auto_withdraw).
+- `budgets`: per-category monthly budgets (user_id, category, limit_amount, month, year) — used by category-budget feature.
+- `chat_conversations` / `chat_messages`: AI assistant history (role, message, insight, chart, image_path, image_mime_type, sequence_number).
+- Community tables: `community_posts`, `community_likes`, `community_saves`, `community_comments` (with parent_comment_id, likes_count), `community_comment_likes`, `community_post_reports`, `community_comment_reports`, `community_notifications`, `community_media`.
 
 Views:
 - `community_authors`: SELECT id, full_name, avatar_url FROM profiles — used for client-side author enrichment.
 
-Triggers:
-- `community_adjust_likes_count`: INSERT/DELETE on community_likes → update likes_count.
-- `community_adjust_comments_count`: INSERT/DELETE on community_comments → update comments_count.
-- `community_notify_post_activity`: INSERT on community_posts → create notifications for all other users.
-- `community_notify_comment_activity`: INSERT on community_comments → create notifications for post owner.
-- `community_notify_like_activity`: INSERT on community_likes → create notification for post owner.
-- `community_backfill_new_profile_notifications`: INSERT on profiles → backfill existing post/comment notifications.
+Triggers (notable):
+- Community: like/comment count adjustments, post/comment/like notification creation, comment reply + comment-like notifications, backfill for new profiles.
+- `create_default_wallets` — new profile gets cash + transfer wallets.
+- `touch_chat_conversation` / `assign_chat_message_sequence` — chat history maintenance.
+- `validate_goal_auto_percentages`, `enforce_goal_actual_balance` (constraint triggers on transactions/wallets), `ensure_default_goal_settings`.
+- Profile auto-create on user signup.
 
-RLS: All tables have RLS policies restricting user-owned data to the authenticated owner. Community read operations are public to authenticated users. Notification reads/updates restricted to the owning user.
+RLS: All tables have RLS policies restricting user-owned data to the authenticated owner. Community read operations are public to authenticated users. Goal writes go through SECURITY DEFINER RPCs. Notification reads/updates restricted to the owning user.
 
-Realtime: `community_notifications` is added to `supabase_realtime` publication.
+Realtime: `community_notifications` (and `community_comments`, `community_comment_likes`) are in `supabase_realtime`.
 
 ### Supabase Edge Functions
-Two Deno/TypeScript Edge Functions are deployed:
 
 1. **`parse-natural-language-transaction`**
    - Endpoint: `POST /functions/v1/parse-natural-language-transaction`
-   - Calls Google Gemini 2.5 Flash (`gemini-2.5-flash`) with constrained JSON schema output.
+   - Calls Gemini (default `gemini-3.1-flash-lite`) with constrained JSON schema output.
    - Accepts: text, currentDate, currentDateTime, timezone, locale, categories[], wallets[].
    - Returns: `{ success, version, data: { type, amount, name, categoryKey, walletName, date, confidence, warnings } }`.
    - Validates input (max 500 chars), authenticates via Bearer token, sanitizes response.
    - Timeout: 20s. Model can be overridden via `GEMINI_MODEL` env var.
-   - Error codes: UNAUTHORIZED, INVALID_REQUEST, EMPTY_TEXT, TEXT_TOO_LONG, GEMINI_RATE_LIMITED, GEMINI_UNAVAILABLE, INVALID_MODEL_OUTPUT, INTERNAL_ERROR.
-   - Bilingual error messages (vi-VN, en-US).
+   - Error codes: UNAUTHORIZED, INVALID_REQUEST, EMPTY_TEXT, TEXT_TOO_LONG, GEMINI_RATE_LIMITED, GEMINI_UNAVAILABLE, INVALID_MODEL_OUTPUT, INTERNAL_ERROR. Bilingual errors.
 
 2. **`speech-to-text`**
    - Endpoint: `POST /functions/v1/speech-to-text`
    - Calls Deepgram Nova-3 (`nova-3`, language: `vi`) with smart formatting.
    - Accepts: raw audio bytes with `Content-Type` header.
-   - Supported MIME types: `audio/mp4`, `audio/mpeg`, `audio/wav`, `audio/x-wav`, `audio/aac`, `audio/ogg`, `audio/webm`, `audio/flac`.
-   - Max audio size: 5MB.
-   - Returns: `{ success, version, data: { transcript } }`.
-   - Authenticates via Bearer token.
+   - Supported MIME types: `audio/mp4`, `audio/mpeg`, `audio/wav`, `audio/x-wav`, `audio/aac`, `audio/ogg`, `audio/webm`, `audio/flac`. Max 5MB.
+   - Returns: `{ success, version, data: { transcript } }`. Authenticates via Bearer token.
    - Error codes: UNAUTHORIZED, INVALID_REQUEST, INVALID_CONTENT_TYPE, EMPTY_AUDIO, AUDIO_TOO_LARGE, UNSUPPORTED_AUDIO, EMPTY_TRANSCRIPT, DEEPGRAM_RATE_LIMITED, DEEPGRAM_UNAVAILABLE, INTERNAL_ERROR.
 
+3. **`parse-receipt`**
+   - Endpoint: `POST /functions/v1/parse-receipt`
+   - Calls Gemini with image inline data + constrained JSON schema (merchantName, receiptDate, currency, items[{name, amount, categoryKey, confidence, warning}], totalAmount, warnings).
+   - Accepts: `{ imageBase64, mimeType, locale, categories[] }` (max 8MB image).
+   - Authenticates via Bearer token; uses `_shared/receipt_parser.ts`.
+   - Timeout: 30s. Errors: UNAUTHORIZED, INVALID_REQUEST, INVALID_IMAGE, IMAGE_TOO_LARGE, GEMINI_RATE_LIMITED, GEMINI_TIMEOUT, GEMINI_UNAVAILABLE, INVALID_MODEL_OUTPUT, INTERNAL_ERROR.
+
+4. **`parse-bank-notification`**
+   - Endpoint: `POST /functions/v1/parse-bank-notification`
+   - Calls Gemini to classify a bank/e-wallet Android notification as transaction or not.
+   - Accepts: `{ packageName, title, text, postedAt, currentDateTime, categories[] }`.
+   - Returns: `{ success, version, data: { isTransaction, type, amount, name, categoryKey, date, confidence, warnings } }`.
+   - Authenticates via Bearer token. Errors: UNAUTHORIZED, INVALID_REQUEST, GEMINI_RATE_LIMITED, GEMINI_TIMEOUT, GEMINI_UNAVAILABLE, INVALID_MODEL_OUTPUT, INTERNAL_ERROR.
+
+5. **`finance-chatbot`**
+   - Endpoint: `POST /functions/v1/finance-chatbot` (also streaming via `Accept: text/event-stream`).
+   - Calls Gemini with grounded financial context (profiles, transactions, wallets, goals) loaded server-side.
+   - Intent classification (`general` / `app_finance`) via `_shared/chat_intent.ts`.
+   - Returns: `{ success, version, data: { reply, insight?, chart? } }` where chart is one of preset charts built server-side (weekly_expense_comparison, category_expenses_current_month, income_expense_current_month, budget_progress_current_month).
+   - Uses its own `CHATBOT_GEMINI_API_KEY` (separate quota from Quick Add).
+   - Streaming: SSE events `delta`, `done`, `error`. Timeout 20s.
+   - Errors: UNAUTHORIZED, INVALID_REQUEST, INVALID_IMAGE, DATA_UNAVAILABLE, GEMINI_RATE_LIMITED, GEMINI_TIMEOUT, GEMINI_UNAVAILABLE, INVALID_MODEL_OUTPUT, INTERNAL_ERROR.
+
+6. **`delete-account`** — referenced by `AuthService.deleteAccount()` (in `lib/features/auth/services/auth_service.dart`). **Not present in `supabase/functions/`** — must be deployed for account deletion to work.
+
 ### Environment Variables
+
 Edge Functions require:
 - `SUPABASE_URL`
-- `SUPABASE_ANON_KEY` or `SUPABASE_PUBLISHABLE_KEY` or `SUPABASE_PUBLISHABLE_KEYS`
-- `GEMINI_API_KEY` (for parser function)
-- `DEEPGRAM_API_KEY` (for speech-to-text function)
-- `GEMINI_MODEL` (optional, defaults to `gemini-2.5-flash`)
+- `SUPABASE_ANON_KEY` / `SUPABASE_PUBLISHABLE_KEY` / `SUPABASE_PUBLISHABLE_KEYS`
+- `GEMINI_API_KEY` (parser, receipt, bank-notification)
+- `CHATBOT_GEMINI_API_KEY` (finance-chatbot)
+- `DEEPGRAM_API_KEY` (speech-to-text)
+- `GEMINI_MODEL` (optional, defaults to `gemini-3.1-flash-lite`)
 
 ## Authentication
 
@@ -270,184 +301,159 @@ Supported flows in code:
 - Email/password sign in.
 - Email/password signup with OTP verification.
 - Forgot password and new password flow.
-- OAuth method stubs for Google, Facebook, and Apple using Supabase OAuth.
+- Change password flow.
+- OAuth for Google, Facebook, Apple.
 - Password recovery event listener routes to `/new-password`.
+- Account deletion via `delete-account` Edge Function.
 - Sign out clears local user state before calling Supabase sign out.
-- User profile fields: fullName, email, phone, budgetLimit, weeklyBudget, avatarUrl, selectedCategory.
-- `selectedCategory` and `weeklyBudget` use in-memory override fallback for DB schema migration.
+- User profile fields: fullName, email, phone, budgetLimit, dailyBudget, weeklyBudget, avatarUrl, selectedCategory.
+- `selectedCategory`, `dailyBudget`, `weeklyBudget` use in-memory override fallback for DB schema migration.
 - `needsBudgetSetup` property guides post-auth routing.
 
 ## Routing
 
 Routes are declared in `AppRoutes` inside `finflow_app.dart`.
 
-Key routes:
+Key routes (2026):
 
-- `/`: launch screen.
-- `/onboarding`: login/signup option screen.
-- `/sign-in`, `/sign-up`, `/verify`, `/forgot-password`, `/new-password`.
-- `/wallet-onboarding`, `/budget-setup`.
-- `/dashboard`, `/settings`, `/chat`, `/scan`, `/community`.
-- `/edit-profile`, `/database-viewer`.
-- `/notifications` → NotificationScreen (added).
+- `/` launch, `/onboarding`, `/sign-in`, `/sign-up`, `/verify`, `/forgot-password`, `/new-password`.
+- `/wallet-onboarding`, `/budget-setup`, `/category-budgets`.
+- `/settings`, `/budget-limits`, `/security`, `/change-password`.
+- `/chat`, `/scan`, `/community`, `/community-activity`, `/community-post-detail`, `/notifications`.
+- `/dashboard`, `/edit-profile`, `/database-viewer`, `/bank-notification-import`.
+- `/saving-goals`, `/saving-goals/create`, `/saving-goals/details`, `/saving-goals/edit`.
 
-The launch screen navigates to onboarding after a short delay. Sign-in routes to wallet onboarding or dashboard based on budget setup state. `MainShell` can receive a tab index argument for direct tab navigation. `MainShell` initializes `NotificationService` on user load.
-
-Notifications route is `/notifications`. Community post detail is navigated via direct `MaterialPageRoute` (not in routes map).
+The launch screen navigates to onboarding after a short delay. Sign-in routes to wallet onboarding or dashboard based on budget setup state. `MainShell` can receive a tab index argument. `MainShell` initializes `NotificationService` on user load and redirects new users (budgetLimit ≤ 0) to budget setup.
 
 ## Theme
 
 Theme is centralized in:
 
-- `core/theme/app_colors.dart` — expanded palette with 10+ semantic colors.
+- `core/theme/app_colors.dart` — `AppColors` palette + `FinFlowColors` `ThemeExtension` (light/dark semantic tokens) + `context.finFlowColors`.
 - `core/theme/app_theme.dart`
 - `core/theme/app_theme_manager.dart`
 
-The app uses Material 3 with a green finance-oriented visual identity. Dark mode is available through `AppThemeManager`, but many screens still use hardcoded colors.
+The app uses Material 3 with a green finance-oriented visual identity. Dark mode is available through `AppThemeManager`. Many screens (home, community, profile, goals, chat) support dark mode; some still use hardcoded colors.
 
 ## Assets
 
 Assets include:
 
-- Cover/background images: home, profile, settings, edit profile, scan.
-- SVG icons for navigation, profile actions, notification, Google icon, chart, logo, flag.
-- 27 bank logos under `assets/logos/banks/`.
-- 9 e-wallet logos + cash + other under `assets/logos/ewallets/`.
+- Cover/background images: home, profile, settings, edit profile, scan, goal.
+- SVG icons for navigation, profile actions, notification, Google, charts, logo, flag, categories (duotone/fill), chatbot.
+- 27 bank logos under `assets/logos/banks/`; 9 e-wallet logos + cash + other under `assets/logos/ewallets/`.
 - Fonts: Manrope, Hanken Grotesk, Poppins, Roboto.
 
-Legacy bank and e-wallet logo assets remain available but are no longer selected by the UI.
+Legacy bank and e-wallet logo assets remain available but are no longer selected by the UI (system wallets are cash/transfer).
 
 ## Current Completed Features
 
 ### Core
-- App startup and route table.
-- Supabase initialization (background, non-blocking).
-- Full auth flow (email/password, OTP, password reset, OAuth stubs).
+- App startup and route table; background Supabase init.
+- Full auth flow (email/password, OTP, password reset, change password, OAuth, account deletion call).
 - Profile fetch/update/avatar upload.
 - Payment-source onboarding (cash and transfer).
-- Budget setup and editing (monthly + weekly).
-- Transaction CRUD with wallet awareness.
+- Budget setup and editing (monthly + daily + weekly).
+- Transaction CRUD with wallet awareness via goal-aware RPCs.
 - Transaction History with daily grouping and quick insights.
-- Goal CRUD and progress display.
+- Advanced saving goals.
 - TransactionSavedScreen confirmation.
+- Per-category monthly budgets.
 
-### Quick Add (Natural Language)
+### Quick Add (Natural Language + Voice + On-device)
 - `QuickAddDraft` model with full validation.
 - `QuickAddService` — invokes Edge Function, validates response, resolves wallets, detects transfers.
 - `QuickAddReviewSheet` — review before save.
-- `QuickAddCard` — input UI with text/mic/submit.
-- Seamless missing-field handoff to `AddTransactionSheet`.
+- `QuickAddVoiceService` — recording → Deepgram → transcript → auto-submit.
+- `QuickAddSpeechRecognitionService` — on-device dictation.
 
-### Quick Add (Voice — Recording)
-- `QuickAddVoiceService` — recording lifecycle with `record` package.
-- Audio → Edge Function → Deepgram Nova-3 → transcript → auto-submit.
-- 30-second recording timeout, microphone permission handling.
-- Temporary file cleanup.
-- Abstracted recorder driver and file store for testing.
+### Receipt Scanning
+- `ReceiptScanService` → `parse-receipt` → `ScanResultModel` review → save.
+- Embedded scan mode in Add Transaction.
 
-### Quick Add (Voice — On-device Speech Recognition)
-- `QuickAddSpeechRecognitionService` — on-device dictation via `speech_to_text`.
-- Automatic Vietnamese locale detection.
-- Partial result streaming, final result auto-submit.
-- `QuickAddSpeechDriver` abstraction for testability.
+### AI Assistant
+- `finance-chatbot` Edge Function with grounding + intent classification + streaming.
+- ChatScreen with conversations, image attachments, insight/chart cards.
+
+### Bank Notification Import
+- Native Android listener + SQLite queue + local notification.
+- MethodChannel platform wrapper + coordinator + Edge Function parsing.
+- Config screen with 14 banks/e-wallets + permission guidance.
 
 ### Dashboard & Charts
-- 5 chart types with period/offset navigation.
-- Animated entry, touch tooltips, empty state placeholders.
-- Cached period buckets and breakdowns.
+- 5 chart types with period/offset navigation, animated entry, tooltips, empty states, cached buckets.
 
 ### Home Screen
-- Budget progress bar, configurable goal summary, category tracking.
-- Period tabs, Quick Add integration, floating "View All".
-- Voice recording and on-device speech recognition integration.
+- Stitch hero, balance glass card, budget carousel, goals section, category budgets, goal summary, Quick Add, transaction list.
 
 ### Community (Full)
-- Post CRUD with category, anonymous, spoiler support.
-- Comment system with anonymous toggle.
-- Like/unlike with optimistic updates.
-- Save/bookmark with optimistic updates.
-- 4 Realtime channels for live updates.
-- Rich text composer with formatting toolbar.
-- Rich content renderer (bold, italic, underline, bullets, spoilers).
-- Post detail screen with live comment section.
-- Post card with color avatar, category, date, formatted content, actions, owner menu.
+- Post CRUD, comments + recursive replies + comment likes, likes/saves, 4+ realtime channels, rich text, composer, topic-driven feed tab.
 
 ### Notifications
-- `NotificationService` with Realtime subscription.
-- Notification types: post, like, comment.
-- Notification enrichment (actor name/avatar, post preview).
-- Notification screen with Today/Earlier grouping.
-- NotificationBell widget with live unread badge.
-- Mark read / mark all read.
+- `NotificationService` with realtime, types post/like/comment/comment_reply/comment_like, enrichment, Today/Earlier grouping, NotificationBell.
 
 ### Backend
-- 12 Supabase migrations (001-012).
-- Community schema: 7 tables + 1 view + 5 triggers.
-- Cross-account support, notification backfill, Realtime publication.
-- RLS policies for community features.
+- 25 Supabase migrations (001–025), 5 Edge Functions + 2 shared modules.
+- Goal-aware transaction RPCs, storage buckets (avatars, community-media, chat-images).
 
 ### Testing
-- 40+ tests across Quick Add service, voice service, and widget flow.
+- Tests across Quick Add, scan, chatbot, notification import, community, theme, settings, bottom nav, home.
 
-## Features Under Development
+## Features Under Development / Placeholders
 
-- AI assistant screen is a roadmap UI.
-- Chatbot screen uses static sample messages.
-- Scan screen is a receipt scanning placeholder.
-- Community screen bottom-nav tab still uses old static placeholder; real community feed is accessed via routes/notifications.
-- Database viewer is a debug-oriented Supabase summary, not a full database browser.
-- Comment editing (delete only currently supported).
-- Post report UI (backend tables exist but no UI).
-- Community media uploads (backend `community_media` table exists but no UI).
+- `AiScreen` roadmap UI exists but is not wired to any tab (Chatbot tab is the real assistant).
+- Community media upload composer UI (backend table + bucket exist).
+- Post/comment report UI (backend tables exist).
+- Goal cover image picker (`image_url` field exists).
+- Goal activity "View All" is an empty handler.
+- Custom categories persisted only in memory.
 
 ## Important Services
 
-- `AuthService`: Supabase init, auth, profile, avatar upload, selected category, weekly budget.
-- `TransactionService`: transaction CRUD and finance computations (cached).
-- `WalletService`: wallet CRUD and initial balance totals.
-- `GoalService`: saving goal CRUD and progress.
+- `AuthService`: Supabase init, auth, profile, avatar upload, budget fields, account deletion.
+- `TransactionService`: transaction CRUD (goal-aware RPCs) + finance computations (cached).
+- `WalletService`: wallet CRUD (cash/transfer) + initial balance totals.
+- `GoalService`: goal CRUD, fund entries, settings, allocation/withdrawal RPCs.
+- `CategoryBudgetService`: per-category monthly budgets.
 - `QuickAddService`: NL text → Edge Function → QuickAddDraft.
-- `QuickAddVoiceService`: audio recording → Edge Function → transcript → text.
+- `QuickAddVoiceService`: audio recording → Edge Function → transcript.
 - `QuickAddSpeechRecognitionService`: on-device speech → text.
+- `ReceiptScanService`: receipt image → Edge Function → ScanResultModel.
+- `ChatService` / `ChatController`: AI assistant conversation, streaming, history, images.
 - `CommunityService`: post/comment/like/save CRUD + Realtime subscriptions.
 - `NotificationService`: notification fetch, Realtime, mark read.
+- `BankNotificationPlatform` / `BankNotificationImportCoordinator` / `BankNotificationImportService`: native queue + parsing + review flow.
 - `AppThemeManager`: app theme mode.
-- `AppLanguage`: simple language toggle and string access.
+- `AppLanguage`: language toggle and string access.
 
 ## Database Overview
 
 Main tables:
 
-- `profiles`: public user profile (id, full_name, email, phone, avatar_url, budget_limit, weekly_budget, selected_category).
-- `transactions`: user transactions (id, user_id, name, category, amount, date, wallet_id).
-- `wallets`: user wallets (id, user_id, name, short_name, logo_asset_path, brand_color, type, initial_balance, is_active).
-- `goals`: saving goals (id, user_id, name, target_amount, created_at, is_active).
-- `budgets`: per-category budget table (present in schema, not actively used by app UI).
-- `community_posts`: posts (id, user_id, content, is_anonymous, is_spoiler, category, likes_count, comments_count, created_at).
-- `community_likes`: likes (unique post_id + user_id).
-- `community_saves`: bookmarks (unique post_id + user_id).
-- `community_comments`: comments (post_id, user_id, content, is_anonymous).
-- `community_notifications`: notifications (user_id, actor_id, post_id, comment_id, type, is_read).
-- `community_post_reports`: post reports (reporter_id, reason, status).
-- `community_comment_reports`: comment reports.
-- `community_media`: post media attachments (url, media_type).
+- `profiles`: id, full_name, email, phone, avatar_url, budget_limit, daily_budget, weekly_budget, selected_category.
+- `transactions`: id, user_id, name, category, amount, date, wallet_id.
+- `wallets`: id, user_id, name, short_name, logo_asset_path, brand_color, type (cash/transfer), initial_balance, is_active.
+- `goals`: id, user_id, name, target_amount, category, target_date, funding_method, auto_allocation_percent, is_primary, is_protected, withdrawal_priority, status, completion_behavior, redirect_goal_id, image_url, created_at, is_active.
+- `goal_fund_entries`: id, user_id, goal_id, amount, entry_type, source_transaction_id, note, created_at.
+- `goal_settings`: user_id, expense_shortfall_policy, imported_transaction_policy, updated_at.
+- `budgets`: user_id, category, limit_amount, month, year.
+- `chat_conversations`, `chat_messages`.
+- `community_posts`, `community_likes`, `community_saves`, `community_comments` (parent_comment_id, likes_count), `community_comment_likes`, `community_post_reports`, `community_comment_reports`, `community_notifications`, `community_media`.
 
-View: `community_authors` = profiles(id, full_name, avatar_url) for author enrichment.
+Views: `community_authors` = profiles(id, full_name, avatar_url).
 
-RLS policies restrict user-owned data to the authenticated owner. Community posts are readable by all authenticated users. Notifications are only readable/updatable by the owning user.
+RLS: user-owned data restricted to owner; community reads public to authenticated users; goal writes via SECURITY DEFINER RPCs; notifications owner-only.
 
-Realtime: `community_notifications` is published via `supabase_realtime`.
+Realtime: `community_notifications`, `community_comments`, `community_comment_likes`.
 
 ## Known Limitations
 
-- The launch screen does not automatically skip onboarding for an existing session.
-- Provider usage is inconsistent: some `ChangeNotifier` services are exposed through plain `Provider`.
-- Custom categories are stored only in memory and are lost after app restart.
-- Some UI strings are hardcoded despite having `AppStrings`.
-- Some features are placeholders, especially AI, scan, chatbot, and the bottom-nav Community tab.
-- Supabase keys are currently stored in source constants.
-- `GEMINI_API_KEY` and `DEEPGRAM_API_KEY` must be set in Supabase Edge Function secrets.
-- `flutter analyze` was attempted previously but timed out in the local environment.
-- Edge Functions use Vietnamese as default locale for speech-to-text; English-only audio may have lower accuracy.
-- Community post detail and composer use hardcoded color constants instead of theme tokens.
-- No tests for community features yet (posts, comments, likes, notifications).
+- `delete-account` Edge Function referenced by code is missing from `supabase/functions/`.
+- Custom categories stored only in memory (lost on restart).
+- Finance services are `ChangeNotifier`s through plain `Provider` (manual subscription needed).
+- Some UI strings and colors still hardcoded.
+- `AiScreen` roadmap screen not wired to navigation.
+- Community media upload + reports lack UI.
+- `sqflite` in Flutter deps unused (native layer has its own SQLite).
+- `flutter analyze` was previously reported to time out in the local environment.
+- English-only audio may have lower accuracy in speech-to-text (Vietnamese default).

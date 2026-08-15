@@ -29,10 +29,10 @@ Do not introduce another responsive utility without replacing the old one consis
 
 ## Theme Usage
 
-- Prefer `Theme.of(context)` and `AppColors` for colors.
+- Prefer `Theme.of(context)`, `AppColors`, and the `FinFlowColors` `ThemeExtension` (via `context.finFlowColors`) for colors.
 - Use `AppTheme.light` and `AppTheme.dark` conventions.
 - Use `AppThemeManager.instance` for theme toggling.
-- When adding new screens, support both light and dark theme where practical.
+- When adding new screens, support both light and dark theme where practical (the redesigned screens — Home, Community, Profile, Goals, Chat — read `FinFlowColors` or local dark constants).
 
 ## Color Rules
 

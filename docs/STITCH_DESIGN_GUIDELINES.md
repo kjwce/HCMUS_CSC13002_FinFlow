@@ -152,15 +152,15 @@ Analytics dashboard:
 
 ## Bottom Navigation
 
-Current navigation has 5 tabs:
+Current navigation is a floating pill with 5 slots:
 
 - Home.
-- AI Analysis.
-- Scan.
+- Chatbot (AI financial assistant).
+- **Add** — center circular FAB that opens the Add Transaction sheet.
 - Community.
 - Profile.
 
-The center Scan action is visually emphasized with a circular button. Keep selected states obvious with a filled green/blue background.
+The center Add action is visually emphasized with a circular FAB that animates a plus→close rotation on tap. Keep selected states obvious with a filled green/blue background. (The AI-analysis and Scan screens from the earlier design are no longer separate tabs — Scan is reachable from Add Transaction's Scan mode, and the AI assistant lives in the Chatbot tab.)
 
 ## Spacing
 
