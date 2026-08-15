@@ -62,19 +62,23 @@ class _MainShellState extends ConsumerState<MainShell> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: context.finFlowColors.pageBackground,
+      backgroundColor: isDark
+          ? const Color(0xFF081C18)
+          : context.finFlowColors.pageBackground,
       body: SafeArea(
         child: IndexedStack(
           index: _index,
           children: [
             HomeScreen(
+              isActive: _index == 0,
               onAddTap: () => AddTransactionSheet.show(context),
               onTabChanged: (i) => setState(() => _index = i),
             ),
-            const ChatScreen(showBackButton: false),
-            const ScanScreen(),
-            const CommunityScreen(),
+            ChatScreen(showBackButton: false),
+            ScanScreen(),
+            CommunityScreen(),
             ProfileScreen(onTabChanged: (i) => setState(() => _index = i)),
           ],
         ),

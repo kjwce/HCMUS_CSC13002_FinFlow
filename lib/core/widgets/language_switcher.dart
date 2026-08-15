@@ -37,7 +37,9 @@ class LanguageSwitcherFab extends StatelessWidget {
                   child: Container(
                     height: Responsive.h(context, 34),
                     decoration: BoxDecoration(
-                      color: !isEn ? AppColors.primaryGreen : Colors.transparent,
+                      color: !isEn
+                          ? AppColors.primaryGreen
+                          : Colors.transparent,
                       borderRadius: const BorderRadius.only(
                         topLeft: Radius.circular(30),
                         bottomLeft: Radius.circular(30),

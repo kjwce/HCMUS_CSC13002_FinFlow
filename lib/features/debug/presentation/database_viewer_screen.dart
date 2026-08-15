@@ -24,7 +24,14 @@ class _DatabaseViewerScreenState extends ConsumerState<DatabaseViewerScreen> {
     if (!mounted) return;
     setState(() => _isExporting = false);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Data is stored in Supabase cloud')),
+      SnackBar(
+        content: Text(
+          AppStrings.choose(
+            'Data is stored in Supabase cloud',
+            'Dữ liệu được lưu trên đám mây Supabase',
+          ),
+        ),
+      ),
     );
   }
 
@@ -61,9 +68,16 @@ class _DatabaseViewerScreenState extends ConsumerState<DatabaseViewerScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isClearing = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to clear: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            AppStrings.choose(
+              'Failed to clear: $e',
+              'Không thể xóa dữ liệu: $e',
+            ),
+          ),
+        ),
+      );
     }
   }
 
@@ -111,8 +125,10 @@ class _DatabaseViewerScreenState extends ConsumerState<DatabaseViewerScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           _SectionHeader(
-            title: 'current_user',
-            subtitle: auth.currentUser != null ? '1 record' : '0 records',
+            title: AppStrings.choose('Current user', 'Người dùng hiện tại'),
+            subtitle: auth.currentUser != null
+                ? AppStrings.choose('1 record', '1 bản ghi')
+                : AppStrings.choose('0 records', '0 bản ghi'),
           ),
           Card(
             child: ListTile(
@@ -125,13 +141,16 @@ class _DatabaseViewerScreenState extends ConsumerState<DatabaseViewerScreen> {
                   style: const TextStyle(color: Colors.white),
                 ),
               ),
-              title: Text(auth.currentUser?.fullName ?? 'Not signed in'),
+              title: Text(
+                auth.currentUser?.fullName ??
+                    AppStrings.choose('Not signed in', 'Chưa đăng nhập'),
+              ),
               subtitle: Text(auth.currentUser?.email ?? ''),
             ),
           ),
           const SizedBox(height: 18),
           _SectionHeader(
-            title: 'transactions',
+            title: AppStrings.choose('Transactions', 'Giao dịch'),
             subtitle: '${ts.transactions.length} ${AppStrings.records}',
           ),
           for (final transaction in ts.transactions)

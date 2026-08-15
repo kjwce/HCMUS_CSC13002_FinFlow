@@ -10,6 +10,8 @@ dependencies:
   fl_chart: 0.70.2
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
   flutter_riverpod: ^2.5.1
   flutter_svg: ^2.3.0
   http: ^1.6.0
@@ -26,6 +28,7 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  shared_preferences_platform_interface: ^2.4.2
 
 flutter:
   uses-material-design: true
@@ -34,7 +37,11 @@ flutter:
     - assets/
     - assets/images/
     - assets/icons/
+    - assets/icons/chatbot/
     - assets/icons/home/
+    - assets/icons/categories/
+    - assets/icons/categories/duotone/
+    - assets/icons/categories/fill/
     - assets/logos/banks/
     - assets/logos/ewallets/
 

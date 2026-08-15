@@ -57,7 +57,7 @@ void main() {
     );
 
     await tester.tap(find.byIcon(Icons.add_rounded));
-    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 180));
 
     expect(addCount, 1);
     expect(tabChangeCount, 0);
@@ -67,9 +67,9 @@ void main() {
     await pumpBottomNav(tester, bottomInset: 0);
 
     expect(find.byIcon(Icons.home_rounded), findsOneWidget);
-    expect(find.byIcon(Icons.smart_toy_rounded), findsOneWidget);
-    expect(find.byIcon(Icons.group_rounded), findsOneWidget);
-    expect(find.byIcon(Icons.person_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.smart_toy_outlined), findsOneWidget);
+    expect(find.byIcon(Icons.group_outlined), findsOneWidget);
+    expect(find.byIcon(Icons.person_outline_rounded), findsOneWidget);
     expect(find.text('Home'), findsOneWidget);
     expect(find.text('Chatbot'), findsOneWidget);
     expect(find.text('Community'), findsOneWidget);

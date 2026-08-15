@@ -47,10 +47,9 @@ class AppLanguage extends ChangeNotifier {
   }
 
   void toggle() {
-    _locale = _locale == AppLocale.english
-        ? AppLocale.vietnamese
-        : AppLocale.english;
-    notifyListeners();
+    setLocale(
+      _locale == AppLocale.english ? AppLocale.vietnamese : AppLocale.english,
+    );
   }
 
   Future<void> _saveLocale(AppLocale locale) async {
@@ -71,6 +70,12 @@ class AppStrings {
   // Helpers
   static String get _l => AppLanguage.instance.locale.code;
   static bool get _isEn => _l == 'en';
+
+  /// Selects a localized UI string without altering user-generated content.
+  static String choose(String english, String vietnamese) =>
+      _isEn ? english : vietnamese;
+
+  static bool get isVietnamese => !_isEn;
 
   // -- General --
   static String get appName => 'FinFlow';
@@ -219,7 +224,7 @@ class AppStrings {
   static String get emailAddress => _isEn ? 'Email address' : 'Địa chỉ email';
   static String get turnDarkTheme => _isEn ? 'Turn dark Theme' : 'Chế độ tối';
   static String get pushNotifications =>
-      _isEn ? 'Push notifications' : 'thông báo đẩy';
+      _isEn ? 'Push Notifications' : 'Thông báo đẩy';
   static String get updateProfile =>
       _isEn ? 'Update Profile' : 'Cập nhật hồ sơ';
 
@@ -305,7 +310,15 @@ class AppStrings {
   // -- Settings --
   static String get settings => _isEn ? 'Settings' : 'Cài đặt';
   static String get budgetLimit => _isEn ? 'Budget Limit' : 'Hạn mức ngân sách';
+  static String get automaticTransactionDetection =>
+      _isEn ? 'Automatic Transaction Detection' : 'Tự động phát hiện giao dịch';
+  static String get bankAndEwalletNotifications => _isEn
+      ? 'Android bank and e-wallet notifications'
+      : 'Thông báo ngân hàng và ví điện tử trên Android';
+  static String get darkMode => _isEn ? 'Dark Mode' : 'Chế độ tối';
   static String get language => _isEn ? 'Language' : 'Ngôn ngữ';
+  static String get selectedLanguage =>
+      _isEn ? AppLocale.english.label : AppLocale.vietnamese.label;
   static String get about => _isEn ? 'About' : 'Thông tin';
   static String get saved => _isEn ? 'Saved!' : 'Đã lưu!';
 
@@ -342,6 +355,12 @@ class AppStrings {
 
   static const _viCategory = {
     'Food': 'Ăn uống',
+    'Car': 'Xe cộ',
+    'Gift': 'Quà tặng',
+    'Clothes': 'Quần áo',
+    'Home': 'Nhà cửa',
+    'Donation': 'Quyên góp',
+    'Beauty': 'Làm đẹp',
     'Transport': 'Di chuyển',
     'Subscription': 'Đăng ký',
     'Shopping': 'Mua sắm',
@@ -351,6 +370,13 @@ class AppStrings {
     'Salary': 'Lương',
     'Service': 'Dịch vụ',
     'Other': 'Khác',
+    'More': 'Thêm',
+    'Transportation': 'Di chuyển',
+    'Tech': 'Công nghệ',
+    'Tech Upgrade': 'Nâng cấp công nghệ',
+    'Travel': 'Du lịch',
+    'Vehicle': 'Phương tiện',
+    'Education': 'Giáo dục',
   };
 }
 
