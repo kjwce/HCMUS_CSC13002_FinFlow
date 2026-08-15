@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../app/shell/bottom_nav_bar.dart';
+import '../../../core/i18n/app_language.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/responsive.dart';
 import '../../auth/services/auth_service.dart';
@@ -49,7 +50,14 @@ class _BudgetLimitsScreenState extends State<BudgetLimitsScreen> {
     final monthly = _parseAmount(_monthlyController.text);
     if (monthly <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid monthly budget.')),
+        SnackBar(
+          content: Text(
+            AppStrings.choose(
+              'Please enter a valid monthly budget.',
+              'Vui lòng nhập ngân sách tháng hợp lệ.',
+            ),
+          ),
+        ),
       );
       return;
     }
@@ -58,21 +66,37 @@ class _BudgetLimitsScreenState extends State<BudgetLimitsScreen> {
     try {
       final auth = AuthService.instance;
       await auth.updateProfile(
-        fullName: auth.currentUser?.fullName ?? 'FinFlow User',
+        fullName:
+            auth.currentUser?.fullName ??
+            AppStrings.choose('FinFlow User', 'Người dùng FinFlow'),
         dailyBudget: daily,
         weeklyBudget: weekly,
         budgetLimit: monthly,
       );
       if (!mounted) return;
       setState(() => _isSaving = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Budget limits saved.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            AppStrings.choose(
+              'Budget limits saved.',
+              'Đã lưu hạn mức ngân sách.',
+            ),
+          ),
+        ),
+      );
     } catch (error) {
       if (!mounted) return;
       setState(() => _isSaving = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Unable to save budget limits: $error')),
+        SnackBar(
+          content: Text(
+            AppStrings.choose(
+              'Unable to save budget limits: $error',
+              'Không thể lưu hạn mức ngân sách: $error',
+            ),
+          ),
+        ),
       );
     }
   }
@@ -96,9 +120,9 @@ class _BudgetLimitsScreenState extends State<BudgetLimitsScreen> {
           icon: const Icon(Icons.arrow_back_rounded),
         ),
         centerTitle: true,
-        title: const Text(
-          'Budget Limits',
-          style: TextStyle(
+        title: Text(
+          AppStrings.choose('Budget Limits', 'Hạn mức ngân sách'),
+          style: const TextStyle(
             color: Color(0xFF00785D),
             fontFamily: 'Hanken Grotesk',
             fontSize: 20,
@@ -107,18 +131,26 @@ class _BudgetLimitsScreenState extends State<BudgetLimitsScreen> {
         ),
         actions: [
           IconButton(
-            tooltip: 'About budget limits',
+            tooltip: AppStrings.choose(
+              'About budget limits',
+              'Giới thiệu hạn mức ngân sách',
+            ),
             onPressed: () => showDialog<void>(
               context: context,
               builder: (context) => AlertDialog(
-                title: const Text('Budget limits'),
-                content: const Text(
-                  'Daily resets every day, weekly resets every Monday, and monthly resets on the first day of each month.',
+                title: Text(
+                  AppStrings.choose('Budget limits', 'Hạn mức ngân sách'),
+                ),
+                content: Text(
+                  AppStrings.choose(
+                    'Daily resets every day, weekly resets every Monday, and monthly resets on the first day of each month.',
+                    'Hạn mức ngày được đặt lại mỗi ngày, hạn mức tuần đặt lại vào thứ Hai và hạn mức tháng đặt lại vào ngày đầu tháng.',
+                  ),
                 ),
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('OK'),
+                    child: Text(AppStrings.choose('OK', 'Đồng ý')),
                   ),
                 ],
               ),
@@ -142,8 +174,11 @@ class _BudgetLimitsScreenState extends State<BudgetLimitsScreen> {
               color: Color(0xFF00785D),
               size: 20,
             ),
-            title: 'Daily Budget',
-            subtitle: 'Manage everyday spending',
+            title: AppStrings.choose('Daily Budget', 'Ngân sách ngày'),
+            subtitle: AppStrings.choose(
+              'Manage everyday spending',
+              'Quản lý chi tiêu hằng ngày',
+            ),
             controller: _dailyController,
           ),
           SizedBox(height: Responsive.h(context, 18)),
@@ -153,8 +188,11 @@ class _BudgetLimitsScreenState extends State<BudgetLimitsScreen> {
               color: Color(0xFF00785D),
               size: 20,
             ),
-            title: 'Weekly Budget',
-            subtitle: 'Set goals for the week',
+            title: AppStrings.choose('Weekly Budget', 'Ngân sách tuần'),
+            subtitle: AppStrings.choose(
+              'Set goals for the week',
+              'Đặt mục tiêu cho tuần',
+            ),
             controller: _weeklyController,
           ),
           SizedBox(height: Responsive.h(context, 18)),
@@ -164,8 +202,11 @@ class _BudgetLimitsScreenState extends State<BudgetLimitsScreen> {
               color: Color(0xFF00785D),
               size: 20,
             ),
-            title: 'Monthly Budget',
-            subtitle: 'Main financial limit',
+            title: AppStrings.choose('Monthly Budget', 'Ngân sách tháng'),
+            subtitle: AppStrings.choose(
+              'Main financial limit',
+              'Hạn mức tài chính chính',
+            ),
             controller: _monthlyController,
           ),
           SizedBox(height: Responsive.h(context, 42)),
@@ -188,7 +229,11 @@ class _BudgetLimitsScreenState extends State<BudgetLimitsScreen> {
                     ),
                   )
                 : const Icon(Icons.check_circle_outline_rounded, size: 19),
-            label: Text(_isSaving ? 'Saving...' : 'Save Limits'),
+            label: Text(
+              _isSaving
+                  ? AppStrings.choose('Saving...', 'Đang lưu...')
+                  : AppStrings.choose('Save Limits', 'Lưu hạn mức'),
+            ),
           ),
         ],
       ),

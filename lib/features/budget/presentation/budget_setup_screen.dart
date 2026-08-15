@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/shell/finflow_app.dart';
+import '../../../core/i18n/app_language.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/responsive.dart';
 import '../../auth/services/auth_service.dart';
@@ -142,7 +143,7 @@ class _BudgetSetupScreenState extends ConsumerState<BudgetSetupScreen> {
                       SizedBox(height: Responsive.h(context, 20)),
 
                       Text(
-                        'Set Your Budget',
+                        AppStrings.choose('Set Your Budget', 'Đặt ngân sách'),
                         style: TextStyle(
                           fontSize: Responsive.sp(context, 22),
                           fontWeight: FontWeight.w700,
@@ -151,7 +152,10 @@ class _BudgetSetupScreenState extends ConsumerState<BudgetSetupScreen> {
                       ),
                       SizedBox(height: Responsive.h(context, 8)),
                       Text(
-                        'Set daily, weekly, and monthly limits so we can\nhelp you stay on track.',
+                        AppStrings.choose(
+                          'Set daily, weekly, and monthly limits so we can\nhelp you stay on track.',
+                          'Đặt hạn mức ngày, tuần và tháng để FinFlow\ngiúp bạn theo đúng kế hoạch.',
+                        ),
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: Responsive.sp(context, 14),
@@ -193,7 +197,7 @@ class _BudgetSetupScreenState extends ConsumerState<BudgetSetupScreen> {
                       ),
                       SizedBox(height: Responsive.h(context, 8)),
                       Text(
-                        'VND / month',
+                        AppStrings.choose('VND / month', 'VND / tháng'),
                         style: TextStyle(
                           fontSize: Responsive.sp(context, 13),
                           color: AppColors.mutedGray,
@@ -233,7 +237,10 @@ class _BudgetSetupScreenState extends ConsumerState<BudgetSetupScreen> {
                       ),
                       SizedBox(height: Responsive.h(context, 8)),
                       Text(
-                        'VND / day (optional)',
+                        AppStrings.choose(
+                          'VND / day (optional)',
+                          'VND / ngày (tùy chọn)',
+                        ),
                         style: TextStyle(
                           fontSize: Responsive.sp(context, 13),
                           color: AppColors.mutedGray,
@@ -273,7 +280,10 @@ class _BudgetSetupScreenState extends ConsumerState<BudgetSetupScreen> {
                       ),
                       SizedBox(height: Responsive.h(context, 8)),
                       Text(
-                        'VND / week (optional)',
+                        AppStrings.choose(
+                          'VND / week (optional)',
+                          'VND / tuần (tùy chọn)',
+                        ),
                         style: TextStyle(
                           fontSize: Responsive.sp(context, 13),
                           color: AppColors.mutedGray,
@@ -304,7 +314,7 @@ class _BudgetSetupScreenState extends ConsumerState<BudgetSetupScreen> {
                                   ),
                                 )
                               : Text(
-                                  'Get Started',
+                                  AppStrings.choose('Get Started', 'Bắt đầu'),
                                   style: TextStyle(
                                     fontWeight: FontWeight.w600,
                                     fontSize: Responsive.sp(context, 16),
@@ -318,7 +328,7 @@ class _BudgetSetupScreenState extends ConsumerState<BudgetSetupScreen> {
                       TextButton(
                         onPressed: _isSaving ? null : () => _goToDashboard(),
                         child: Text(
-                          'Skip for now',
+                          AppStrings.choose('Skip for now', 'Bỏ qua lúc này'),
                           style: TextStyle(
                             fontSize: Responsive.sp(context, 14),
                             color: AppColors.mutedGray,
@@ -344,9 +354,9 @@ class _BudgetSetupScreenState extends ConsumerState<BudgetSetupScreen> {
     final weeklyRaw = _weeklyController.text.trim().replaceAll(',', '');
     final weeklyAmount = weeklyRaw.isEmpty ? null : int.tryParse(weeklyRaw);
     if (amount == null || amount <= 0) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Please enter a valid amount')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppStrings.pleaseEnterValidAmount)),
+      );
       return;
     }
 
@@ -355,7 +365,9 @@ class _BudgetSetupScreenState extends ConsumerState<BudgetSetupScreen> {
     try {
       final user = AuthService.instance.currentUser;
       await AuthService.instance.updateProfile(
-        fullName: user?.fullName ?? 'New FinFlow User',
+        fullName:
+            user?.fullName ??
+            AppStrings.choose('New FinFlow User', 'Người dùng FinFlow mới'),
         budgetLimit: amount,
         dailyBudget: dailyAmount != null && dailyAmount > 0
             ? dailyAmount
@@ -369,9 +381,13 @@ class _BudgetSetupScreenState extends ConsumerState<BudgetSetupScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSaving = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to save: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            AppStrings.choose('Failed to save: $e', 'Không thể lưu: $e'),
+          ),
+        ),
+      );
     }
   }
 
