@@ -1,0 +1,52 @@
+# Codemagic configuration for FinFlow iOS testing build (via Sideloadly)
+#
+# ⭐ BẢO MẬT: Codemagic KHÔNG cần mật khẩu Apple ID.
+# Không khai báo ios_signing → build KHÔNG ký (--no-codesign).
+# Bạn tải .app về máy Windows rồi dùng Sideloadly ký + cài cục bộ.
+# Mật khẩu Apple ID chỉ được nhập trên máy của bạn, không bao giờ qua đám mây.
+#
+# Cách dùng: push code lên Git (GitHub/GitLab/Bitbucket) → kết nối repo
+# trên Codemagic dashboard → workflow này tự chạy mỗi push
+# (hoặc bấm nút "Start new build"). Artifact Runner.app sẽ có trong tab Builds.
+
+workflows:
+  finflow-ios-unsigned:
+    name: FinFlow iOS (unsigned, for Sideloadly)
+    instance_type: mac_mini_m2
+    max_build_duration: 45
+    environment:
+      # PIN Flutter version khớp với máy local (3.44.6) để engine/framework
+      # không bị lệch. "stable" là bản trôi — nếu Codemagic tự update sang
+      # version mới, build ra app crash ngay khi mở (VSyncClient segfault).
+      flutter: 3.44.6
+      xcode: latest
+      cocoapods: default
+      vars:
+        # Chỉ cần khi bạn muốn đẩy version cụ thể; mặc định lấy từ pubspec.yaml.
+        BUILD_NUMBER: "1"
+    scripts:
+      - name: Install dependencies
+        script: |
+          flutter pub get
+      - name: Build unsigned iOS app (.app for Sideloadly)
+        script: |
+          flutter build ios --debug --no-codesign
+        # --debug   : binary debug nhỏ, build nhanh, Sideloadly ký dễ.
+        # --no-codesign : KHÔNG cần Apple ID / signing trên cloud.
+        #                (flutter build ios mặc định build cho device thật,
+        #                không phải simulator — không cần thêm cờ.)
+        # Lưu ý: project dùng Swift Package Manager (không có Podfile) —
+        #        SPM tự resolve trong Xcode build, KHÔNG cần pod install.
+    artifacts:
+      - build/ios/iphoneos/**/*.app
+      - build/ios/iphoneos/**/*.dSYM
+      - flutter_export_environment.sh
+    publishing:
+      # Tuỳ chọn: bật email để nhận thông báo build.
+      # Bỏ comment và thay email thật nếu muốn dùng.
+      # email:
+      #   recipients:
+      #     - you@example.com
+      #   notify:
+      #     success: true
+      #     failure: true
