@@ -3,14 +3,18 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../../app/shell/bottom_nav_bar.dart';
 import '../../../app/shell/finflow_app.dart';
 import '../../../core/i18n/app_language.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme_manager.dart';
 import '../../../core/utils/responsive.dart';
-import '../../auth/services/auth_service.dart';
-import '../../finance/presentation/add_transaction_sheet.dart';
+import '../../../core/widgets/home_header_controls.dart';
+import '../../../core/widgets/notification_bell.dart';
+import '../../finance/models/wallet_model.dart';
+import '../../finance/services/recurring_reminder_service.dart';
+import '../../finance/services/recurring_service.dart';
+import '../../finance/services/transaction_service.dart';
+import '../../finance/services/wallet_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -28,6 +32,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     unawaited(_loadNotifications());
+    unawaited(_loadMoneySources());
   }
 
   Future<void> _loadNotifications() async {
@@ -39,10 +44,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } catch (_) {}
   }
 
-  void _setNotifications(bool value) {
-    setState(() => _notificationsEnabled = value);
-    unawaited(_preferences.setBool(_notificationsKey, value));
+  Future<void> _loadMoneySources() async {
+    try {
+      await Future.wait([
+        WalletService.instance.fetchWallets(),
+        TransactionService.instance.fetchTransactions(),
+      ]);
+    } catch (_) {}
   }
+
+  Future<void> _setNotifications(bool value) async {
+    final accepted = await RecurringReminderService.instance.setEnabled(
+      value,
+      schedules: RecurringService.instance.schedules,
+    );
+    if (!mounted) return;
+    setState(() => _notificationsEnabled = accepted ? value : false);
+    if (value && !accepted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            AppStrings.choose(
+              'Notification or Alarms & reminders permission was denied. Enable it in system settings.',
+              'Quyền thông báo hoặc Báo thức và lời nhắc đã bị từ chối. Hãy bật trong cài đặt hệ thống.',
+            ),
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _chooseLanguage() => showFinFlowLanguageDialog(context);
 
   @override
   Widget build(BuildContext context) {
@@ -50,23 +82,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
       listenable: Listenable.merge([
         AppThemeManager.instance,
         AppLanguage.instance,
-        AuthService.instance,
+        WalletService.instance,
+        TransactionService.instance,
       ]),
       builder: (context, _) {
         final colors = context.finFlowColors;
-        final user = AuthService.instance.currentUser;
-        final isVietnamese =
-            AppLanguage.instance.locale == AppLocale.vietnamese;
+        final wallets = WalletService.instance;
+        final transactions = TransactionService.instance;
+        final cash = _walletOfType(wallets, WalletType.cash);
+        final transfer = _walletOfType(wallets, WalletType.transfer);
 
         return Scaffold(
           backgroundColor: colors.pageBackground,
-          bottomNavigationBar: AppBottomNavBar(
-            selectedIndex: 4,
-            onAddTap: () => AddTransactionSheet.show(context),
-          ),
           appBar: AppBar(
             elevation: 0,
             scrolledUnderElevation: 0,
+            centerTitle: true,
             backgroundColor: colors.pageBackground,
             foregroundColor: colors.primaryText,
             leading: IconButton(
@@ -74,34 +105,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
               icon: const Icon(Icons.arrow_back_rounded),
             ),
             title: Text(
-              AppStrings.settings,
+              AppStrings.choose('App Settings', 'Cài đặt ứng dụng'),
               style: const TextStyle(
-                fontFamily: 'Hanken Grotesk',
-                fontSize: 20,
+                fontFamily: 'Manrope',
+                fontSize: 18,
                 fontWeight: FontWeight.w700,
               ),
             ),
-            actions: [
+            actions: const [
               Padding(
-                padding: EdgeInsets.only(right: Responsive.w(context, 16)),
-                child: CircleAvatar(
-                  radius: Responsive.w(context, 16),
-                  backgroundColor: const Color(0xFFDDF4EC),
-                  backgroundImage: user?.avatarUrl?.trim().isNotEmpty == true
-                      ? NetworkImage(user!.avatarUrl!)
-                      : null,
-                  child: user?.avatarUrl?.trim().isNotEmpty == true
-                      ? null
-                      : Text(
-                          (user?.fullName.trim().isNotEmpty ?? false)
-                              ? user!.fullName.trim()[0].toUpperCase()
-                              : '?',
-                          style: const TextStyle(
-                            color: Color(0xFF006B52),
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                ),
+                padding: EdgeInsets.only(right: 14),
+                child: NotificationBell(),
               ),
             ],
           ),
@@ -109,51 +123,107 @@ class _SettingsScreenState extends State<SettingsScreen> {
             physics: const BouncingScrollPhysics(),
             padding: EdgeInsets.fromLTRB(
               Responsive.w(context, 16),
-              Responsive.h(context, 10),
+              Responsive.h(context, 8),
               Responsive.w(context, 16),
-              Responsive.h(context, 28),
+              Responsive.h(context, 32),
             ),
             children: [
-              _SettingsCard(
-                icon: Icons.account_balance_wallet_outlined,
-                title: AppStrings.budgetLimit,
-                onTap: () =>
-                    Navigator.of(context).pushNamed(AppRoutes.budgetLimits),
+              _SectionLabel(
+                AppStrings.choose('FINANCIAL MANAGEMENT', 'QUẢN LÝ TÀI CHÍNH'),
               ),
-              SizedBox(height: Responsive.h(context, 12)),
-              _SettingsCard(
-                icon: Icons.notifications_none_rounded,
-                title: AppStrings.pushNotifications,
-                switchValue: _notificationsEnabled,
-                onSwitchChanged: _setNotifications,
+              SizedBox(height: Responsive.h(context, 8)),
+              _SettingsGroup(
+                children: [
+                  _SettingsRow(
+                    icon: Icons.account_balance_wallet_outlined,
+                    title: AppStrings.budgetLimit,
+                    subtitle: AppStrings.choose(
+                      'Daily, weekly & monthly limits',
+                      'Hạn mức ngày, tuần và tháng',
+                    ),
+                    onTap: () =>
+                        Navigator.of(context).pushNamed(AppRoutes.budgetLimits),
+                  ),
+                  _SettingsRow(
+                    key: const Key('money-sources-settings-row'),
+                    icon: Icons.payments_outlined,
+                    title: AppStrings.choose('Money Sources', 'Nguồn tiền'),
+                    subtitle: AppStrings.choose(
+                      'Cash and bank transfer balances',
+                      'Số dư tiền mặt và chuyển khoản',
+                    ),
+                    onTap: () =>
+                        Navigator.of(context).pushNamed(AppRoutes.moneySources),
+                    detail: Padding(
+                      padding: EdgeInsets.only(top: Responsive.h(context, 8)),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: _SourceSummary(
+                              label: AppStrings.choose('Cash', 'Tiền mặt'),
+                              amount: cash == null
+                                  ? 0
+                                  : transactions.balanceByWallet(cash.id),
+                              color: const Color(0xFF00A77D),
+                            ),
+                          ),
+                          Expanded(
+                            child: _SourceSummary(
+                              label: AppStrings.choose(
+                                'Transfer',
+                                'Chuyển khoản',
+                              ),
+                              amount: transfer == null
+                                  ? 0
+                                  : transactions.balanceByWallet(transfer.id),
+                              color: const Color(0xFF2878D0),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              SizedBox(height: Responsive.h(context, 12)),
-              _SettingsCard(
-                icon: Icons.account_balance_rounded,
-                title: AppStrings.automaticTransactionDetection,
-                subtitle: AppStrings.bankAndEwalletNotifications,
-                onTap: () => Navigator.of(
-                  context,
-                ).pushNamed(AppRoutes.bankNotificationImport),
-              ),
-              SizedBox(height: Responsive.h(context, 12)),
-              _SettingsCard(
-                icon: Icons.dark_mode_outlined,
-                title: AppStrings.darkMode,
-                switchValue: AppThemeManager.instance.isDark,
-                onSwitchChanged: (value) => AppThemeManager.instance.setMode(
-                  value ? ThemeMode.dark : ThemeMode.light,
-                ),
-              ),
-              SizedBox(height: Responsive.h(context, 12)),
-              _SettingsCard(
-                icon: Icons.language_rounded,
-                title: AppStrings.language,
-                subtitle: AppStrings.selectedLanguage,
-                switchValue: isVietnamese,
-                onSwitchChanged: (value) => AppLanguage.instance.setLocale(
-                  value ? AppLocale.vietnamese : AppLocale.english,
-                ),
+              SizedBox(height: Responsive.h(context, 28)),
+              _SectionLabel(AppStrings.choose('PREFERENCES', 'TÙY CHỌN')),
+              SizedBox(height: Responsive.h(context, 8)),
+              _SettingsGroup(
+                children: [
+                  _SettingsRow(
+                    icon: Icons.notifications_none_rounded,
+                    title: AppStrings.pushNotifications,
+                    subtitle: AppStrings.choose(
+                      'Alerts for spending and limits',
+                      'Cảnh báo chi tiêu và hạn mức',
+                    ),
+                    switchValue: _notificationsEnabled,
+                    onSwitchChanged: _setNotifications,
+                  ),
+                  _SettingsRow(
+                    icon: Icons.dark_mode_rounded,
+                    iconColor: const Color(0xFF8E35C7),
+                    iconBackground: const Color(0xFFF3E6F8),
+                    title: AppStrings.darkMode,
+                    subtitle: AppStrings.choose(
+                      'Change app appearance',
+                      'Thay đổi giao diện ứng dụng',
+                    ),
+                    switchValue: AppThemeManager.instance.isDark,
+                    onSwitchChanged: (value) => AppThemeManager.instance
+                        .setMode(value ? ThemeMode.dark : ThemeMode.light),
+                  ),
+                  _SettingsRow(
+                    icon: Icons.language_rounded,
+                    iconColor: const Color(0xFF2878D0),
+                    iconBackground: const Color(0xFFE7F1FB),
+                    title: AppStrings.language,
+                    subtitle: AppLanguage.instance.locale == AppLocale.english
+                        ? 'English'
+                        : 'Tiếng Việt',
+                    onTap: _chooseLanguage,
+                  ),
+                ],
               ),
             ],
           ),
@@ -163,106 +233,219 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 }
 
-class _SettingsCard extends StatelessWidget {
-  const _SettingsCard({
-    required this.icon,
-    required this.title,
-    this.subtitle,
-    this.onTap,
-    this.switchValue,
-    this.onSwitchChanged,
-  });
+WalletModel? _walletOfType(WalletService service, WalletType type) {
+  for (final wallet in service.currentUserWallets) {
+    if (wallet.type == type) return wallet;
+  }
+  return null;
+}
 
-  final IconData icon;
-  final String title;
-  final String? subtitle;
-  final VoidCallback? onTap;
-  final bool? switchValue;
-  final ValueChanged<bool>? onSwitchChanged;
+String _formatVnd(int amount) {
+  final sign = amount < 0 ? '-' : '';
+  final digits = amount.abs().toString();
+  final buffer = StringBuffer();
+  for (var i = 0; i < digits.length; i++) {
+    if (i > 0 && (digits.length - i) % 3 == 0) buffer.write(',');
+    buffer.write(digits[i]);
+  }
+  return '$sign${buffer.toString()} VND';
+}
+
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(left: 5),
+    child: Text(
+      text,
+      style: TextStyle(
+        fontFamily: 'Hanken Grotesk',
+        fontSize: Responsive.sp(context, 10),
+        fontWeight: FontWeight.w600,
+        letterSpacing: .45,
+        color: context.finFlowColors.secondaryText,
+      ),
+    ),
+  );
+}
+
+class _SettingsGroup extends StatelessWidget {
+  const _SettingsGroup({required this.children});
+
+  final List<Widget> children;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.finFlowColors;
-    return Material(
-      color: colors.surface,
-      elevation: 0,
-      shadowColor: const Color(0x16002820),
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          constraints: BoxConstraints(minHeight: Responsive.h(context, 70)),
-          padding: EdgeInsets.symmetric(
-            horizontal: Responsive.w(context, 14),
-            vertical: Responsive.h(context, 12),
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 16)),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: colors.divider),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0D00513E),
+            blurRadius: 18,
+            offset: Offset(0, 6),
           ),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: colors.divider),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x10002F24),
-                blurRadius: 16,
-                offset: Offset(0, 5),
+        ],
+      ),
+      child: Column(
+        children: [
+          for (var index = 0; index < children.length; index++) ...[
+            children[index],
+            if (index < children.length - 1)
+              Divider(height: 1, color: colors.divider),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SettingsRow extends StatelessWidget {
+  const _SettingsRow({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    this.iconColor = const Color(0xFF00A77D),
+    this.iconBackground = const Color(0xFFE5F7F2),
+    this.onTap,
+    this.switchValue,
+    this.onSwitchChanged,
+    this.detail,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color iconColor;
+  final Color iconBackground;
+  final VoidCallback? onTap;
+  final bool? switchValue;
+  final ValueChanged<bool>? onSwitchChanged;
+  final Widget? detail;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.finFlowColors;
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: EdgeInsets.symmetric(vertical: Responsive.h(context, 13)),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: Responsive.w(context, 38),
+              height: Responsive.w(context, 38),
+              decoration: BoxDecoration(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? colors.elevatedSurface
+                    : iconBackground,
+                shape: BoxShape.circle,
               ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: Responsive.w(context, 42),
-                height: Responsive.w(context, 42),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE7F5F0),
-                  borderRadius: BorderRadius.circular(11),
-                ),
-                child: Icon(
-                  icon,
-                  size: Responsive.w(context, 21),
-                  color: const Color(0xFF00785D),
-                ),
+              child: Icon(
+                icon,
+                size: Responsive.w(context, 20),
+                color: iconColor,
               ),
-              SizedBox(width: Responsive.w(context, 14)),
-              Expanded(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontFamily: 'Hanken Grotesk',
-                        fontSize: Responsive.sp(context, 15),
-                        fontWeight: FontWeight.w600,
-                        color: colors.primaryText,
-                      ),
+            ),
+            SizedBox(width: Responsive.w(context, 12)),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontFamily: 'Hanken Grotesk',
+                      fontSize: Responsive.sp(context, 14),
+                      fontWeight: FontWeight.w600,
+                      color: colors.primaryText,
                     ),
-                    if (subtitle != null) ...[
-                      SizedBox(height: Responsive.h(context, 2)),
-                      Text(
-                        subtitle!,
-                        style: TextStyle(
-                          fontSize: Responsive.sp(context, 11),
-                          color: colors.secondaryText,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontFamily: 'Hanken Grotesk',
+                      fontSize: Responsive.sp(context, 10),
+                      color: colors.secondaryText,
+                    ),
+                  ),
+                  ?detail,
+                ],
               ),
-              if (switchValue != null)
-                Switch.adaptive(
+            ),
+            SizedBox(width: Responsive.w(context, 8)),
+            if (switchValue != null)
+              SizedBox(
+                height: Responsive.h(context, 36),
+                child: Switch.adaptive(
                   value: switchValue!,
                   onChanged: onSwitchChanged,
                   activeTrackColor: const Color(0xFF00A77D),
-                )
-              else
-                Icon(Icons.chevron_right_rounded, color: colors.secondaryText),
-            ],
-          ),
+                ),
+              )
+            else
+              Padding(
+                padding: EdgeInsets.only(top: Responsive.h(context, 8)),
+                child: Icon(
+                  Icons.chevron_right_rounded,
+                  size: Responsive.w(context, 22),
+                  color: colors.secondaryText.withValues(alpha: .55),
+                ),
+              ),
+          ],
         ),
       ),
     );
   }
+}
+
+class _SourceSummary extends StatelessWidget {
+  const _SourceSummary({
+    required this.label,
+    required this.amount,
+    required this.color,
+  });
+
+  final String label;
+  final int amount;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        label,
+        style: TextStyle(
+          fontSize: Responsive.sp(context, 10),
+          color: context.finFlowColors.secondaryText,
+        ),
+      ),
+      const SizedBox(height: 2),
+      FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: Text(
+          _formatVnd(amount),
+          maxLines: 1,
+          style: TextStyle(
+            fontFamily: 'Manrope',
+            fontSize: Responsive.sp(context, 12),
+            fontWeight: FontWeight.w700,
+            color: color,
+          ),
+        ),
+      ),
+    ],
+  );
 }

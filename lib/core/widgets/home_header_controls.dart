@@ -6,6 +6,35 @@ import '../i18n/app_language.dart';
 import '../theme/app_theme_manager.dart';
 import '../utils/responsive.dart';
 
+/// Opens the shared FinFlow language picker used by Home and Settings.
+Future<void> showFinFlowLanguageDialog(BuildContext context) {
+  return showGeneralDialog<void>(
+    context: context,
+    barrierDismissible: true,
+    barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
+    barrierColor: Theme.of(context).brightness == Brightness.dark
+        ? const Color(0xB3000000)
+        : const Color(0x73031D17),
+    transitionDuration: const Duration(milliseconds: 180),
+    pageBuilder: (context, animation, secondaryAnimation) =>
+        const Center(child: _LanguageDialog()),
+    transitionBuilder: (context, animation, secondaryAnimation, child) {
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInCubic,
+      );
+      return FadeTransition(
+        opacity: curved,
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.96, end: 1).animate(curved),
+          child: child,
+        ),
+      );
+    },
+  );
+}
+
 /// Compact flag-and-chevron language selector used by the Home header.
 class HomeLanguageSelector extends StatefulWidget {
   const HomeLanguageSelector({super.key});
@@ -21,31 +50,7 @@ class _HomeLanguageSelectorState extends State<HomeLanguageSelector> {
     if (_isOpen) return;
     setState(() => _isOpen = true);
 
-    await showGeneralDialog<void>(
-      context: context,
-      barrierDismissible: true,
-      barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
-      barrierColor: Theme.of(context).brightness == Brightness.dark
-          ? const Color(0xB3000000)
-          : const Color(0x73031D17),
-      transitionDuration: const Duration(milliseconds: 180),
-      pageBuilder: (context, animation, secondaryAnimation) =>
-          const Center(child: _LanguageDialog()),
-      transitionBuilder: (context, animation, secondaryAnimation, child) {
-        final curved = CurvedAnimation(
-          parent: animation,
-          curve: Curves.easeOutCubic,
-          reverseCurve: Curves.easeInCubic,
-        );
-        return FadeTransition(
-          opacity: curved,
-          child: ScaleTransition(
-            scale: Tween<double>(begin: 0.96, end: 1).animate(curved),
-            child: child,
-          ),
-        );
-      },
-    );
+    await showFinFlowLanguageDialog(context);
 
     if (mounted) setState(() => _isOpen = false);
   }

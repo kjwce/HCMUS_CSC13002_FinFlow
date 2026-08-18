@@ -1,5 +1,6 @@
 import 'package:finflow/app/shell/bottom_nav_bar.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -66,14 +67,58 @@ void main() {
   testWidgets('shows the Stitch icons and labels', (tester) async {
     await pumpBottomNav(tester, bottomInset: 0);
 
-    expect(find.byIcon(Icons.home_rounded), findsOneWidget);
-    expect(find.byIcon(Icons.smart_toy_outlined), findsOneWidget);
-    expect(find.byIcon(Icons.group_outlined), findsOneWidget);
-    expect(find.byIcon(Icons.person_outline_rounded), findsOneWidget);
+    expect(find.byKey(const Key('bottom-nav-icon-0-fill')), findsOneWidget);
+    expect(find.byKey(const Key('bottom-nav-icon-1-regular')), findsOneWidget);
+    expect(find.byKey(const Key('bottom-nav-icon-3-regular')), findsOneWidget);
+    expect(find.byKey(const Key('bottom-nav-icon-4-regular')), findsOneWidget);
     expect(find.text('Home'), findsOneWidget);
     expect(find.text('Chatbot'), findsOneWidget);
     expect(find.text('Community'), findsOneWidget);
     expect(find.text('Profile'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('bundles every Phosphor navigation SVG', (tester) async {
+    const assets = [
+      'assets/icons/navigation/house-line-regular.svg',
+      'assets/icons/navigation/house-line-fill.svg',
+      'assets/icons/navigation/robot-regular.svg',
+      'assets/icons/navigation/robot-fill.svg',
+      'assets/icons/navigation/users-three-regular.svg',
+      'assets/icons/navigation/users-three-fill.svg',
+      'assets/icons/navigation/user-circle-regular.svg',
+      'assets/icons/navigation/user-circle-fill.svg',
+    ];
+
+    for (final asset in assets) {
+      final data = await rootBundle.load(asset);
+      expect(data.lengthInBytes, greaterThan(100), reason: asset);
+    }
+  });
+
+  testWidgets('switches a destination from regular to fill', (tester) async {
+    var selectedIndex = 0;
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(393, 852);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    await tester.pumpWidget(
+      StatefulBuilder(
+        builder: (context, setState) => MaterialApp(
+          home: Scaffold(
+            bottomNavigationBar: AppBottomNavBar(
+              selectedIndex: selectedIndex,
+              onTabChanged: (index) => setState(() => selectedIndex = index),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Chatbot'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('bottom-nav-icon-0-regular')), findsOneWidget);
+    expect(find.byKey(const Key('bottom-nav-icon-1-fill')), findsOneWidget);
   });
 }
