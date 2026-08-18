@@ -10,8 +10,10 @@ import 'core/services/app_init_notifier.dart';
 import 'core/theme/app_theme_manager.dart';
 import 'features/auth/services/auth_service.dart';
 import 'features/finance/services/goal_service.dart';
+import 'features/finance/services/recurring_notification_action_coordinator.dart';
+import 'features/finance/services/recurring_reminder_service.dart';
+import 'features/finance/services/recurring_service.dart';
 import 'features/finance/services/transaction_service.dart';
-import 'features/notification_import/services/bank_notification_import_coordinator.dart';
 
 final navigatorKey = GlobalKey<NavigatorState>();
 
@@ -25,6 +27,11 @@ void main() {
       WidgetsFlutterBinding.ensureInitialized();
       await AppThemeManager.instance.init();
       await AppLanguage.instance.init();
+      await RecurringReminderService.instance.initialize();
+      RecurringReminderService.instance.bindActionHandler(
+        (action) =>
+            RecurringNotificationActionCoordinator.handle(action, navigatorKey),
+      );
 
       // Render the FinFlow UI immediately — no waiting for network.
       runApp(const ProviderScope(child: FinFlowApp()));
@@ -47,13 +54,16 @@ Future<void> _initServices() async {
     // Local session recovery is complete. LaunchScreen can route now while
     // the remaining network-backed services continue initializing.
     authInitNotifier.value = true;
-    BankNotificationImportCoordinator.instance.start(navigatorKey);
-
     // Listen for password recovery events.
     Supabase.instance.client.auth.onAuthStateChange.listen((authState) {
       try {
         if (authState.event == AuthChangeEvent.passwordRecovery) {
           navigatorKey.currentState?.pushNamed('/new-password');
+        }
+        if (authState.event == AuthChangeEvent.signedOut) {
+          unawaited(RecurringReminderService.instance.cancelAllRecurring());
+        } else if (authState.event == AuthChangeEvent.signedIn) {
+          unawaited(_initRecurring());
         }
       } catch (_) {}
     });
@@ -65,6 +75,7 @@ Future<void> _initServices() async {
         Future.wait([
           TransactionService.instance.fetchTransactions(),
           GoalService.instance.fetchGoals(),
+          _initRecurring(),
         ]).catchError((Object error) {
           debugPrint('⚠️ Initial finance fetch failed (non-fatal): $error');
           return <void>[];
@@ -79,4 +90,19 @@ Future<void> _initServices() async {
     // (or definitively failed).
     authInitNotifier.value = true;
   }
+}
+
+Future<void> _initRecurring() async {
+  await RecurringService.instance.fetch();
+  final reminders = RecurringReminderService.instance;
+  final schedules = RecurringService.instance.schedules;
+  final hasActiveSchedules = schedules.any((schedule) => schedule.isActive);
+  if (reminders.isEnabled &&
+      hasActiveSchedules &&
+      !await reminders.requestPermission()) {
+    await reminders.setEnabled(false);
+    return;
+  }
+  await reminders.syncAll(schedules);
+  await reminders.processPendingAction();
 }
