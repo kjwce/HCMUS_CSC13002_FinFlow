@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:fl_chart/fl_chart.dart';
@@ -334,6 +335,8 @@ class _MessageBubble extends StatelessWidget {
   }
 
   Widget _buildUserMessage(BuildContext context) {
+    final caption = message.message.trim();
+    final hasImage = message.image != null;
     return Align(
       alignment: Alignment.centerRight,
       child: ConstrainedBox(
@@ -341,36 +344,39 @@ class _MessageBubble extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Container(
-              padding: EdgeInsets.all(Responsive.w(context, 16)),
-              decoration: const BoxDecoration(
-                color: Color(0xFF064E3B),
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(18),
-                  topRight: Radius.circular(18),
-                  bottomLeft: Radius.circular(18),
-                  bottomRight: Radius.circular(3),
+            if (hasImage) _ChatImage(image: message.image!),
+            if (hasImage && caption.isNotEmpty)
+              SizedBox(height: Responsive.h(context, 6)),
+            if (caption.isNotEmpty)
+              Container(
+                key: Key(
+                  hasImage
+                      ? 'chat-user-image-caption-bubble'
+                      : 'chat-user-text-bubble',
+                ),
+                padding: EdgeInsets.symmetric(
+                  horizontal: Responsive.w(context, 16),
+                  vertical: Responsive.h(context, hasImage ? 12 : 14),
+                ),
+                decoration: const BoxDecoration(
+                  color: Color(0xFF064E3B),
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(18),
+                    topRight: Radius.circular(18),
+                    bottomLeft: Radius.circular(18),
+                    bottomRight: Radius.circular(3),
+                  ),
+                ),
+                child: Text(
+                  caption,
+                  style: TextStyle(
+                    fontFamily: 'Manrope',
+                    fontSize: Responsive.sp(context, 15),
+                    height: 1.45,
+                    color: Colors.white,
+                  ),
                 ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (message.image != null) ...[
-                    _ChatImage(image: message.image!),
-                    SizedBox(height: Responsive.h(context, 10)),
-                  ],
-                  Text(
-                    message.message,
-                    style: TextStyle(
-                      fontFamily: 'Manrope',
-                      fontSize: Responsive.sp(context, 15),
-                      height: 1.45,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-            ),
             SizedBox(height: Responsive.h(context, 3)),
             Text(
               AppLanguage.instance.locale == AppLocale.vietnamese
@@ -918,8 +924,31 @@ class _TypingBubble extends StatelessWidget {
   }
 }
 
-class _TypingDots extends StatelessWidget {
+class _TypingDots extends StatefulWidget {
   const _TypingDots();
+
+  @override
+  State<_TypingDots> createState() => _TypingDotsState();
+}
+
+class _TypingDotsState extends State<_TypingDots>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1050),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -936,7 +965,33 @@ class _TypingDots extends StatelessWidget {
           bottomLeft: Radius.circular(3),
         ),
       ),
-      child: const Text('•••', style: TextStyle(color: Color(0xFF416656))),
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, _) => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(3, (index) {
+            final phase = (_controller.value - index * 0.16) % 1;
+            final wave = math.max(0.0, math.sin(phase * math.pi * 2));
+            return Padding(
+              padding: EdgeInsets.only(left: index == 0 ? 0 : 5),
+              child: Transform.translate(
+                key: Key('chat-typing-dot-$index'),
+                offset: Offset(0, -3.5 * wave),
+                child: Opacity(
+                  opacity: 0.42 + 0.58 * wave,
+                  child: const DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Color(0xFF416656),
+                      shape: BoxShape.circle,
+                    ),
+                    child: SizedBox(width: 6, height: 6),
+                  ),
+                ),
+              ),
+            );
+          }),
+        ),
+      ),
     );
   }
 }
@@ -987,26 +1042,41 @@ class _ChatImage extends StatelessWidget {
     final bytes = image.bytes;
     final signedUrl = image.signedUrl;
     final imageWidget = bytes != null
-        ? Image.memory(bytes, fit: BoxFit.cover)
+        ? Image.memory(bytes, width: double.infinity, fit: BoxFit.fitWidth)
         : signedUrl != null
         ? Image.network(
             signedUrl,
-            fit: BoxFit.cover,
-            errorBuilder: (_, _, _) => const Center(
-              child: Icon(Icons.broken_image_outlined, color: Colors.white70),
+            width: double.infinity,
+            fit: BoxFit.fitWidth,
+            loadingBuilder: (context, child, progress) => progress == null
+                ? child
+                : const SizedBox(
+                    height: 170,
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+            errorBuilder: (_, _, _) => SizedBox(
+              height: Responsive.h(context, 170),
+              child: Center(
+                child: Icon(
+                  Icons.broken_image_outlined,
+                  color: context.finFlowColors.secondaryText,
+                ),
+              ),
             ),
           )
-        : const Center(
-            child: Icon(Icons.image_outlined, color: Colors.white70),
+        : SizedBox(
+            height: Responsive.h(context, 170),
+            child: Center(
+              child: Icon(
+                Icons.image_outlined,
+                color: context.finFlowColors.secondaryText,
+              ),
+            ),
           );
     return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: SizedBox(
-        key: const Key('chat-message-image'),
-        width: Responsive.w(context, 230),
-        height: Responsive.h(context, 170),
-        child: imageWidget,
-      ),
+      key: const Key('chat-message-image'),
+      borderRadius: BorderRadius.circular(Responsive.w(context, 18)),
+      child: imageWidget,
     );
   }
 }
@@ -1149,20 +1219,14 @@ class _ChatInput extends StatelessWidget {
               onPressed: isSending ? null : onSend,
               style: IconButton.styleFrom(
                 backgroundColor: const Color(0xFF064E3B),
-                disabledBackgroundColor: context.finFlowColors.disabled,
+                disabledBackgroundColor: const Color(
+                  0xFF064E3B,
+                ).withValues(alpha: 0.62),
                 foregroundColor: Colors.white,
+                disabledForegroundColor: Colors.white70,
                 minimumSize: const Size(48, 48),
               ),
-              icon: isSending
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Icon(Icons.send_rounded),
+              icon: const Icon(Icons.send_rounded),
             ),
           ],
         ),

@@ -5,6 +5,7 @@ import '../../../core/i18n/app_language.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../app/screens/community_post_detail_screen.dart';
+import '../../../app/shell/finflow_app.dart';
 import '../models/notification_model.dart';
 import '../providers/notification_provider.dart';
 import '../utils/community_date_format.dart';
@@ -248,6 +249,12 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen> {
     if (!notif.isRead) {
       await ref.read(notificationServiceProvider).markAsRead(notif.id);
     }
+    if (notif.isRecurring && notif.scheduleId != null && mounted) {
+      await Navigator.of(
+        context,
+      ).pushNamed(AppRoutes.recurringDetails, arguments: notif.scheduleId);
+      return;
+    }
     // Navigate to post detail if there's a post
     if (notif.postId != null && mounted) {
       Navigator.of(context).push(
@@ -269,6 +276,7 @@ class _NotificationTile extends StatelessWidget {
   final VoidCallback onTap;
 
   IconData get _icon {
+    if (notification.isRecurring) return Icons.event_repeat_rounded;
     switch (notification.type) {
       case 'post':
         return Icons.share_rounded;
@@ -281,6 +289,11 @@ class _NotificationTile extends StatelessWidget {
   }
 
   Color get _iconColor {
+    if (notification.isRecurring) {
+      return notification.postingMode == 'review'
+          ? const Color(0xFF6555D9)
+          : const Color(0xFF00866A);
+    }
     switch (notification.type) {
       case 'post':
         return const Color(0xFF44BF99);
@@ -495,15 +508,21 @@ class _NotificationTile extends StatelessWidget {
         color: _iconColor.withValues(alpha: 0.14),
         shape: BoxShape.circle,
       ),
-      child: Text(
-        _initials,
-        style: TextStyle(
-          fontFamily: 'Manrope',
-          fontSize: Responsive.sp(context, 12),
-          fontWeight: FontWeight.w700,
-          color: _iconColor,
-        ),
-      ),
+      child: notification.isRecurring
+          ? Icon(
+              Icons.calendar_month_rounded,
+              color: _iconColor,
+              size: Responsive.w(context, 21),
+            )
+          : Text(
+              _initials,
+              style: TextStyle(
+                fontFamily: 'Manrope',
+                fontSize: Responsive.sp(context, 12),
+                fontWeight: FontWeight.w700,
+                color: _iconColor,
+              ),
+            ),
     );
     if (avatarUrl == null || avatarUrl.isEmpty) return fallback;
     return ClipOval(

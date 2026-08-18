@@ -310,11 +310,6 @@ class AppStrings {
   // -- Settings --
   static String get settings => _isEn ? 'Settings' : 'Cài đặt';
   static String get budgetLimit => _isEn ? 'Budget Limit' : 'Hạn mức ngân sách';
-  static String get automaticTransactionDetection =>
-      _isEn ? 'Automatic Transaction Detection' : 'Tự động phát hiện giao dịch';
-  static String get bankAndEwalletNotifications => _isEn
-      ? 'Android bank and e-wallet notifications'
-      : 'Thông báo ngân hàng và ví điện tử trên Android';
   static String get darkMode => _isEn ? 'Dark Mode' : 'Chế độ tối';
   static String get language => _isEn ? 'Language' : 'Ngôn ngữ';
   static String get selectedLanguage =>

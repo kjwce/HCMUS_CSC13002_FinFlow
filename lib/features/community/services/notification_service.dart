@@ -13,7 +13,8 @@ class NotificationService extends ChangeNotifier {
 
   List<NotificationModel> _notifications = [];
   bool _isLoading = false;
-  RealtimeChannel? _channel;
+  RealtimeChannel? _communityChannel;
+  RealtimeChannel? _recurringChannel;
   String? _activeUserId;
 
   List<NotificationModel> get notifications =>
@@ -30,9 +31,10 @@ class NotificationService extends ChangeNotifier {
   // ---------------------------------------------------------------------------
 
   void subscribe(String userId) {
-    _channel?.unsubscribe();
-    _channel = Supabase.instance.client
-        .channel('notifications-$userId')
+    _communityChannel?.unsubscribe();
+    _recurringChannel?.unsubscribe();
+    _communityChannel = Supabase.instance.client
+        .channel('community-notifications-$userId')
         .onPostgresChanges(
           event: PostgresChangeEvent.insert,
           schema: 'public',
@@ -48,6 +50,20 @@ class NotificationService extends ChangeNotifier {
           },
         )
         .subscribe();
+    _recurringChannel = Supabase.instance.client
+        .channel('recurring-notifications-$userId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'recurring_notifications',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'user_id',
+            value: userId,
+          ),
+          callback: (_) => fetchNotifications(),
+        )
+        .subscribe();
   }
 
   void startForUser(String userId) {
@@ -61,8 +77,10 @@ class NotificationService extends ChangeNotifier {
   }
 
   void unsubscribe() {
-    _channel?.unsubscribe();
-    _channel = null;
+    _communityChannel?.unsubscribe();
+    _recurringChannel?.unsubscribe();
+    _communityChannel = null;
+    _recurringChannel = null;
     _activeUserId = null;
     _notifications = [];
     notifyListeners();
@@ -79,19 +97,43 @@ class NotificationService extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final res = await Supabase.instance.client
-          .from('community_notifications')
-          .select()
-          .eq('user_id', userId)
-          .order('created_at', ascending: false);
-
-      final raw = (res as List)
+      List communityRows = const [];
+      List recurringRows = const [];
+      try {
+        communityRows = await Supabase.instance.client
+            .from('community_notifications')
+            .select()
+            .eq('user_id', userId)
+            .order('created_at', ascending: false);
+      } catch (error) {
+        debugPrint('fetch community notifications error: $error');
+      }
+      try {
+        recurringRows = await Supabase.instance.client
+            .from('recurring_notifications')
+            .select()
+            .eq('user_id', userId)
+            .lte('scheduled_for', DateTime.now().toUtc().toIso8601String())
+            .neq('status', 'dismissed')
+            .order('scheduled_for', ascending: false);
+      } catch (error) {
+        debugPrint('fetch recurring notifications error: $error');
+      }
+      final raw = communityRows
           .map((n) => NotificationModel.fromJson(n as Map<String, dynamic>))
+          .toList();
+      final recurring = recurringRows
+          .map(
+            (n) =>
+                NotificationModel.fromRecurringJson(n as Map<String, dynamic>),
+          )
           .toList();
 
       _activeUserId ??= userId;
       if (_activeUserId == userId && _userId == userId) {
         await _enrichAll(raw);
+        _notifications = [..._notifications, ...recurring]
+          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
       }
     } catch (e) {
       debugPrint('fetchNotifications error: $e');
@@ -106,8 +148,14 @@ class NotificationService extends ChangeNotifier {
   // ---------------------------------------------------------------------------
 
   Future<void> markAsRead(String notificationId) async {
+    final notification = _notifications
+        .where((item) => item.id == notificationId)
+        .firstOrNull;
+    final table = notification?.isRecurring == true
+        ? 'recurring_notifications'
+        : 'community_notifications';
     await Supabase.instance.client
-        .from('community_notifications')
+        .from(table)
         .update({'is_read': true})
         .eq('id', notificationId);
 
@@ -122,11 +170,18 @@ class NotificationService extends ChangeNotifier {
     final userId = _userId;
     if (userId == null) return;
 
-    await Supabase.instance.client
-        .from('community_notifications')
-        .update({'is_read': true})
-        .eq('user_id', userId)
-        .eq('is_read', false);
+    await Future.wait([
+      Supabase.instance.client
+          .from('community_notifications')
+          .update({'is_read': true})
+          .eq('user_id', userId)
+          .eq('is_read', false),
+      Supabase.instance.client
+          .from('recurring_notifications')
+          .update({'is_read': true})
+          .eq('user_id', userId)
+          .eq('is_read', false),
+    ]);
 
     _notifications = _notifications
         .map((n) => n.copyWith(isRead: true))
@@ -139,7 +194,11 @@ class NotificationService extends ChangeNotifier {
   // ---------------------------------------------------------------------------
 
   Future<void> _enrichAll(List<NotificationModel> raw) async {
-    final actorIds = raw.map((n) => n.actorId).toSet().toList();
+    final actorIds = raw
+        .map((n) => n.actorId)
+        .whereType<String>()
+        .toSet()
+        .toList();
     final postIds = raw
         .where((n) => n.postId != null)
         .map((n) => n.postId!)
@@ -199,9 +258,9 @@ class NotificationService extends ChangeNotifier {
       final authorRes = await Supabase.instance.client
           .from('community_authors')
           .select()
-          .eq('id', notif.actorId)
+          .eq('id', notif.actorId!)
           .single();
-      authors[notif.actorId] = Map<String, dynamic>.from(authorRes);
+      authors[notif.actorId!] = Map<String, dynamic>.from(authorRes);
     } catch (_) {}
 
     if (notif.postId != null) {

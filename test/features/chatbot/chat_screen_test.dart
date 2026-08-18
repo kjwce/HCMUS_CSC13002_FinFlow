@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:finflow/core/theme/app_theme.dart';
 import 'package:finflow/features/chatbot/models/chat_model.dart';
@@ -42,6 +43,17 @@ void main() {
 
     expect(find.text('Show my weekly spending'), findsOneWidget);
     expect(find.byKey(const Key('chat-typing-indicator')), findsOneWidget);
+    expect(find.byIcon(Icons.send_rounded), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+
+    final firstDot = find.byKey(const Key('chat-typing-dot-0'));
+    final dotOpacity = find.descendant(
+      of: firstDot,
+      matching: find.byType(Opacity),
+    );
+    final initialOpacity = tester.widget<Opacity>(dotOpacity).opacity;
+    await tester.pump(const Duration(milliseconds: 180));
+    expect(tester.widget<Opacity>(dotOpacity).opacity, isNot(initialOpacity));
 
     response.complete({
       'success': true,
@@ -91,6 +103,44 @@ void main() {
 
     expect(find.byKey(const Key('new-chat-button')), findsOneWidget);
     expect(find.text('No saved conversations yet.'), findsOneWidget);
+  });
+
+  testWidgets('renders an image edge-to-edge with a separate caption bubble', (
+    tester,
+  ) async {
+    final service = _ImageHistoryChatService();
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [chatServiceProvider.overrideWithValue(service)],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChatScreen(showBackButton: false),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final image = find.byKey(const Key('chat-message-image'));
+    final caption = find.byKey(const Key('chat-user-image-caption-bubble'));
+    await tester.ensureVisible(image);
+    await tester.pumpAndSettle();
+
+    expect(image, findsOneWidget);
+    expect(caption, findsOneWidget);
+    expect(tester.getSize(image).width, greaterThan(300));
+    expect(
+      tester.getSize(caption).width,
+      lessThanOrEqualTo(tester.getSize(image).width),
+    );
+    expect(
+      tester.getTopLeft(caption).dy,
+      greaterThan(tester.getBottomLeft(image).dy),
+    );
   });
 
   testWidgets('replaces typing dots with streamed assistant text', (
@@ -194,4 +244,38 @@ class _HistoryChatService extends ChatService {
   Future<void> renameConversation(String id, String title) async {
     renamedTitle = title;
   }
+}
+
+class _ImageHistoryChatService extends ChatService {
+  _ImageHistoryChatService()
+    : super(
+        invokeFunction: (_) async => throw UnimplementedError(),
+        persistenceEnabled: false,
+      );
+
+  @override
+  Future<List<ChatConversation>> fetchConversations() async => [
+    ChatConversation(
+      id: 'image-conversation',
+      title: 'Image message',
+      createdAt: DateTime(2026, 8, 16),
+      updatedAt: DateTime(2026, 8, 16),
+    ),
+  ];
+
+  @override
+  Future<List<ChatModel>> fetchMessages(String conversationId) async => [
+    ChatModel(
+      id: 'image-message',
+      message: 'Anh này là ai?',
+      role: ChatRole.user,
+      createdAt: DateTime(2026, 8, 16),
+      image: ChatImageAttachment(
+        mimeType: 'image/png',
+        bytes: base64Decode(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+        ),
+      ),
+    ),
+  ];
 }

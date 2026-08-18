@@ -1,10 +1,12 @@
 import '../../../core/i18n/app_language.dart';
 
+enum NotificationSource { community, recurring }
+
 class NotificationModel {
   const NotificationModel({
     required this.id,
     required this.userId,
-    required this.actorId,
+    this.actorId,
     required this.type,
     required this.isRead,
     required this.createdAt,
@@ -13,6 +15,13 @@ class NotificationModel {
     this.actorName,
     this.actorAvatarUrl,
     this.postContent,
+    this.source = NotificationSource.community,
+    this.scheduleId,
+    this.title,
+    this.body,
+    this.postingMode,
+    this.occurrenceAt,
+    this.status,
   });
 
   factory NotificationModel.fromJson(Map<String, dynamic> json) {
@@ -28,10 +37,30 @@ class NotificationModel {
     );
   }
 
+  factory NotificationModel.fromRecurringJson(Map<String, dynamic> json) {
+    final scheduledFor = DateTime.parse(json['scheduled_for'] as String);
+    return NotificationModel(
+      id: json['id'] as String,
+      userId: json['user_id'] as String,
+      type: json['posting_mode'] == 'review'
+          ? 'recurring_review'
+          : 'recurring_automatic',
+      isRead: json['is_read'] as bool? ?? false,
+      createdAt: scheduledFor,
+      source: NotificationSource.recurring,
+      scheduleId: json['schedule_id'] as String,
+      title: json['title'] as String?,
+      body: json['body'] as String?,
+      postingMode: json['posting_mode'] as String?,
+      occurrenceAt: DateTime.parse(json['occurrence_at'] as String).toLocal(),
+      status: json['status'] as String? ?? 'pending',
+    );
+  }
+
   Map<String, dynamic> toJson() => {
     'id': id,
     'user_id': userId,
-    'actor_id': actorId,
+    if (actorId != null) 'actor_id': actorId,
     'post_id': postId,
     'comment_id': commentId,
     'type': type,
@@ -41,22 +70,33 @@ class NotificationModel {
 
   final String id;
   final String userId;
-  final String actorId;
+  final String? actorId;
   final String? postId;
   final String? commentId;
   final String type;
   final bool isRead;
   final DateTime createdAt;
+  final NotificationSource source;
+  final String? scheduleId;
+  final String? title;
+  final String? body;
+  final String? postingMode;
+  final DateTime? occurrenceAt;
+  final String? status;
+
+  bool get isRecurring => source == NotificationSource.recurring;
 
   /// Populated client-side
   final String? actorName;
   final String? actorAvatarUrl;
   final String? postContent;
 
-  String get actorDisplayName =>
-      actorName ?? AppStrings.choose('FinFlow user', 'Người dùng FinFlow');
+  String get actorDisplayName => isRecurring
+      ? (title ?? AppStrings.choose('Recurring reminder', 'Nhắc lịch định kỳ'))
+      : actorName ?? AppStrings.choose('FinFlow user', 'Người dùng FinFlow');
 
   String get message {
+    if (isRecurring) return body ?? '';
     switch (type) {
       case 'post':
         return AppStrings.choose(
@@ -109,6 +149,13 @@ class NotificationModel {
       actorName: actorName ?? this.actorName,
       actorAvatarUrl: actorAvatarUrl ?? this.actorAvatarUrl,
       postContent: postContent ?? this.postContent,
+      source: source,
+      scheduleId: scheduleId,
+      title: title,
+      body: body,
+      postingMode: postingMode,
+      occurrenceAt: occurrenceAt,
+      status: status,
     );
   }
 }
