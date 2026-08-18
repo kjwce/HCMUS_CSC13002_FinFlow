@@ -212,6 +212,18 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       _selectedAcctCategory = _accountCategoryFor(wallet.type);
     }
     _amountController.addListener(_formatAmount);
+    unawaited(_refreshRecentTransactions());
+  }
+
+  Future<void> _refreshRecentTransactions() async {
+    if (AuthService.instance.currentUser == null) return;
+    try {
+      await ref.read(transactionServiceProvider).fetchTransactions();
+    } catch (error) {
+      // Keep the cached list available when the network is temporarily
+      // unavailable. The mode picker also needs to remain preview/test safe.
+      debugPrint('Unable to refresh recent transactions: $error');
+    }
   }
 
   @override
@@ -502,9 +514,23 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
           SizedBox(height: Responsive.h(context, 11)),
           _buildQuickCategories(),
           SizedBox(height: Responsive.h(context, 24)),
-          Text(
-            AppStrings.choose('RECENT TRANSACTIONS', 'GIAO DỊCH GẦN ĐÂY'),
-            style: _labelStyle,
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  AppStrings.choose('RECENT TRANSACTIONS', 'GIAO DỊCH GẦN ĐÂY'),
+                  style: _labelStyle,
+                ),
+              ),
+              Text(
+                AppStrings.choose('Tap to reuse', 'Chạm để dùng lại'),
+                style: _labelStyle.copyWith(
+                  fontSize: 9.5,
+                  color: _mutedText,
+                  letterSpacing: 0,
+                ),
+              ),
+            ],
           ),
           SizedBox(height: Responsive.h(context, 11)),
           if (recent.isEmpty)
@@ -1056,83 +1082,124 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   Widget _buildRecentTransaction(TransactionModel transaction) {
     final category = _categoryForKey(transaction.category);
     final isExpense = transaction.amount < 0;
-    return Container(
-      margin: EdgeInsets.only(bottom: Responsive.h(context, 9)),
-      padding: EdgeInsets.symmetric(
-        horizontal: Responsive.w(context, 12),
-        vertical: Responsive.h(context, 11),
+    final radius = BorderRadius.circular(15);
+    return Semantics(
+      button: true,
+      label: AppStrings.choose(
+        'Reuse ${transaction.name}',
+        'Dùng lại giao dịch ${transaction.name}',
       ),
-      decoration: BoxDecoration(
-        color: _surface,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: _border),
-        boxShadow: _isDark
-            ? null
-            : const [
-                BoxShadow(
-                  color: Color(0x14004736),
-                  blurRadius: 12,
-                  offset: Offset(0, 5),
-                ),
-              ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: category.color.withValues(alpha: 0.12),
-              shape: BoxShape.circle,
-            ),
-            child: category.buildIcon(size: 18),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  transaction.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: 'Hanken Grotesk',
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w700,
-                    color: _primaryText,
+      child: Container(
+        margin: EdgeInsets.only(bottom: Responsive.h(context, 9)),
+        decoration: BoxDecoration(
+          color: _surface,
+          borderRadius: radius,
+          border: Border.all(color: _border),
+          boxShadow: _isDark
+              ? null
+              : const [
+                  BoxShadow(
+                    color: Color(0x14004736),
+                    blurRadius: 12,
+                    offset: Offset(0, 5),
                   ),
-                ),
-                Text(
-                  _formatRecentDate(transaction.date),
-                  style: TextStyle(
-                    fontFamily: 'Hanken Grotesk',
-                    fontSize: 10.5,
-                    color: _mutedText,
+                ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: radius,
+          child: InkWell(
+            key: ValueKey('reuse-recent-transaction-${transaction.id}'),
+            onTap: () => _reuseRecentTransaction(transaction),
+            borderRadius: radius,
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: Responsive.w(context, 12),
+                vertical: Responsive.h(context, 11),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: category.color.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: category.buildIcon(size: 18),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          transaction.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: 'Hanken Grotesk',
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w700,
+                            color: _primaryText,
+                          ),
+                        ),
+                        Text(
+                          _formatRecentDate(transaction.date),
+                          style: TextStyle(
+                            fontFamily: 'Hanken Grotesk',
+                            fontSize: 10.5,
+                            color: _mutedText,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    '${isExpense ? '-' : '+'}${_formatInsightMoney(transaction.amount.abs())}đ',
+                    style: TextStyle(
+                      fontFamily: 'Manrope',
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: isExpense
+                          ? (_isDark
+                                ? const Color(0xFFFF6B70)
+                                : const Color(0xFFC24444))
+                          : (_isDark
+                                ? const Color(0xFF38D6AC)
+                                : const Color(0xFF006C53)),
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                  SizedBox(width: Responsive.w(context, 6)),
+                  Icon(Icons.replay_rounded, size: 17, color: _mutedText),
+                ],
+              ),
             ),
           ),
-          Text(
-            '${isExpense ? '-' : '+'}${_formatInsightMoney(transaction.amount.abs())}đ',
-            style: TextStyle(
-              fontFamily: 'Manrope',
-              fontSize: 12.5,
-              fontWeight: FontWeight.w700,
-              color: isExpense
-                  ? (_isDark
-                        ? const Color(0xFFFF6B70)
-                        : const Color(0xFFC24444))
-                  : (_isDark
-                        ? const Color(0xFF38D6AC)
-                        : const Color(0xFF006C53)),
-              fontFeatures: const [FontFeature.tabularFigures()],
-            ),
-          ),
-        ],
+        ),
       ),
     );
+  }
+
+  void _reuseRecentTransaction(TransactionModel transaction) {
+    final wallet = WalletService.instance.byId(transaction.walletId);
+    setState(() {
+      _isExpense = transaction.amount < 0;
+      _amountController.text = _addCommas(transaction.amount.abs().toString());
+      _nameController.text = transaction.name;
+      _selectedCategory = transaction.category;
+      _selectedWalletId = wallet?.id;
+      _selectedWalletName = wallet?.name;
+      _selectedAcctCategory = wallet == null
+          ? null
+          : _accountCategoryFor(wallet.type);
+      // Reusing a transaction creates a new occurrence now; it must not copy
+      // the historical transaction date.
+      _transactionDate = DateTime.now();
+      _selectedInputMode = null;
+      _mode = _AddMode.manual;
+    });
   }
 
   Widget _buildEmptyRecentTransactions() {

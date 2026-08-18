@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/i18n/app_language.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../finance/models/transaction_category.dart';
 import '../../finance/providers/transaction_provider.dart';
 import '../../finance/services/transaction_service.dart';
@@ -42,7 +43,8 @@ class _CategoryBudgetsScreenState extends ConsumerState<CategoryBudgetsScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final pageColor = isDark ? const Color(0xFF081C18) : goalSurface;
+    final colors = context.finFlowColors;
+    final pageColor = colors.pageBackground;
     final primaryText = isDark ? const Color(0xFFF4FBF8) : goalText;
     final secondaryText = isDark ? const Color(0xFFA9C1B9) : goalMuted;
     final budgets = ref.watch(categoryBudgetServiceProvider).budgets;
@@ -70,9 +72,7 @@ class _CategoryBudgetsScreenState extends ConsumerState<CategoryBudgetsScreen> {
     return Scaffold(
       backgroundColor: pageColor,
       appBar: AppBar(
-        backgroundColor: isDark
-            ? const Color(0xFF081C18)
-            : const Color(0xFFE8F6F1),
+        backgroundColor: pageColor,
         surfaceTintColor: Colors.transparent,
         foregroundColor: isDark ? const Color(0xFFF4FBF8) : goalPrimary,
         elevation: 0,
@@ -133,18 +133,6 @@ class _CategoryBudgetsScreenState extends ConsumerState<CategoryBudgetsScreen> {
                       textAlign: TextAlign.center,
                       style: TextStyle(color: secondaryText),
                     ),
-                    const SizedBox(height: 20),
-                    FilledButton.icon(
-                      style: goalFilledButtonStyle(),
-                      onPressed: () => _editBudget(),
-                      icon: const Icon(Icons.add_rounded),
-                      label: Text(
-                        AppStrings.choose(
-                          'Add Category Budget',
-                          'Thêm ngân sách danh mục',
-                        ),
-                      ),
-                    ),
                   ],
                 ),
               ),
@@ -179,35 +167,19 @@ class _CategoryBudgetsScreenState extends ConsumerState<CategoryBudgetsScreen> {
                 ),
               ],
             ),
-      bottomNavigationBar: budgets.isEmpty
-          ? null
-          : SafeArea(
-              top: false,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: pageColor,
-                  border: Border(
-                    top: BorderSide(
-                      color: isDark
-                          ? const Color(0xFF29483F)
-                          : const Color(0x14006C53),
-                    ),
-                  ),
-                ),
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-                child: FilledButton.icon(
-                  style: goalFilledButtonStyle(),
-                  onPressed: () => _editBudget(),
-                  icon: const Icon(Icons.add_circle_outline_rounded),
-                  label: Text(
-                    AppStrings.choose(
-                      'Add Category Budget',
-                      'Thêm ngân sách danh mục',
-                    ),
-                  ),
-                ),
-              ),
-            ),
+      floatingActionButton: FloatingActionButton(
+        key: const Key('add-category-budget-fab'),
+        onPressed: () => _editBudget(),
+        tooltip: AppStrings.choose(
+          'Add Category Budget',
+          'Thêm ngân sách danh mục',
+        ),
+        backgroundColor: goalPrimary,
+        foregroundColor: Colors.white,
+        elevation: 5,
+        shape: const CircleBorder(),
+        child: const Icon(Icons.add_rounded, size: 26),
+      ),
     );
   }
 
@@ -269,18 +241,21 @@ class _BudgetCard extends StatelessWidget {
         ? const Color(0xFF38D6AC)
         : goalPrimary;
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      color: isDark ? const Color(0xFF16352E) : Colors.white,
-      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 14),
+      color: context.finFlowColors.surface,
+      surfaceTintColor: Colors.transparent,
+      elevation: isDark ? 0 : 3,
+      shadowColor: const Color(0xFF006C53).withValues(alpha: 0.18),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         side: BorderSide(
-          color: isDark ? const Color(0xFF29483F) : const Color(0xFFE3E9E6),
+          color: isDark ? const Color(0xFF35564C) : const Color(0xFFC9E5D9),
+          width: isDark ? 1 : 1.15,
         ),
       ),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -288,7 +263,7 @@ class _BudgetCard extends StatelessWidget {
               Row(
                 children: [
                   CircleAvatar(
-                    backgroundColor: category.color.withValues(alpha: .12),
+                    backgroundColor: category.color.withValues(alpha: .16),
                     child: category.buildIcon(size: 20),
                   ),
                   const SizedBox(width: 10),

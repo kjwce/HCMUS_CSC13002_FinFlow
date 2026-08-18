@@ -18,6 +18,7 @@ import '../../features/budget/models/category_budget_model.dart';
 import '../../features/budget/presentation/category_budget_dialog.dart';
 import '../../features/finance/models/transaction_category.dart';
 import '../../features/finance/models/goal_model.dart';
+import '../../features/finance/models/recurring_model.dart';
 import '../../features/finance/models/transaction_model.dart';
 import '../../features/finance/presentation/dashboard_page.dart';
 import '../../features/finance/presentation/edit_transaction_screen.dart';
@@ -27,6 +28,8 @@ import '../../features/finance/presentation/transaction_history_screen.dart';
 import '../../features/finance/providers/goal_provider.dart';
 import '../../features/finance/providers/transaction_provider.dart';
 import '../../features/finance/providers/wallet_provider.dart';
+import '../../features/finance/providers/recurring_provider.dart';
+import '../../features/finance/services/recurring_service.dart';
 import '../../features/finance/services/goal_service.dart';
 import '../../features/finance/services/transaction_service.dart';
 
@@ -78,6 +81,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
     TransactionService.instance.addListener(_onTransactionsChanged);
     GoalService.instance.addListener(_onTransactionsChanged);
     CategoryBudgetService.instance.addListener(_onTransactionsChanged);
+    RecurringService.instance.addListener(_onTransactionsChanged);
     Future.microtask(() {
       ref
           .read(transactionServiceProvider)
@@ -101,6 +105,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
           .read(walletServiceProvider)
           .fetchWallets()
           .catchError((e) => debugPrint('fetchWallets error: $e'));
+    });
+    Future.microtask(() {
+      ref
+          .read(recurringServiceProvider)
+          .fetch()
+          .catchError((e) => debugPrint('fetchRecurring error: $e'));
     });
   }
 
@@ -134,6 +144,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
     TransactionService.instance.removeListener(_onTransactionsChanged);
     GoalService.instance.removeListener(_onTransactionsChanged);
     CategoryBudgetService.instance.removeListener(_onTransactionsChanged);
+    RecurringService.instance.removeListener(_onTransactionsChanged);
     _budgetPageController.dispose();
     super.dispose();
   }
@@ -186,41 +197,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
               child: Column(
                 children: [
                   _buildStitchHero(ts),
-                  Transform.translate(
-                    offset: Offset(0, -Responsive.h(context, 24)),
-                    child: Container(
-                      width: double.infinity,
-                      clipBehavior: Clip.antiAlias,
-                      decoration: BoxDecoration(
-                        color: isLight ? Colors.transparent : _darkPage,
-                        border: Border(
-                          top: BorderSide(
-                            color: isLight
-                                ? const Color(0x1A006C53)
-                                : _darkBorder,
-                          ),
-                        ),
-                        borderRadius: BorderRadius.vertical(
-                          top: Radius.circular(Responsive.w(context, 32)),
-                        ),
-                      ),
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: Responsive.w(context, 20),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            SizedBox(height: Responsive.h(context, 24)),
-                            _buildRefinedGoalsSection(ts),
-                            SizedBox(height: Responsive.h(context, 28)),
-                            _buildCategoryBudgetSection(ts),
-                            SizedBox(height: Responsive.h(context, 24)),
-                            _buildTransactionList(ts),
-                            SizedBox(height: Responsive.h(context, 32)),
-                          ],
-                        ),
-                      ),
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      Responsive.w(context, 20),
+                      Responsive.h(context, 4),
+                      Responsive.w(context, 20),
+                      0,
+                    ),
+                    child: _buildOverviewGrid(ts),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: Responsive.w(context, 20),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildTransactionList(ts),
+                        SizedBox(height: Responsive.h(context, 32)),
+                      ],
                     ),
                   ),
                 ],
@@ -333,184 +328,1310 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
         Responsive.w(context, 20),
         Responsive.h(context, 18),
         Responsive.w(context, 20),
-        Responsive.h(context, 48),
+        Responsive.h(context, 24),
       ),
+      child: Column(children: [_buildBalanceGlassCard(ts)]),
+    );
+  }
+
+  Widget _buildOverviewGrid(TransactionService ts) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final tomorrow = today.add(const Duration(days: 1));
+    final todayTransactions = ts.currentUserTransactions
+        .where(
+          (transaction) =>
+              !transaction.date.isBefore(today) &&
+              transaction.date.isBefore(tomorrow),
+        )
+        .toList(growable: false);
+    final todayNet = todayTransactions.fold<int>(
+      0,
+      (sum, transaction) => sum + transaction.amount,
+    );
+    final allTransactions = ts.currentUserTransactions;
+    final latestTransaction = TransactionModel.latestRecorded(allTransactions);
+
+    final weeklyRange = ts.dateRangeForPeriod(ChartPeriod.week);
+    final weeklySpent = ts.expenseBetween(weeklyRange.start, weeklyRange.end);
+    final weeklyLimit = ref.read(authServiceProvider).weeklyBudget;
+    final weeklyPercent = weeklyLimit <= 0 ? 0.0 : weeklySpent / weeklyLimit;
+
+    final goals = ref.watch(goalServiceProvider).activeGoals;
+    final primaryGoal =
+        goals.where((goal) => goal.isPrimary).firstOrNull ?? goals.firstOrNull;
+
+    final monthRange = ts.dateRangeForPeriod(ChartPeriod.month);
+    final monthIncome = ts.incomeBetween(monthRange.start, monthRange.end);
+    final monthExpense = ts.expenseBetween(monthRange.start, monthRange.end);
+    final monthNet = monthIncome - monthExpense;
+    final savingsRate = monthIncome <= 0
+        ? null
+        : (monthNet / monthIncome) * 100;
+
+    final categoryExpenses = ts.expenseByCategoryBetween(
+      monthRange.start,
+      monthRange.end,
+    );
+    final topCategoryEntry = categoryExpenses.entries.isEmpty
+        ? null
+        : (categoryExpenses.entries.toList()
+                ..sort((a, b) => b.value.compareTo(a.value)))
+              .first;
+    final categoryBudgets = ref.watch(categoryBudgetServiceProvider).budgets;
+    final topCategoryBudget = topCategoryEntry == null
+        ? null
+        : categoryBudgets
+              .where((budget) => budget.category == topCategoryEntry.key)
+              .firstOrNull;
+
+    ref.watch(recurringServiceRevisionProvider);
+    final recurring = ref.read(recurringServiceProvider);
+    final upcoming7 = [...recurring.upcomingWithin(const Duration(days: 7))]
+      ..sort((a, b) => a.nextOccurrence.compareTo(b.nextOccurrence));
+    final nextRecurring = upcoming7.firstOrNull;
+    final recurringTotal = upcoming7.fold<int>(
+      0,
+      (sum, schedule) => sum + schedule.amount.abs(),
+    );
+
+    final horizontalGap = Responsive.w(context, 12).clamp(8.0, 12.0);
+    final rowOneHeight = Responsive.w(context, 190).clamp(190.0, 204.0);
+    // Goals and Categories have the same compact information density as the
+    // first Bento row. Keeping this row taller leaves a visibly empty footer,
+    // especially in the Categories card.
+    final rowTwoHeight = MediaQuery.sizeOf(context).width < 360
+        ? 210.0
+        : Responsive.w(context, 190).clamp(198.0, 204.0);
+    // The weekly calendar and the two-bar insight chart both fit comfortably
+    // at this height. The previous 292–308 range left a large empty footer in
+    // both cards on common phone widths.
+    final rowThreeHeight = MediaQuery.sizeOf(context).width < 360
+        ? 286.0
+        : 280.0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          AppStrings.choose('Overview', 'Tổng quan'),
+          style: TextStyle(
+            fontFamily: _headlineFont,
+            fontSize: Responsive.sp(context, 22),
+            fontWeight: FontWeight.w800,
+            color: isDark ? _darkText : const Color(0xFF006C53),
+          ),
+        ),
+        SizedBox(height: Responsive.h(context, 12)),
+        SizedBox(
+          height: rowOneHeight,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: _buildTransactionsBentoCard(
+                  count: todayTransactions.length,
+                  netAmount: todayNet,
+                  latest: latestTransaction,
+                ),
+              ),
+              SizedBox(width: horizontalGap),
+              Expanded(
+                child: _buildBudgetBentoCard(
+                  spent: weeklySpent,
+                  limit: weeklyLimit,
+                  percent: weeklyPercent,
+                ),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(height: Responsive.h(context, 12)),
+        SizedBox(
+          height: rowTwoHeight,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: _buildGoalsBentoCard(
+                  goal: primaryGoal,
+                  activeCount: goals.length,
+                ),
+              ),
+              SizedBox(width: horizontalGap),
+              Expanded(
+                child: _buildCategoriesBentoCard(
+                  category: topCategoryEntry?.key,
+                  spent: topCategoryEntry?.value ?? 0,
+                  budget: topCategoryBudget,
+                ),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(height: Responsive.h(context, 12)),
+        SizedBox(
+          height: rowThreeHeight,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: _buildRecurringBentoCard(
+                  next: nextRecurring,
+                  upcoming: upcoming7,
+                  total: recurringTotal,
+                ),
+              ),
+              SizedBox(width: horizontalGap),
+              Expanded(
+                child: _buildInsightBentoCard(
+                  income: monthIncome,
+                  expense: monthExpense,
+                  net: monthNet,
+                  savingsRate: savingsRate,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTransactionsBentoCard({
+    required int count,
+    required int netAmount,
+    required TransactionModel? latest,
+  }) {
+    const accent = Color(0xFF1677C8);
+    final latestCategory = TransactionCategory.resolve(
+      latest?.category ?? 'Other',
+    );
+    final amountColor = latest == null || latest.amount >= 0
+        ? const Color(0xFF087A5A)
+        : const Color(0xFFE64B3C);
+    return _buildBentoShell(
+      key: const Key('overview-card-transactions'),
+      title: AppStrings.choose('Transactions', 'Giao dịch'),
+      icon: Icons.receipt_long_rounded,
+      accent: accent,
+      lightBackground: const Color(0xFFF0F8FF),
+      semanticsValue: latest == null
+          ? AppStrings.choose('No transactions yet', 'Chưa có giao dịch')
+          : '${latest.name}, ${_overviewSignedMoney(latest.amount)}',
+      onTap: _navigateToTransactionHistory,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildBalanceGlassCard(ts),
-          SizedBox(height: Responsive.h(context, 12)),
-          _buildBudgetCarousel(ts),
+          Text(
+            AppStrings.choose('$count today', '$count hôm nay'),
+            style: _bentoValueStyle(accent, 18),
+          ),
+          const SizedBox(height: 2),
+          _fitBentoText(
+            _overviewSignedMoney(netAmount),
+            style: _bentoBodyStyle(11, strong: true),
+          ),
+          const Spacer(),
+          _bentoEyebrow(AppStrings.choose('LATEST', 'GẦN NHẤT')),
+          const SizedBox(height: 6),
+          if (latest == null)
+            Text(
+              AppStrings.choose('No recent activity', 'Chưa có hoạt động mới'),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: _bentoBodyStyle(10, muted: true, strong: true),
+            )
+          else ...[
+            Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: .12),
+                    shape: BoxShape.circle,
+                  ),
+                  alignment: Alignment.center,
+                  child: latestCategory.buildIcon(size: 18, color: accent),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        latest.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: _bentoBodyStyle(13, strong: true),
+                      ),
+                      _fitBentoText(
+                        _overviewSignedMoney(latest.amount),
+                        style: _bentoBodyStyle(
+                          11,
+                          strong: true,
+                        ).copyWith(color: amountColor),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 5),
+            _fitBentoText(
+              '${AppStrings.categoryName(latest.category)} · ${_overviewTransactionDate(latest.date)}',
+              style: _bentoBodyStyle(9.5, muted: true),
+            ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildBalanceGlassCard(TransactionService ts) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final chartPeriod = switch (_cashFlowPeriod) {
-      _CashFlowPeriod.daily => ChartPeriod.day,
-      _CashFlowPeriod.weekly => ChartPeriod.week,
-      _CashFlowPeriod.monthly => ChartPeriod.month,
-    };
-    final range = ts.dateRangeForPeriod(chartPeriod);
-    final income = ts.incomeBetween(range.start, range.end);
-    final expense = ts.expenseBetween(range.start, range.end);
-    final radius = BorderRadius.circular(Responsive.w(context, 24));
-
-    return ClipRRect(
-      borderRadius: radius,
-      child: BackdropFilter(
-        filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: EdgeInsets.all(Responsive.w(context, 20)),
-          decoration: BoxDecoration(
-            color: isDark
-                ? _darkSurface
-                : const Color(0xFF006C53).withValues(alpha: 0.76),
-            borderRadius: radius,
-            border: Border.all(
-              color: isDark
-                  ? _darkBorder
-                  : Colors.white.withValues(alpha: 0.24),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: isDark
-                    ? const Color(0x66000000)
-                    : const Color(0x42002D22),
-                blurRadius: isDark ? 15 : 24,
-                offset: const Offset(0, 10),
-              ),
-            ],
+  Widget _buildBudgetBentoCard({
+    required int spent,
+    required int limit,
+    required double percent,
+  }) {
+    final status = _budgetOverviewStatus(percent, hasLimit: limit > 0);
+    final remaining = math.max(0, limit - spent);
+    final displayPercent = (percent * 100).clamp(0, 100).round();
+    return _buildBentoShell(
+      key: const Key('overview-card-budget'),
+      title: AppStrings.choose('Budget', 'Ngân sách'),
+      icon: Icons.account_balance_wallet_rounded,
+      accent: const Color(0xFFE49A18),
+      lightBackground: const Color(0xFFFFFDF5),
+      semanticsValue: limit > 0
+          ? '$displayPercent%, ${formatVnd(remaining)} VND'
+          : AppStrings.choose('No limit set', 'Chưa đặt hạn mức'),
+      onTap: () => Navigator.of(context).pushNamed(AppRoutes.budgetOverview),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _bentoEyebrow(AppStrings.choose('WEEKLY BUDGET', 'NGÂN SÁCH TUẦN')),
+          const SizedBox(height: 8),
+          _fitBentoText(
+            limit > 0
+                ? AppStrings.choose(
+                    '$displayPercent% used',
+                    'Đã dùng $displayPercent%',
+                  )
+                : AppStrings.choose('No limit set', 'Chưa đặt hạn mức'),
+            style: _bentoValueStyle(status.color, 18),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      AppStrings.choose('TOTAL BALANCE', 'TỔNG SỐ DƯ'),
+          const SizedBox(height: 2),
+          _fitBentoText(
+            limit > 0
+                ? AppStrings.choose(
+                    '${formatVnd(remaining)} VND left',
+                    'Còn ${formatVnd(remaining)} VND',
+                  )
+                : AppStrings.choose(
+                    'Set a weekly limit',
+                    'Đặt hạn mức hàng tuần',
+                  ),
+            style: _bentoBodyStyle(10),
+          ),
+          const SizedBox(height: 13),
+          _overviewProgress(percent, status.color),
+          const Spacer(),
+          Text(
+            status.label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: _bodyFont,
+              fontSize: 9,
+              fontWeight: FontWeight.w800,
+              color: status.color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGoalsBentoCard({
+    required GoalModel? goal,
+    required int activeCount,
+  }) {
+    const accent = Color(0xFF7957C8);
+    final displayPercent = ((goal?.progress ?? 0) * 100).clamp(0, 100).round();
+    return _buildBentoShell(
+      key: const Key('overview-card-goals'),
+      title: AppStrings.choose('Goals', 'Mục tiêu'),
+      icon: Icons.savings_rounded,
+      accent: accent,
+      lightBackground: const Color(0xFFFCF9FF),
+      semanticsValue: goal == null
+          ? AppStrings.choose('No active goals', 'Chưa có mục tiêu')
+          : '${goal.name}, $displayPercent%',
+      onTap: () => Navigator.of(context).pushNamed(AppRoutes.savingGoals),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _bentoEyebrow(AppStrings.choose('PRIMARY GOAL', 'MỤC TIÊU CHÍNH')),
+          const SizedBox(height: 6),
+          if (goal == null)
+            _OverviewNamedIconRow(
+              icon: Icons.add_task_rounded,
+              label: AppStrings.choose('Create a goal', 'Tạo mục tiêu'),
+              color: accent,
+            )
+          else
+            _OverviewNamedIconRow(
+              iconWidget: goalIconWidgetFor(
+                goal.category,
+                color: accent,
+                size: 17,
+              ),
+              label: goal.name,
+              color: accent,
+            ),
+          const SizedBox(height: 6),
+          Text(
+            goal == null
+                ? AppStrings.choose('0% achieved', 'Đạt 0%')
+                : AppStrings.choose(
+                    '$displayPercent% achieved',
+                    'Đạt $displayPercent%',
+                  ),
+            style: _bentoValueStyle(accent, 14),
+          ),
+          const SizedBox(height: 2),
+          _fitBentoText(
+            goal == null
+                ? AppStrings.choose(
+                    'Start your first saving goal',
+                    'Bắt đầu mục tiêu đầu tiên',
+                  )
+                : '${formatVnd(goal.allocatedAmount)}/${formatVnd(goal.targetAmount)} VND',
+            style: _bentoBodyStyle(9.5),
+          ),
+          const SizedBox(height: 7),
+          _overviewProgress(goal?.progress ?? 0, accent),
+          const Spacer(),
+          Text(
+            AppStrings.choose(
+              '$activeCount active goals',
+              '$activeCount mục tiêu đang chạy',
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: _bentoBodyStyle(9, muted: true),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCategoriesBentoCard({
+    required String? category,
+    required int spent,
+    required CategoryBudgetModel? budget,
+  }) {
+    const accent = Color(0xFF008E83);
+    final percent = budget == null || budget.limitAmount <= 0
+        ? 0.0
+        : spent / budget.limitAmount;
+    final displayPercent = (percent * 100).clamp(0, 100).round();
+    final status = _categoryOverviewStatus(percent, hasBudget: budget != null);
+    final resolved = TransactionCategory.resolve(category ?? 'Other');
+    return _buildBentoShell(
+      key: const Key('overview-card-categories'),
+      title: AppStrings.choose('Categories', 'Danh mục'),
+      icon: Icons.category_rounded,
+      accent: accent,
+      lightBackground: const Color(0xFFF2FBF9),
+      semanticsValue: category == null
+          ? AppStrings.choose('No spending yet', 'Chưa có chi tiêu')
+          : '${AppStrings.categoryName(category)}, $displayPercent%',
+      onTap: () => Navigator.of(context).pushNamed(AppRoutes.categoryBudgets),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _bentoEyebrow(AppStrings.choose('TOP SPENDING', 'CHI NHIỀU NHẤT')),
+          const SizedBox(height: 8),
+          _OverviewNamedIconRow(
+            iconWidget: resolved.buildIcon(size: 17, color: accent),
+            label: category == null
+                ? AppStrings.choose('No spending yet', 'Chưa có chi tiêu')
+                : AppStrings.categoryName(category),
+            color: accent,
+          ),
+          const SizedBox(height: 9),
+          Text(
+            category == null
+                ? AppStrings.choose('0% used', 'Đã dùng 0%')
+                : budget == null
+                ? AppStrings.choose('No budget set', 'Chưa đặt ngân sách')
+                : AppStrings.choose(
+                    '$displayPercent% used',
+                    'Đã dùng $displayPercent%',
+                  ),
+            style: _bentoValueStyle(status.color, 14),
+          ),
+          const SizedBox(height: 2),
+          _fitBentoText(
+            budget == null
+                ? '${formatVnd(spent)} VND ${AppStrings.choose('spent', 'đã chi')}'
+                : '${formatVnd(spent)} / ${formatVnd(budget.limitAmount)} VND',
+            style: _bentoBodyStyle(9.5),
+          ),
+          const SizedBox(height: 9),
+          _overviewProgress(percent, status.color),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecurringBentoCard({
+    required RecurringSchedule? next,
+    required List<RecurringSchedule> upcoming,
+    required int total,
+  }) {
+    const accent = Color(0xFF4F46E5);
+    final category = TransactionCategory.resolve(next?.category ?? 'Other');
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    return _buildBentoShell(
+      key: const Key('overview-card-recurring'),
+      title: AppStrings.choose('Recurring', 'Định kỳ'),
+      icon: Icons.event_repeat_rounded,
+      accent: accent,
+      lightBackground: const Color(0xFFF5F7FF),
+      semanticsValue: next == null
+          ? AppStrings.choose('No upcoming payments', 'Không có khoản sắp tới')
+          : '${next.name}, ${_overviewSignedMoney(next.amount)}',
+      onTap: () => Navigator.of(context).pushNamed(AppRoutes.recurring),
+      child: next == null
+          ? Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.event_available_rounded,
+                  color: accent,
+                  size: 28,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  AppStrings.choose(
+                    'No upcoming payments',
+                    'Không có khoản sắp tới',
+                  ),
+                  textAlign: TextAlign.center,
+                  style: _bentoBodyStyle(12, strong: true),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  AppStrings.choose(
+                    'Your next 7 days are clear',
+                    '7 ngày tới đang trống',
+                  ),
+                  textAlign: TextAlign.center,
+                  style: _bentoBodyStyle(10, muted: true),
+                ),
+              ],
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _bentoEyebrow(
+                  AppStrings.choose('NEXT PAYMENT', 'KHOẢN TIẾP THEO'),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: .10),
+                        shape: BoxShape.circle,
+                      ),
+                      alignment: Alignment.center,
+                      child: category.buildIcon(size: 17, color: accent),
+                    ),
+                    const SizedBox(width: 7),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            next.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: _bentoBodyStyle(13, strong: true),
+                          ),
+                          Text(
+                            '${AppStrings.categoryName(next.category)} · ${_overviewFrequency(next.frequency)}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: _bentoBodyStyle(9.5, muted: true),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                _fitBentoText(
+                  _overviewSignedMoney(next.amount),
+                  style: _bentoValueStyle(accent, 18),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    _OverviewPill(
+                      label: _overviewDueLabel(next.nextOccurrence),
+                      color: _overviewDueColor(next.nextOccurrence),
+                      compact: true,
+                    ),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: _OverviewPill(
+                        label:
+                            next.postingMode == RecurringPostingMode.automatic
+                            ? AppStrings.choose('Auto-post', 'Tự động')
+                            : AppStrings.choose('Needs review', 'Cần duyệt'),
+                        color:
+                            next.postingMode == RecurringPostingMode.automatic
+                            ? accent
+                            : const Color(0xFFEF6262),
+                        compact: true,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Divider(height: 1, color: accent.withValues(alpha: .14)),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _bentoEyebrow(
+                        AppStrings.choose('NEXT 7 DAYS', '7 NGÀY TỚI'),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    _fitBentoText(
+                      _overviewWeekRangeLabel(today),
+                      alignment: Alignment.centerRight,
+                      style: _bentoBodyStyle(8.5, muted: true, strong: true),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        AppStrings.choose(
+                          '${upcoming.length} payments',
+                          '${upcoming.length} khoản',
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: _bentoBodyStyle(10.5),
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    Flexible(
+                      child: _fitBentoText(
+                        '${_overviewCompactMoney(total)} VND',
+                        alignment: Alignment.centerRight,
+                        style: _bentoBodyStyle(10.5, strong: true),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                _OverviewWeekCalendar(
+                  start: today,
+                  schedules: upcoming,
+                  accent: accent,
+                ),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildInsightBentoCard({
+    required int income,
+    required int expense,
+    required int net,
+    required double? savingsRate,
+  }) {
+    final valueColor = net >= 0
+        ? const Color(0xFF087A5A)
+        : const Color(0xFFEF6262);
+    return _buildBentoShell(
+      key: const Key('overview-card-insight'),
+      title: AppStrings.choose('Insight', 'Phân tích'),
+      icon: Icons.analytics_rounded,
+      accent: const Color(0xFF087A5A),
+      lightBackground: const Color(0xFFF0FAF6),
+      semanticsValue: _overviewSignedMoney(net),
+      onTap: _navigateToDashboard,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _bentoEyebrow(
+            AppStrings.choose('MONTHLY INSIGHT', 'PHÂN TÍCH THÁNG'),
+          ),
+          const SizedBox(height: 7),
+          Text(
+            AppStrings.choose('Net cash flow', 'Dòng tiền ròng'),
+            style: _bentoBodyStyle(10, muted: true, strong: true),
+          ),
+          const SizedBox(height: 4),
+          _OverviewInlineAmount(
+            amount: _overviewSignedMoneyValue(net),
+            color: valueColor,
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 110,
+            child: _OverviewIncomeExpenseComparison(
+              income: income,
+              expense: expense,
+              incomeColor: const Color(0xFF087A5A),
+              expenseColor: const Color(0xFFFF6B4A),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            savingsRate == null
+                ? AppStrings.choose(
+                    'More data needed for insights',
+                    'Cần thêm dữ liệu để phân tích',
+                  )
+                : AppStrings.choose(
+                    'Savings rate ${savingsRate.round()}%',
+                    'Tỷ lệ tiết kiệm ${savingsRate.round()}%',
+                  ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: _bodyFont,
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              color: valueColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBentoShell({
+    required Key key,
+    required String title,
+    required IconData icon,
+    required Color accent,
+    required Color lightBackground,
+    required String semanticsValue,
+    required VoidCallback onTap,
+    required Widget child,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final radius = BorderRadius.circular(16);
+    return Semantics(
+      button: true,
+      label: '$title. $semanticsValue',
+      child: _PressableScale(
+        onTap: onTap,
+        tapHandledByChild: true,
+        pressedScale: .975,
+        pressedOpacity: .96,
+        pressedOffset: const Offset(0, .008),
+        duration: const Duration(milliseconds: 160),
+        pressedOverlayColor: accent.withValues(alpha: .06),
+        borderRadius: radius,
+        child: Material(
+          key: key,
+          color: isDark ? _darkSurface : lightBackground,
+          elevation: isDark ? 3 : 6,
+          surfaceTintColor: Colors.transparent,
+          shadowColor: isDark
+              ? Colors.black.withValues(alpha: .48)
+              : accent.withValues(alpha: .32),
+          shape: RoundedRectangleBorder(
+            borderRadius: radius,
+            side: BorderSide(
+              color: isDark ? _darkBorder : accent.withValues(alpha: .24),
+            ),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: radius,
+            splashColor: accent.withValues(alpha: .12),
+            highlightColor: Colors.transparent,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildBentoHeader(title: title, icon: icon, accent: accent),
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.all(
+                      Responsive.w(context, 16).clamp(11.0, 16.0),
+                    ),
+                    child: child,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBentoHeader({
+    required String title,
+    required IconData icon,
+    required Color accent,
+  }) {
+    return Container(
+      height: 46,
+      width: double.infinity,
+      color: accent,
+      padding: EdgeInsets.symmetric(
+        horizontal: Responsive.w(context, 14).clamp(8.0, 14.0),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: Colors.white),
+          const SizedBox(width: 7),
+          Expanded(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                title,
+                maxLines: 1,
+                style: const TextStyle(
+                  fontFamily: _bodyFont,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -.1,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 5),
+          Container(
+            width: 26,
+            height: 26,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: .20),
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: const Icon(
+              Icons.chevron_right_rounded,
+              size: 19,
+              color: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _bentoEyebrow(String value) => Text(
+    value,
+    maxLines: 1,
+    overflow: TextOverflow.ellipsis,
+    style: _bentoBodyStyle(
+      10,
+      muted: true,
+      strong: true,
+    ).copyWith(letterSpacing: .55),
+  );
+
+  TextStyle _bentoValueStyle(Color color, double size) => TextStyle(
+    fontFamily: _headlineFont,
+    fontSize: math.max(size, 9.5),
+    fontWeight: FontWeight.w800,
+    color: Theme.of(context).brightness == Brightness.dark
+        ? (color == const Color(0xFFE49A18) ? _darkWarning : color)
+        : color,
+    height: 1.12,
+  );
+
+  TextStyle _bentoBodyStyle(
+    double size, {
+    bool muted = false,
+    bool strong = false,
+  }) => TextStyle(
+    fontFamily: _bodyFont,
+    fontSize: size,
+    fontWeight: strong
+        ? FontWeight.w700
+        : muted
+        ? FontWeight.w600
+        : FontWeight.w500,
+    color: muted
+        ? (Theme.of(context).brightness == Brightness.dark
+              ? _darkSecondaryText
+              : const Color(0xFF40534F))
+        : (Theme.of(context).brightness == Brightness.dark
+              ? _darkText
+              : const Color(0xFF24312E)),
+    height: 1.2,
+  );
+
+  Widget _fitBentoText(
+    String value, {
+    required TextStyle style,
+    Alignment alignment = Alignment.centerLeft,
+  }) => FittedBox(
+    fit: BoxFit.scaleDown,
+    alignment: alignment,
+    child: Text(value, maxLines: 1, style: style),
+  );
+
+  Widget _overviewProgress(double value, Color color) => ClipRRect(
+    borderRadius: BorderRadius.circular(99),
+    child: LinearProgressIndicator(
+      minHeight: 7,
+      value: value.clamp(0.0, 1.0),
+      backgroundColor: color.withValues(alpha: .18),
+      valueColor: AlwaysStoppedAnimation<Color>(color),
+    ),
+  );
+
+  // Kept temporarily while the data-driven Bento layout is rolled out.
+  // ignore: unused_element
+  Widget _buildLegacyOverviewGrid(TransactionService ts) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final now = DateTime.now();
+    final todayCount = ts.currentUserTransactions.where((transaction) {
+      final date = transaction.date;
+      return date.year == now.year &&
+          date.month == now.month &&
+          date.day == now.day;
+    }).length;
+    final weeklyRange = ts.dateRangeForPeriod(ChartPeriod.week);
+    final weeklySpent = ts.expenseBetween(weeklyRange.start, weeklyRange.end);
+    final weeklyLimit = ref.read(authServiceProvider).weeklyBudget;
+    final weeklyPercent = weeklyLimit <= 0
+        ? 0
+        : ((weeklySpent / weeklyLimit) * 100).clamp(0, 100).round();
+    final goals = ref.watch(goalServiceProvider).activeGoals;
+    ref.watch(recurringServiceRevisionProvider);
+    final recurring = ref.read(recurringServiceProvider);
+    final goalProgress = goals.isEmpty
+        ? 0
+        : (goals.map((goal) => goal.progress).reduce((a, b) => a + b) /
+                  goals.length *
+                  100)
+              .round();
+    final categoryExpenses = ts.expenseByCategoryBetween(
+      weeklyRange.start,
+      weeklyRange.end,
+    );
+    final topCategory = categoryExpenses.entries.isEmpty
+        ? null
+        : (categoryExpenses.entries.toList()
+                ..sort((a, b) => b.value.compareTo(a.value)))
+              .first
+              .key;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          AppStrings.choose('Overview', 'Tổng quan'),
+          style: TextStyle(
+            fontFamily: _headlineFont,
+            fontSize: Responsive.sp(context, 22),
+            fontWeight: FontWeight.w800,
+            color: isDark ? _darkText : const Color(0xFF006C53),
+          ),
+        ),
+        SizedBox(height: Responsive.h(context, 12)),
+        GridView.count(
+          crossAxisCount: 2,
+          crossAxisSpacing: Responsive.w(context, 12),
+          mainAxisSpacing: Responsive.h(context, 12),
+          childAspectRatio: 1.04,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          children: [
+            _buildOverviewCard(
+              title: AppStrings.choose('Transactions', 'Giao dịch'),
+              subtitle: AppStrings.choose(
+                '$todayCount transactions today',
+                '$todayCount giao dịch hôm nay',
+              ),
+              icon: Icons.receipt_long_rounded,
+              colors: const [Color(0xFF1677C8), Color(0xFF3DB7E4)],
+              onTap: _navigateToTransactionHistory,
+            ),
+            _buildOverviewCard(
+              title: AppStrings.choose('Budgets', 'Ngân sách'),
+              subtitle: weeklyLimit > 0
+                  ? AppStrings.choose(
+                      'Weekly · $weeklyPercent% used',
+                      'Tuần · đã dùng $weeklyPercent%',
+                    )
+                  : AppStrings.choose('Weekly · No limit', 'Tuần · Chưa đặt'),
+              icon: Icons.pie_chart_rounded,
+              colors: const [Color(0xFFE49A18), Color(0xFFF3C553)],
+              progress: weeklyLimit > 0 ? weeklyPercent / 100 : null,
+              onTap: () =>
+                  Navigator.of(context).pushNamed(AppRoutes.budgetOverview),
+            ),
+            _buildOverviewCard(
+              title: AppStrings.choose('Saving Goals', 'Mục tiêu tiết kiệm'),
+              subtitle: AppStrings.choose(
+                '${goals.length} active',
+                '${goals.length} đang hoạt động',
+              ),
+              badge: '$goalProgress%',
+              icon: Icons.savings_rounded,
+              colors: const [Color(0xFF7957C8), Color(0xFFB47BE3)],
+              onTap: () =>
+                  Navigator.of(context).pushNamed(AppRoutes.savingGoals),
+            ),
+            _buildOverviewCard(
+              title: AppStrings.choose('Categories', 'Danh mục'),
+              subtitle: topCategory == null
+                  ? AppStrings.choose('No spending yet', 'Chưa có chi tiêu')
+                  : AppStrings.categoryName(topCategory),
+              icon: Icons.category_rounded,
+              colors: const [Color(0xFF008E83), Color(0xFF32C5B5)],
+              onTap: () =>
+                  Navigator.of(context).pushNamed(AppRoutes.categoryBudgets),
+            ),
+            _buildOverviewCard(
+              title: AppStrings.choose('Recurring', 'Định kỳ'),
+              subtitle: AppStrings.choose(
+                '${recurring.upcoming.length} upcoming in 7 days',
+                '${recurring.upcoming.length} sắp tới trong 7 ngày',
+              ),
+              icon: Icons.event_repeat_rounded,
+              colors: const [Color(0xFF5267D9), Color(0xFF7F8FF0)],
+              onTap: () => Navigator.of(context).pushNamed(AppRoutes.recurring),
+            ),
+            _buildOverviewCard(
+              title: AppStrings.choose('Analytics', 'Phân tích'),
+              subtitle: AppStrings.choose(
+                'Monthly insights ready',
+                'Đã sẵn sàng phân tích tháng',
+              ),
+              icon: Icons.insights_rounded,
+              colors: const [Color(0xFF087A5A), Color(0xFF00B889)],
+              onTap: _navigateToDashboard,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildOverviewCard({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required List<Color> colors,
+    required VoidCallback onTap,
+    String? badge,
+    double? progress,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final background = isDark
+        ? _darkSurface
+        : Color.alphaBlend(colors.first.withValues(alpha: .095), Colors.white);
+    final radius = BorderRadius.circular(Responsive.w(context, 16));
+    return Semantics(
+      button: true,
+      label: '$title. $subtitle',
+      child: Material(
+        color: background,
+        clipBehavior: Clip.antiAlias,
+        elevation: isDark ? 0 : 2,
+        shadowColor: isDark
+            ? Colors.transparent
+            : colors.first.withValues(alpha: .16),
+        shape: RoundedRectangleBorder(
+          borderRadius: radius,
+          side: BorderSide(
+            color: isDark ? _darkBorder : colors.first.withValues(alpha: .16),
+          ),
+        ),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: radius,
+          splashColor: colors.first.withValues(alpha: .14),
+          child: Padding(
+            padding: EdgeInsets.all(Responsive.w(context, 14)),
+            child: Stack(
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: Responsive.w(context, 42),
+                      height: Responsive.w(context, 42),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(colors: colors),
+                        boxShadow: [
+                          BoxShadow(
+                            color: colors.first.withValues(alpha: .25),
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Icon(icon, color: Colors.white, size: 21),
+                    ),
+                    SizedBox(height: Responsive.h(context, 10)),
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontFamily: _bodyFont,
-                        fontSize: Responsive.sp(context, 12),
+                        fontSize: Responsive.sp(context, 14),
                         fontWeight: FontWeight.w700,
-                        letterSpacing: .6,
+                        color: isDark ? _darkText : const Color(0xFF1A1C1E),
+                      ),
+                    ),
+                    SizedBox(height: Responsive.h(context, 4)),
+                    Text(
+                      subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: _bodyFont,
+                        fontSize: Responsive.sp(context, 11),
                         color: isDark
                             ? _darkSecondaryText
-                            : Colors.white.withValues(alpha: .88),
+                            : const Color(0xFF48645D),
                       ),
                     ),
-                  ),
-                  Semantics(
-                    button: true,
-                    label: AppStrings.choose(
-                      'View Financial Insights',
-                      'Xem phân tích tài chính',
-                    ),
-                    child: Material(
-                      color: isDark
-                          ? _darkElevatedSurface
-                          : Colors.white.withValues(alpha: .16),
-                      shape: StadiumBorder(
-                        side: BorderSide(
-                          color: isDark
-                              ? _darkBorder
-                              : Colors.white.withValues(alpha: .30),
-                        ),
-                      ),
-                      child: InkWell(
-                        onTap: _navigateToDashboard,
-                        customBorder: const StadiumBorder(),
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: Responsive.w(context, 13),
-                            vertical: Responsive.h(context, 9),
+                    if (progress != null) ...[
+                      SizedBox(height: Responsive.h(context, 7)),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(99),
+                        child: LinearProgressIndicator(
+                          minHeight: 4,
+                          value: progress,
+                          backgroundColor: colors.first.withValues(alpha: .16),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            colors.first,
                           ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.analytics_outlined,
-                                size: Responsive.w(context, 17),
-                                color: isDark ? _darkPositive : Colors.white,
-                              ),
-                              SizedBox(width: Responsive.w(context, 6)),
-                              Text(
-                                AppStrings.choose('Insights', 'Phân tích'),
-                                style: TextStyle(
-                                  fontFamily: _bodyFont,
-                                  fontSize: Responsive.sp(context, 12),
-                                  fontWeight: FontWeight.w700,
-                                  color: isDark ? _darkText : Colors.white,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: Responsive.h(context, 4)),
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerLeft,
-                child: Text.rich(
-                  TextSpan(
-                    children: [
-                      TextSpan(
-                        text: _formatMoneyValue(ts.totalBalance),
-                        style: TextStyle(
-                          fontFamily: _headlineFont,
-                          fontSize: Responsive.sp(context, 30),
-                          fontWeight: FontWeight.w800,
-                          color: isDark ? _darkText : Colors.white,
-                        ),
-                      ),
-                      TextSpan(
-                        text: '  VND',
-                        style: TextStyle(
-                          fontFamily: _bodyFont,
-                          fontSize: Responsive.sp(context, 12),
-                          fontWeight: FontWeight.w700,
-                          color: isDark ? _darkSecondaryText : Colors.white,
                         ),
                       ),
                     ],
+                  ],
+                ),
+                Align(
+                  alignment: Alignment.topRight,
+                  child: Container(
+                    width: Responsive.w(context, 28),
+                    height: Responsive.w(context, 28),
+                    decoration: BoxDecoration(
+                      color: colors.first.withValues(alpha: .16),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: colors.first.withValues(alpha: .12),
+                      ),
+                    ),
+                    child: Icon(
+                      Icons.chevron_right_rounded,
+                      size: 18,
+                      color: colors.first,
+                    ),
                   ),
                 ),
+                if (badge != null)
+                  Positioned(
+                    right: Responsive.w(context, 2),
+                    bottom: 0,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: colors.first.withValues(alpha: .12),
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                      child: Text(
+                        badge,
+                        style: TextStyle(
+                          fontFamily: _bodyFont,
+                          fontSize: Responsive.sp(context, 10),
+                          fontWeight: FontWeight.w800,
+                          color: colors.first,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBalanceGlassCard(TransactionService ts) {
+    final (income, expense, balance) = switch (_cashFlowPeriod) {
+      _CashFlowPeriod.daily => _cashFlowForPeriod(ts, ChartPeriod.day),
+      _CashFlowPeriod.weekly => _cashFlowForPeriod(ts, ChartPeriod.week),
+      _CashFlowPeriod.monthly => _cashFlowForPeriod(ts, ChartPeriod.month),
+      _CashFlowPeriod.allTime => (
+        ts.currentUserTransactions
+            .where((transaction) => transaction.amount > 0)
+            .fold(0, (total, transaction) => total + transaction.amount),
+        ts.currentUserTransactions
+            .where((transaction) => transaction.amount < 0)
+            .fold(0, (total, transaction) => total + transaction.amount.abs()),
+        ts.totalBalance,
+      ),
+    };
+    final radius = BorderRadius.circular(Responsive.w(context, 32));
+
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: const Color(0xFF006C53),
+        borderRadius: radius,
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x4000513E),
+            blurRadius: 40,
+            offset: Offset(0, 20),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              Responsive.w(context, 20),
+              Responsive.h(context, 18),
+              Responsive.w(context, 20),
+              Responsive.h(context, 16),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        AppStrings.choose('TOTAL BALANCE', 'TỔNG SỐ DƯ'),
+                        style: TextStyle(
+                          fontFamily: _bodyFont,
+                          fontSize: Responsive.sp(context, 11),
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: .8,
+                          color: const Color(0xFFB8E8D6).withValues(alpha: .9),
+                        ),
+                      ),
+                    ),
+                    _buildCashFlowPeriodMenu(false),
+                  ],
+                ),
+                SizedBox(height: Responsive.h(context, 10)),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(
+                          text: _formatMoneyValue(balance),
+                          style: TextStyle(
+                            fontFamily: _headlineFont,
+                            fontSize: Responsive.sp(context, 40),
+                            height: 1.1,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -.7,
+                            color: Colors.white,
+                          ),
+                        ),
+                        TextSpan(
+                          text: '  VND',
+                          style: TextStyle(
+                            fontFamily: _bodyFont,
+                            fontSize: Responsive.sp(context, 18),
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white.withValues(alpha: .9),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            decoration: BoxDecoration(
+              border: Border(
+                top: BorderSide(color: Colors.white.withValues(alpha: .1)),
               ),
-              SizedBox(height: Responsive.h(context, 18)),
-              Row(
+            ),
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Expanded(
                     child: _buildCashFlowGlassMetric(
-                      title: AppStrings.choose('Total Income', 'Tổng thu nhập'),
+                      title: AppStrings.choose('TOTAL INCOME', 'TỔNG THU NHẬP'),
                       amount: income,
                       icon: Icons.trending_up_rounded,
-                      color: isDark ? _darkPositive : _incomeColor,
+                      color: const Color(0xFF064E3B),
+                      background: const Color(0xFFECFDF5),
                       sign: '+',
                     ),
                   ),
-                  SizedBox(width: Responsive.w(context, 12)),
                   Expanded(
                     child: _buildCashFlowGlassMetric(
-                      title: AppStrings.totalExpenseLabel,
+                      title: AppStrings.choose(
+                        'TOTAL EXPENSE',
+                        'TỔNG CHI TIÊU',
+                      ),
                       amount: expense,
                       icon: Icons.trending_down_rounded,
-                      color: isDark ? _darkNegative : _expenseColor,
+                      color: const Color(0xFF991B1B),
+                      background: const Color(0xFFFEF2F2),
                       sign: '-',
                     ),
                   ),
                 ],
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
+  }
+
+  (int, int, int) _cashFlowForPeriod(
+    TransactionService service,
+    ChartPeriod period,
+  ) {
+    final range = service.dateRangeForPeriod(period);
+    final income = service.incomeBetween(range.start, range.end);
+    final expense = service.expenseBetween(range.start, range.end);
+    return (income, expense, income - expense);
   }
 
   Widget _buildCashFlowGlassMetric({
@@ -518,132 +1639,129 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
     required int amount,
     required IconData icon,
     required Color color,
+    required Color background,
     required String sign,
   }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return _PressableCashFlowCard(
-      onTap: _showSummaryPeriodDialog,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(Responsive.w(context, 16)),
-        child: BackdropFilter(
-          filter: ui.ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-          child: Material(
-            color: isDark
-                ? _darkElevatedSurface
-                : Colors.white.withValues(alpha: .80),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(Responsive.w(context, 16)),
-              side: BorderSide(
-                color: isDark
-                    ? _darkBorder
-                    : Colors.white.withValues(alpha: .66),
+    return ColoredBox(
+      key: Key(
+        sign == '+' ? 'cash-flow-income-panel' : 'cash-flow-expense-panel',
+      ),
+      color: background,
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: Responsive.w(context, 16),
+          vertical: Responsive.h(context, 14),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                _AnimatedTrendIcon(
+                  icon: icon,
+                  color: color,
+                  isIncome: sign == '+',
+                  stagger: sign == '-'
+                      ? const Duration(milliseconds: 250)
+                      : Duration.zero,
+                  enabled: widget.isActive,
+                  size: Responsive.w(context, 16),
+                ),
+                SizedBox(width: Responsive.w(context, 5)),
+                Expanded(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      title,
+                      maxLines: 1,
+                      style: TextStyle(
+                        fontFamily: _bodyFont,
+                        fontSize: Responsive.sp(context, 11),
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: .55,
+                        color: color.withValues(alpha: .9),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: Responsive.h(context, 5)),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(
+                      text: '$sign${_formatMoneyValue(amount.abs())}',
+                      style: TextStyle(
+                        fontFamily: _headlineFont,
+                        fontSize: Responsive.sp(context, 18),
+                        fontWeight: FontWeight.w800,
+                        color: color,
+                      ),
+                    ),
+                    TextSpan(
+                      text: ' VND',
+                      style: TextStyle(
+                        fontFamily: _bodyFont,
+                        fontSize: Responsive.sp(context, 12),
+                        fontWeight: FontWeight.w600,
+                        color: color.withValues(alpha: .7),
+                      ),
+                    ),
+                  ],
+                ),
+                maxLines: 1,
+                softWrap: false,
               ),
             ),
-            child: Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: Responsive.w(context, 14),
-                vertical: Responsive.h(context, 14),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      _AnimatedTrendIcon(
-                        icon: icon,
-                        color: color,
-                        isIncome: sign == '+',
-                        stagger: sign == '-'
-                            ? const Duration(milliseconds: 250)
-                            : Duration.zero,
-                        enabled: widget.isActive,
-                        size: Responsive.w(context, 15),
-                      ),
-                      SizedBox(width: Responsive.w(context, 5)),
-                      Expanded(
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              title,
-                              maxLines: 1,
-                              softWrap: false,
-                              style: TextStyle(
-                                fontFamily: _headlineFont,
-                                fontSize: Responsive.sp(context, 15),
-                                fontWeight: FontWeight.w800,
-                                color: isDark ? _darkText : color,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCashFlowPeriodMenu(bool isDark) {
+    final foreground = isDark ? _darkText : Colors.white;
+    final border = isDark ? _darkBorder : Colors.white.withValues(alpha: .30);
+    return Semantics(
+      button: true,
+      label: AppStrings.choose('Choose period', 'Chọn khoảng thời gian'),
+      child: Material(
+        color: isDark
+            ? _darkElevatedSurface
+            : Colors.white.withValues(alpha: .16),
+        shape: StadiumBorder(side: BorderSide(color: border)),
+        child: InkWell(
+          onTap: _showSummaryPeriodDialog,
+          customBorder: const StadiumBorder(),
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: Responsive.w(context, 12),
+              vertical: Responsive.h(context, 8),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _cashFlowPeriod.optionTitle,
+                  style: TextStyle(
+                    fontFamily: _bodyFont,
+                    fontSize: Responsive.sp(context, 12),
+                    fontWeight: FontWeight.w700,
+                    color: foreground,
                   ),
-                  SizedBox(height: Responsive.h(context, 8)),
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerLeft,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          _cashFlowPeriod.label,
-                          style: TextStyle(
-                            fontFamily: _bodyFont,
-                            fontSize: Responsive.sp(context, 10),
-                            fontWeight: FontWeight.w500,
-                            color: isDark
-                                ? _darkSecondaryText
-                                : color.withValues(alpha: .72),
-                          ),
-                        ),
-                        SizedBox(width: Responsive.w(context, 4)),
-                        Icon(
-                          Icons.keyboard_arrow_down_rounded,
-                          size: Responsive.w(context, 16),
-                          color: isDark
-                              ? _darkSecondaryText
-                              : color.withValues(alpha: .72),
-                        ),
-                      ],
-                    ),
-                  ),
-                  SizedBox(height: Responsive.h(context, 7)),
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerLeft,
-                    child: Text.rich(
-                      TextSpan(
-                        children: [
-                          TextSpan(
-                            text: '$sign${_formatMoneyValue(amount.abs())}',
-                            style: TextStyle(
-                              fontFamily: _headlineFont,
-                              fontSize: Responsive.sp(context, 18),
-                              fontWeight: FontWeight.w800,
-                              color: color,
-                            ),
-                          ),
-                          TextSpan(
-                            text: ' VND',
-                            style: TextStyle(
-                              fontFamily: _bodyFont,
-                              fontSize: Responsive.sp(context, 10),
-                              fontWeight: FontWeight.w700,
-                              color: isDark ? _darkText : color,
-                            ),
-                          ),
-                        ],
-                      ),
-                      maxLines: 1,
-                      softWrap: false,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+                SizedBox(width: Responsive.w(context, 3)),
+                Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  size: Responsive.w(context, 18),
+                  color: foreground,
+                ),
+              ],
             ),
           ),
         ),
@@ -1472,6 +2590,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
     );
   }
 
+  // Kept for the legacy home layout variants; the current Home no longer
+  // renders this section because goals are opened from the Overview card.
+  // ignore: unused_element
   Widget _buildRefinedGoalsSection(TransactionService ts) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final service = ref.watch(goalServiceProvider);
@@ -1854,6 +2975,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
     );
   }
 
+  // Kept for the legacy home layout variants; category budgets are opened
+  // from the Overview card instead of being duplicated on Home.
+  // ignore: unused_element
   Widget _buildCategoryBudgetSection(TransactionService ts) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final budgets = ref.watch(categoryBudgetServiceProvider).budgets;
@@ -2971,31 +4095,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
     double titleFontSize = 16,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final radius = BorderRadius.circular(Responsive.w(context, 16));
-    return Container(
-      height: Responsive.h(context, 54),
-      padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 14)),
-      decoration: BoxDecoration(
-        color: isDark ? _darkSectionHeader : null,
-        gradient: isDark
-            ? null
-            : const LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Color(0xFF007A61), Color(0xFF005C49)],
-              ),
-        borderRadius: radius,
-        border: isDark ? Border.all(color: _darkBorder) : null,
-        boxShadow: isDark
-            ? null
-            : const [
-                BoxShadow(
-                  color: Color(0x33006B55),
-                  blurRadius: 12,
-                  offset: Offset(0, 4),
-                ),
-              ],
-      ),
+    final foreground = isDark ? Colors.white : const Color(0xFF073F34);
+    return SizedBox(
+      height: Responsive.h(context, 44),
       child: Row(
         children: [
           Expanded(
@@ -3012,7 +4114,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
                     fontFamily: _headlineFont,
                     fontSize: Responsive.sp(context, titleFontSize),
                     fontWeight: FontWeight.w700,
-                    color: Colors.white,
+                    color: foreground,
                   ),
                 ),
               ),
@@ -3029,7 +4131,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
                 borderRadius: 18,
                 child: Icon(
                   Icons.add_rounded,
-                  color: Colors.white,
+                  color: foreground,
                   size: Responsive.w(context, 20),
                 ),
               ),
@@ -3058,14 +4160,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
                       fontFamily: _bodyFont,
                       fontSize: Responsive.sp(context, 14),
                       fontWeight: FontWeight.w600,
-                      color: Colors.white,
+                      color: foreground,
                     ),
                   ),
                   SizedBox(width: Responsive.w(context, 4)),
                   Icon(
                     Icons.arrow_forward_rounded,
                     size: Responsive.w(context, 16),
-                    color: Colors.white,
+                    color: foreground,
                   ),
                 ],
               ),
@@ -3083,7 +4185,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
     required double borderRadius,
     required Widget child,
   }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final radius = BorderRadius.circular(Responsive.w(context, borderRadius));
     return Semantics(
       button: true,
@@ -3093,25 +4194,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
         height: Responsive.h(context, 36),
         child: Material(
           color: Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: radius,
-            side: BorderSide(
-              color: isDark ? _darkBorder : const Color(0x3DFFFFFF),
-            ),
-          ),
-          clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: onTap,
             borderRadius: radius,
-            splashColor: const Color(0x29FFFFFF),
-            highlightColor: const Color(0x1AFFFFFF),
-            child: Ink(
-              decoration: BoxDecoration(
-                color: isDark ? _darkElevatedSurface : const Color(0x29FFFFFF),
-                borderRadius: radius,
-              ),
-              child: Center(child: child),
-            ),
+            child: Center(child: child),
           ),
         ),
       ),
@@ -3335,6 +4421,819 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
 // =============================================================================
 // Figma home icons (car, wallet, food) as CustomPaint
 // =============================================================================
+
+({String label, Color color}) _budgetOverviewStatus(
+  double percent, {
+  required bool hasLimit,
+}) {
+  if (!hasLimit) {
+    return (
+      label: AppStrings.choose('SET BUDGET', 'ĐẶT NGÂN SÁCH'),
+      color: const Color(0xFFE49A18),
+    );
+  }
+  if (percent < .7) {
+    return (
+      label: AppStrings.choose('ON TRACK', 'ĐÚNG TIẾN ĐỘ'),
+      color: const Color(0xFF087A5A),
+    );
+  }
+  if (percent < .9) {
+    return (
+      label: AppStrings.choose('NEAR LIMIT', 'GẦN HẠN MỨC'),
+      color: const Color(0xFFE49A18),
+    );
+  }
+  if (percent < 1) {
+    return (
+      label: AppStrings.choose('LIMIT WARNING', 'SẮP CHẠM HẠN MỨC'),
+      color: const Color(0xFFEF6262),
+    );
+  }
+  return (
+    label: AppStrings.choose('OVER BUDGET', 'VƯỢT NGÂN SÁCH'),
+    color: const Color(0xFFBA1A1A),
+  );
+}
+
+({String label, Color color}) _categoryOverviewStatus(
+  double percent, {
+  required bool hasBudget,
+}) {
+  if (!hasBudget || percent < .7) {
+    return (
+      label: AppStrings.choose('ON TRACK', 'ĐÚNG TIẾN ĐỘ'),
+      color: const Color(0xFF008E83),
+    );
+  }
+  if (percent < .9) {
+    return (
+      label: AppStrings.choose('NEAR LIMIT', 'GẦN HẠN MỨC'),
+      color: const Color(0xFFE49A18),
+    );
+  }
+  if (percent < 1) {
+    return (
+      label: AppStrings.choose('LIMIT WARNING', 'SẮP CHẠM HẠN MỨC'),
+      color: const Color(0xFFEF6262),
+    );
+  }
+  return (
+    label: AppStrings.choose('OVER BUDGET', 'VƯỢT NGÂN SÁCH'),
+    color: const Color(0xFFBA1A1A),
+  );
+}
+
+String _overviewSignedMoney(int amount) {
+  return '${_overviewSignedMoneyValue(amount)} VND';
+}
+
+String _overviewSignedMoneyValue(int amount) {
+  final sign = amount < 0 ? '−' : '+';
+  return '$sign${formatVnd(amount.abs())}';
+}
+
+String _overviewCompactMoney(int amount) {
+  final absolute = amount.abs();
+  if (absolute >= 1000000000) {
+    return '${_trimOverviewDecimal(absolute / 1000000000)}B';
+  }
+  if (absolute >= 1000000) {
+    return '${_trimOverviewDecimal(absolute / 1000000)}M';
+  }
+  if (absolute >= 1000) {
+    return '${_trimOverviewDecimal(absolute / 1000)}K';
+  }
+  return '$absolute';
+}
+
+String _trimOverviewDecimal(double value) {
+  final formatted = value.toStringAsFixed(value >= 10 ? 1 : 2);
+  return formatted
+      .replaceFirst(RegExp(r'\.0+$'), '')
+      .replaceFirst(RegExp(r'(\.[0-9]*?)0+$'), r'$1');
+}
+
+String _overviewFrequency(RecurringFrequency frequency) => switch (frequency) {
+  RecurringFrequency.daily => AppStrings.choose('Daily', 'Hàng ngày'),
+  RecurringFrequency.weekly => AppStrings.choose('Weekly', 'Hàng tuần'),
+  RecurringFrequency.monthly => AppStrings.choose('Monthly', 'Hàng tháng'),
+};
+
+String _overviewDueLabel(DateTime date) {
+  final days = _overviewDaysUntil(date);
+  if (days < 0) return AppStrings.choose('OVERDUE', 'QUÁ HẠN');
+  if (days == 0) return AppStrings.choose('TODAY', 'HÔM NAY');
+  if (days == 1) return AppStrings.choose('TOMORROW', 'NGÀY MAI');
+  return _overviewShortDate(date);
+}
+
+Color _overviewDueColor(DateTime date) {
+  final days = _overviewDaysUntil(date);
+  if (days <= 0) return const Color(0xFFFF6B4A);
+  if (days == 1) return const Color(0xFFE49A18);
+  return const Color(0xFF5267D9);
+}
+
+int _overviewDaysUntil(DateTime date) {
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final target = DateTime(date.year, date.month, date.day);
+  return target.difference(today).inDays;
+}
+
+String _overviewShortDate(DateTime date) {
+  if (AppStrings.isVietnamese) return '${date.day}/${date.month}';
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  return '${months[date.month - 1]} ${date.day}';
+}
+
+String _overviewTransactionDate(DateTime date) {
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final transactionDay = DateTime(date.year, date.month, date.day);
+  final time =
+      '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+  if (transactionDay == today) {
+    return '${AppStrings.choose('Today', 'Hôm nay')}, $time';
+  }
+  if (transactionDay == today.subtract(const Duration(days: 1))) {
+    return '${AppStrings.choose('Yesterday', 'Hôm qua')}, $time';
+  }
+  return '${_overviewShortDate(date)}, $time';
+}
+
+String _overviewWeekRangeLabel(DateTime start) {
+  final end = start.add(const Duration(days: 6));
+  final startLabel = _overviewShortDate(start).toUpperCase();
+  if (start.month == end.month) {
+    return '$startLabel — ${end.day}';
+  }
+  return '$startLabel — ${_overviewShortDate(end).toUpperCase()}';
+}
+
+class _OverviewInlineAmount extends StatelessWidget {
+  const _OverviewInlineAmount({required this.amount, required this.color});
+
+  final String amount;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => FittedBox(
+    fit: BoxFit.scaleDown,
+    alignment: Alignment.centerLeft,
+    child: Text.rich(
+      TextSpan(
+        children: [
+          TextSpan(
+            text: amount,
+            style: TextStyle(
+              fontFamily: 'Manrope',
+              fontSize: 18,
+              height: 1.1,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
+          ),
+          TextSpan(
+            text: '  VND',
+            style: TextStyle(
+              fontFamily: 'Hanken Grotesk',
+              fontSize: 10.5,
+              fontWeight: FontWeight.w800,
+              color: color.withValues(alpha: .82),
+            ),
+          ),
+        ],
+      ),
+      maxLines: 1,
+      softWrap: false,
+    ),
+  );
+}
+
+class _OverviewWeekCalendar extends StatelessWidget {
+  const _OverviewWeekCalendar({
+    required this.start,
+    required this.schedules,
+    required this.accent,
+  });
+
+  final DateTime start;
+  final List<RecurringSchedule> schedules;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final days = List.generate(7, (index) => start.add(Duration(days: index)));
+    const englishWeekdays = ['M', 'T', 'W', 'T', 'F', 'Sa', 'Su'];
+    const vietnameseWeekdays = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
+    final labels = AppLanguage.instance.locale == AppLocale.english
+        ? englishWeekdays
+        : vietnameseWeekdays;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: List.generate(days.length, (index) {
+        final day = days[index];
+        final isToday = index == 0;
+        final schedule = schedules.where((item) {
+          final occurrence = item.nextOccurrence;
+          return occurrence.year == day.year &&
+              occurrence.month == day.month &&
+              occurrence.day == day.day;
+        }).firstOrNull;
+        final dotColor = schedule?.postingMode == RecurringPostingMode.review
+            ? const Color(0xFFFF6B4A)
+            : accent;
+        return Expanded(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                labels[index],
+                style: TextStyle(
+                  fontFamily: 'Hanken Grotesk',
+                  fontSize: 8,
+                  fontWeight: FontWeight.w800,
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? const Color(0xFFA9C1B9)
+                      : const Color(0xFF52625E),
+                ),
+              ),
+              const SizedBox(height: 5),
+              Container(
+                width: 18,
+                height: 18,
+                alignment: Alignment.center,
+                decoration: isToday
+                    ? BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: const Color(0xFFFF6B4A)),
+                      )
+                    : null,
+                child: Text(
+                  '${day.day}',
+                  style: TextStyle(
+                    fontFamily: 'Hanken Grotesk',
+                    fontSize: 9,
+                    fontWeight: isToday ? FontWeight.w800 : FontWeight.w600,
+                    color: isToday
+                        ? const Color(0xFFFF6B4A)
+                        : Theme.of(context).brightness == Brightness.dark
+                        ? const Color(0xFFF4FBF8)
+                        : const Color(0xFF24312E),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 3),
+              Container(
+                width: 4,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: schedule == null ? Colors.transparent : dotColor,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ],
+          ),
+        );
+      }),
+    );
+  }
+}
+
+class _OverviewIncomeExpenseComparison extends StatelessWidget {
+  const _OverviewIncomeExpenseComparison({
+    required this.income,
+    required this.expense,
+    required this.incomeColor,
+    required this.expenseColor,
+  });
+
+  final int income;
+  final int expense;
+  final Color incomeColor;
+  final Color expenseColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final maximum = math.max(income, expense);
+    final incomeFactor = maximum == 0 ? .06 : income / maximum;
+    final expenseFactor = maximum == 0 ? .06 : expense / maximum;
+    return Column(
+      children: [
+        Expanded(
+          child: Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? const Color(0xFF2A493F)
+                      : const Color(0xFFD6E6E0),
+                ),
+              ),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                _OverviewComparisonBar(
+                  factor: incomeFactor,
+                  color: incomeColor,
+                ),
+                const SizedBox(width: 14),
+                _OverviewComparisonBar(
+                  factor: expenseFactor,
+                  color: expenseColor,
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            _OverviewComparisonLabel(
+              label: AppStrings.choose('Income', 'Thu nhập'),
+              value: _overviewCompactMoney(income),
+              color: incomeColor,
+            ),
+            const SizedBox(width: 14),
+            _OverviewComparisonLabel(
+              label: AppStrings.choose('Expenses', 'Chi tiêu'),
+              value: _overviewCompactMoney(expense),
+              color: expenseColor,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _OverviewComparisonBar extends StatelessWidget {
+  const _OverviewComparisonBar({required this.factor, required this.color});
+
+  final double factor;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Expanded(
+    child: Align(
+      alignment: Alignment.bottomCenter,
+      child: FractionallySizedBox(
+        heightFactor: factor.clamp(.06, 1.0),
+        widthFactor: .82,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+class _OverviewComparisonLabel extends StatelessWidget {
+  const _OverviewComparisonLabel({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final String label;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Expanded(
+    child: Column(
+      children: [
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            label,
+            maxLines: 1,
+            style: TextStyle(
+              fontFamily: 'Hanken Grotesk',
+              fontSize: 9.5,
+              fontWeight: FontWeight.w800,
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? const Color(0xFFA9C1B9)
+                  : const Color(0xFF4B5B57),
+            ),
+          ),
+        ),
+        const SizedBox(height: 2),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            value,
+            maxLines: 1,
+            style: TextStyle(
+              fontFamily: 'Hanken Grotesk',
+              fontSize: 10.5,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _OverviewPill extends StatelessWidget {
+  const _OverviewPill({
+    required this.label,
+    required this.color,
+    this.compact = false,
+  });
+
+  final String label;
+  final Color color;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: EdgeInsets.symmetric(
+      horizontal: compact ? 5 : 7,
+      vertical: compact ? 2 : 3,
+    ),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: .16),
+      borderRadius: BorderRadius.circular(99),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          maxLines: 1,
+          style: TextStyle(
+            fontFamily: 'Hanken Grotesk',
+            fontSize: compact ? 7.5 : 8.5,
+            fontWeight: FontWeight.w800,
+            color: color,
+            height: 1,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _OverviewNamedIconRow extends StatelessWidget {
+  const _OverviewNamedIconRow({
+    required this.label,
+    required this.color,
+    this.icon,
+    this.iconWidget,
+  }) : assert(icon != null || iconWidget != null);
+
+  final String label;
+  final Color color;
+  final IconData? icon;
+  final Widget? iconWidget;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: .10),
+          shape: BoxShape.circle,
+        ),
+        alignment: Alignment.center,
+        child: iconWidget ?? Icon(icon, size: 17, color: color),
+      ),
+      const SizedBox(width: 8),
+      Expanded(
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontFamily: 'Hanken Grotesk',
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            color: Theme.of(context).brightness == Brightness.dark
+                ? const Color(0xFFF4FBF8)
+                : const Color(0xFF1A1C1E),
+          ),
+        ),
+      ),
+    ],
+  );
+}
+
+// Kept with the legacy Bento implementation for visual rollback.
+// ignore: unused_element
+class _OverviewActivityBars extends StatelessWidget {
+  const _OverviewActivityBars({required this.values, required this.color});
+
+  final List<int> values;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final maximum = values.fold<int>(0, math.max);
+    return LayoutBuilder(
+      builder: (context, constraints) => Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          for (var index = 0; index < values.length; index++) ...[
+            if (index > 0) const SizedBox(width: 2),
+            Expanded(
+              child: Container(
+                height: maximum == 0
+                    ? 4
+                    : math.max(
+                        4,
+                        constraints.maxHeight * values[index] / maximum,
+                      ),
+                decoration: BoxDecoration(
+                  color: index == values.length - 1
+                      ? color
+                      : color.withValues(alpha: .30),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(2),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// Kept with the legacy Bento implementation for visual rollback.
+// ignore: unused_element
+class _OverviewRecurringTimeline extends StatelessWidget {
+  const _OverviewRecurringTimeline({
+    required this.schedules,
+    required this.color,
+  });
+
+  final List<RecurringSchedule> schedules;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    if (schedules.isEmpty) return const SizedBox.shrink();
+    return Column(
+      children: [
+        SizedBox(
+          height: 8,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Positioned(
+                left: 4,
+                right: 4,
+                child: Container(
+                  height: 1,
+                  color: color.withValues(alpha: .30),
+                ),
+              ),
+              Row(
+                children: [
+                  for (var index = 0; index < schedules.length; index++)
+                    Expanded(
+                      child: Center(
+                        child: Container(
+                          width: 7,
+                          height: 7,
+                          decoration: BoxDecoration(
+                            color:
+                                schedules[index].postingMode ==
+                                    RecurringPostingMode.review
+                                ? const Color(0xFFFF6B4A)
+                                : index == 0
+                                ? color
+                                : color.withValues(alpha: .55),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 3),
+        Row(
+          children: [
+            for (final schedule in schedules)
+              Expanded(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    _overviewDueLabel(schedule.nextOccurrence),
+                    maxLines: 1,
+                    style: TextStyle(
+                      fontFamily: 'Hanken Grotesk',
+                      fontSize: 7.5,
+                      fontWeight: FontWeight.w700,
+                      color: _overviewDueColor(schedule.nextOccurrence),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+// Kept with the legacy Bento implementation for visual rollback.
+// ignore: unused_element
+class _OverviewCashFlowBars extends StatelessWidget {
+  const _OverviewCashFlowBars({
+    required this.values,
+    required this.incomeColor,
+    required this.expenseColor,
+  });
+
+  final List<({int income, int expense})> values;
+  final Color incomeColor;
+  final Color expenseColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final maximum = values.fold<int>(
+      0,
+      (current, item) => math.max(current, math.max(item.income, item.expense)),
+    );
+    return Column(
+      children: [
+        Expanded(
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: List.generate(
+                    3,
+                    (_) => Divider(
+                      height: 1,
+                      color: incomeColor.withValues(alpha: .10),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned.fill(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    for (final item in values)
+                      Expanded(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            _OverviewBar(
+                              heightFactor: maximum == 0
+                                  ? 0
+                                  : item.income / maximum,
+                              color: incomeColor,
+                            ),
+                            const SizedBox(width: 2),
+                            _OverviewBar(
+                              heightFactor: maximum == 0
+                                  ? 0
+                                  : item.expense / maximum,
+                              color: expenseColor,
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 3),
+        Row(
+          children: List.generate(
+            values.length,
+            (index) => Expanded(
+              child: Text(
+                'W${index + 1}',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'Hanken Grotesk',
+                  fontSize: 7.5,
+                  fontWeight: FontWeight.w800,
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? const Color(0xFFA9C1B9)
+                      : const Color(0xFF40534F),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _OverviewBar extends StatelessWidget {
+  const _OverviewBar({required this.heightFactor, required this.color});
+
+  final double heightFactor;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => FractionallySizedBox(
+    heightFactor: heightFactor <= 0 ? .05 : heightFactor.clamp(.08, 1.0),
+    child: Container(
+      width: 6,
+      decoration: BoxDecoration(
+        color: heightFactor <= 0 ? color.withValues(alpha: .16) : color,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+      ),
+    ),
+  );
+}
+
+// Kept with the legacy Bento implementation for visual rollback.
+// ignore: unused_element
+class _OverviewLegend extends StatelessWidget {
+  const _OverviewLegend({
+    required this.income,
+    required this.expense,
+    required this.incomeColor,
+    required this.expenseColor,
+  });
+
+  final int income;
+  final int expense;
+  final Color incomeColor;
+  final Color expenseColor;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Expanded(
+        child: _item(AppStrings.choose('Income', 'Thu'), income, incomeColor),
+      ),
+      const SizedBox(width: 4),
+      Expanded(
+        child: _item(
+          AppStrings.choose('Expenses', 'Chi'),
+          expense,
+          expenseColor,
+        ),
+      ),
+    ],
+  );
+
+  Widget _item(String label, int value, Color color) => FittedBox(
+    fit: BoxFit.scaleDown,
+    alignment: Alignment.centerLeft,
+    child: Row(
+      children: [
+        Container(
+          width: 6,
+          height: 6,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 3),
+        Text(
+          '$label ${_overviewCompactMoney(value)}',
+          style: TextStyle(
+            fontFamily: 'Hanken Grotesk',
+            fontSize: 8,
+            fontWeight: FontWeight.w800,
+            color: color,
+          ),
+        ),
+      ],
+    ),
+  );
+}
 
 class _FigmaWalletIcon extends StatelessWidget {
   const _FigmaWalletIcon({
@@ -3723,12 +5622,22 @@ class _PressableScale extends StatefulWidget {
     required this.onTap,
     this.pressedOverlayColor,
     this.borderRadius,
+    this.tapHandledByChild = false,
+    this.pressedScale = .97,
+    this.pressedOpacity = .82,
+    this.pressedOffset = Offset.zero,
+    this.duration = const Duration(milliseconds: 110),
   });
 
   final Widget child;
   final VoidCallback? onTap;
   final Color? pressedOverlayColor;
   final BorderRadius? borderRadius;
+  final bool tapHandledByChild;
+  final double pressedScale;
+  final double pressedOpacity;
+  final Offset pressedOffset;
+  final Duration duration;
 
   @override
   State<_PressableScale> createState() => _PressableScaleState();
@@ -3744,19 +5653,17 @@ class _PressableScaleState extends State<_PressableScale> {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: widget.onTap,
-      onTapDown: (_) => _setPressed(true),
-      onTapUp: (_) => _setPressed(false),
-      onTapCancel: () => _setPressed(false),
+    final animatedChild = AnimatedSlide(
+      offset: _pressed ? widget.pressedOffset : Offset.zero,
+      duration: widget.duration,
+      curve: Curves.easeOutCubic,
       child: AnimatedScale(
-        scale: _pressed ? 0.97 : 1,
-        duration: const Duration(milliseconds: 110),
+        scale: _pressed ? widget.pressedScale : 1,
+        duration: widget.duration,
         curve: Curves.easeOutCubic,
         child: AnimatedOpacity(
-          opacity: _pressed ? 0.82 : 1,
-          duration: const Duration(milliseconds: 110),
+          opacity: _pressed ? widget.pressedOpacity : 1,
+          duration: widget.duration,
           curve: Curves.easeOutCubic,
           child: Stack(
             children: [
@@ -3780,38 +5687,64 @@ class _PressableScaleState extends State<_PressableScale> {
         ),
       ),
     );
+
+    if (widget.tapHandledByChild) {
+      return Listener(
+        behavior: HitTestBehavior.opaque,
+        onPointerDown: (_) => _setPressed(true),
+        onPointerUp: (_) => _setPressed(false),
+        onPointerCancel: (_) => _setPressed(false),
+        child: animatedChild,
+      );
+    }
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: widget.onTap,
+      onTapDown: (_) => _setPressed(true),
+      onTapUp: (_) => _setPressed(false),
+      onTapCancel: () => _setPressed(false),
+      child: animatedChild,
+    );
   }
 }
 
 enum _CashFlowPeriod {
   daily,
   weekly,
-  monthly;
+  monthly,
+  allTime;
 
   String get label => switch (this) {
     daily => AppStrings.choose('Today', 'Hôm nay'),
     weekly => AppStrings.choose('This Week', 'Tuần này'),
     monthly => AppStrings.choose('This Month', 'Tháng này'),
+    allTime => AppStrings.choose('All Time', 'Từ đầu đến nay'),
   };
 
   String get optionTitle => switch (this) {
     daily => AppStrings.daily,
     weekly => AppStrings.weekly,
     monthly => AppStrings.monthly,
+    allTime => AppStrings.choose('All time', 'Từ đầu đến nay'),
   };
 
   String get description => switch (this) {
     daily => AppStrings.choose(
-      'Income and expenses recorded today',
-      'Thu nhập và chi tiêu ghi nhận hôm nay',
+      'Balance, income and expenses recorded today',
+      'Số dư, thu nhập và chi tiêu ghi nhận hôm nay',
     ),
     weekly => AppStrings.choose(
-      'Income and expenses recorded this week',
-      'Thu nhập và chi tiêu ghi nhận tuần này',
+      'Balance, income and expenses recorded this week',
+      'Số dư, thu nhập và chi tiêu ghi nhận tuần này',
     ),
     monthly => AppStrings.choose(
-      'Income and expenses recorded this month',
-      'Thu nhập và chi tiêu ghi nhận tháng này',
+      'Balance, income and expenses recorded this month',
+      'Số dư, thu nhập và chi tiêu ghi nhận tháng này',
+    ),
+    allTime => AppStrings.choose(
+      'Current balance and all recorded transactions',
+      'Số dư hiện tại và toàn bộ giao dịch đã ghi nhận',
     ),
   };
 
@@ -3819,63 +5752,8 @@ enum _CashFlowPeriod {
     daily => Icons.schedule_rounded,
     weekly => Icons.calendar_today_outlined,
     monthly => Icons.account_balance_wallet_outlined,
+    allTime => Icons.history_rounded,
   };
-}
-
-class _PressableCashFlowCard extends StatefulWidget {
-  const _PressableCashFlowCard({required this.child, required this.onTap});
-
-  final Widget child;
-  final VoidCallback onTap;
-
-  @override
-  State<_PressableCashFlowCard> createState() => _PressableCashFlowCardState();
-}
-
-class _PressableCashFlowCardState extends State<_PressableCashFlowCard> {
-  bool _pressed = false;
-
-  void _setPressed(bool value) {
-    if (_pressed == value) return;
-    setState(() => _pressed = value);
-  }
-
-  Future<void> _handleTapUp(TapUpDetails details) async {
-    // Keep the card depressed just long enough for quick taps to feel tactile.
-    await Future<void>.delayed(const Duration(milliseconds: 70));
-    if (!mounted) return;
-    _setPressed(false);
-    await Future<void>.delayed(const Duration(milliseconds: 45));
-    if (mounted) widget.onTap();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTapDown: (_) => _setPressed(true),
-        onTapUp: _handleTapUp,
-        onTapCancel: () => _setPressed(false),
-        child: AnimatedSlide(
-          offset: _pressed ? const Offset(0, .018) : Offset.zero,
-          duration: const Duration(milliseconds: 105),
-          curve: Curves.easeOutCubic,
-          child: AnimatedScale(
-            scale: _pressed ? .965 : 1,
-            duration: const Duration(milliseconds: 105),
-            curve: _pressed ? Curves.easeOutCubic : Curves.easeOutBack,
-            child: AnimatedOpacity(
-              opacity: _pressed ? .91 : 1,
-              duration: const Duration(milliseconds: 105),
-              child: widget.child,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 class _SummaryPeriodOptionCard extends StatefulWidget {

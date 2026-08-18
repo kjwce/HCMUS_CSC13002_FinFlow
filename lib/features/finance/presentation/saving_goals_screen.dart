@@ -112,7 +112,7 @@ class _SavingGoalsScreenState extends ConsumerState<SavingGoalsScreen> {
       body: SafeArea(
         top: false,
         child: service.goals.isEmpty
-            ? _EmptyGoals(onCreate: _createGoal)
+            ? const _EmptyGoals()
             : Column(
                 children: [
                   Padding(
@@ -188,25 +188,16 @@ class _SavingGoalsScreenState extends ConsumerState<SavingGoalsScreen> {
                 ],
               ),
       ),
-      bottomNavigationBar: service.goals.isEmpty
-          ? null
-          : SafeArea(
-              top: false,
-              child: ColoredBox(
-                color: isDark ? _goalsDarkBackground : _pageMint,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-                  child: FilledButton.icon(
-                    style: goalFilledButtonStyle(),
-                    onPressed: _createGoal,
-                    icon: const Icon(Icons.add_circle_outline_rounded),
-                    label: Text(
-                      AppStrings.choose('Create New Goal', 'Tạo mục tiêu mới'),
-                    ),
-                  ),
-                ),
-              ),
-            ),
+      floatingActionButton: FloatingActionButton(
+        key: const Key('create-goal-fab'),
+        onPressed: _createGoal,
+        tooltip: AppStrings.choose('Create New Goal', 'Tạo mục tiêu mới'),
+        backgroundColor: goalPrimary,
+        foregroundColor: Colors.white,
+        elevation: 5,
+        shape: const CircleBorder(),
+        child: const Icon(Icons.add_rounded, size: 26),
+      ),
     );
   }
 
@@ -990,8 +981,7 @@ class _EndOfGoals extends StatelessWidget {
 }
 
 class _EmptyGoals extends StatelessWidget {
-  const _EmptyGoals({required this.onCreate});
-  final VoidCallback onCreate;
+  const _EmptyGoals();
 
   @override
   Widget build(BuildContext context) {
@@ -1114,18 +1104,6 @@ class _EmptyGoals extends StatelessWidget {
             textAlign: TextAlign.center,
             style: TextStyle(
               color: isDark ? _goalsDarkSecondaryText : goalMuted,
-            ),
-          ),
-          const SizedBox(height: 24),
-          FilledButton.icon(
-            style: goalFilledButtonStyle(),
-            onPressed: onCreate,
-            icon: const Icon(Icons.add_rounded),
-            label: Text(
-              AppStrings.choose(
-                'Create Your First Goal',
-                'Tạo mục tiêu đầu tiên',
-              ),
             ),
           ),
           const Spacer(),

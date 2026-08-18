@@ -64,6 +64,8 @@ void main() {
     expect(find.text('VOICE'), findsOneWidget);
     expect(find.text('SCAN'), findsOneWidget);
     expect(find.text('FAST'), findsOneWidget);
+    expect(find.text('RECENT TRANSACTIONS'), findsOneWidget);
+    expect(find.text('Tap to reuse'), findsOneWidget);
     expect(find.byKey(const Key('manual_amount_field')), findsNothing);
     for (final key in const [
       Key('add_mode_manual'),

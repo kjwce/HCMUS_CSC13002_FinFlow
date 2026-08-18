@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/i18n/app_language.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/responsive.dart';
+import '../models/category_donut_breakdown.dart';
 import '../models/transaction_category.dart';
 import '../providers/transaction_provider.dart';
 import '../providers/wallet_provider.dart';
@@ -1067,7 +1068,9 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   }) {
     if (data.isEmpty) return _emptyPlaceholder();
 
-    final mainEntries = _donutEntries(data);
+    final breakdown = CategoryDonutBreakdown(data, total);
+    final detailEntries = breakdown.detailedEntries;
+    final chartEntries = breakdown.chartEntries;
     final palette = isIncome
         ? _isDark
               ? const [
@@ -1140,7 +1143,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             Color(0xFFA1887F),
           ];
 
-    final sections = mainEntries.asMap().entries.map((entry) {
+    final sections = chartEntries.asMap().entries.map((entry) {
       final i = entry.key;
       final e = entry.value;
       final isTouched = touchedIndex == i;
@@ -1150,7 +1153,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         value: _chartValuesVisible ? e.value.toDouble() : e.value * 0.001,
         color: color,
         radius: _chartValuesVisible
-            ? Responsive.w(context, isTouched ? 22 : 20)
+            ? Responsive.w(context, isTouched ? 68 : 63)
             : 0,
         title: '',
         borderSide: BorderSide(
@@ -1160,64 +1163,90 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       );
     }).toList();
 
-    final roundedPercentages = _roundedDonutPercentages(mainEntries, total);
-    final isDenseLegend = mainEntries.length > 5;
-    final isVeryDenseLegend = mainEntries.length > 8;
+    final touchedEntry = touchedIndex >= 0 && touchedIndex < chartEntries.length
+        ? chartEntries[touchedIndex]
+        : null;
+    final centerLabel = touchedEntry == null
+        ? AppStrings.choose('Total', 'Tổng')
+        : touchedEntry.key == belowOnePercentBucketKey
+        ? AppStrings.choose('Below 1%', 'Nhóm dưới 1%')
+        : AppStrings.categoryName(touchedEntry.key);
+    final centerValue = touchedEntry?.value ?? total;
+    final isDenseLegend = detailEntries.length > 5;
+    final isVeryDenseLegend = detailEntries.length > 8;
 
     return Row(
-      crossAxisAlignment: mainEntries.length > 5
+      crossAxisAlignment: detailEntries.length > 5
           ? CrossAxisAlignment.start
           : CrossAxisAlignment.center,
       children: [
         SizedBox(
           width: Responsive.w(context, 160),
-          height: Responsive.w(context, 160),
-          child: Stack(
-            alignment: Alignment.center,
+          child: Column(
             children: [
-              PieChart(
-                PieChartData(
-                  sections: sections,
-                  centerSpaceRadius: Responsive.w(context, 42),
-                  sectionsSpace: 3,
-                  startDegreeOffset: _chartValuesVisible ? -90 : -450,
-                  pieTouchData: PieTouchData(
-                    enabled: true,
-                    touchCallback: (event, response) {
-                      if (!event.isInterestedForInteractions ||
-                          response?.touchedSection == null) {
-                        onTouch(-1);
-                        return;
-                      }
-                      onTouch(response!.touchedSection!.touchedSectionIndex);
-                    },
+              SizedBox(
+                width: Responsive.w(context, 160),
+                height: Responsive.w(context, 160),
+                child: PieChart(
+                  PieChartData(
+                    sections: sections,
+                    centerSpaceRadius: 0,
+                    sectionsSpace: 3,
+                    startDegreeOffset: _chartValuesVisible ? -90 : -450,
+                    pieTouchData: PieTouchData(
+                      enabled: true,
+                      touchCallback: (event, response) {
+                        if (!event.isInterestedForInteractions ||
+                            response?.touchedSection == null) {
+                          onTouch(-1);
+                          return;
+                        }
+                        onTouch(response!.touchedSection!.touchedSectionIndex);
+                      },
+                    ),
                   ),
+                  duration: const Duration(milliseconds: 900),
+                  curve: Curves.easeOutCubic,
                 ),
-                duration: const Duration(milliseconds: 900),
-                curve: Curves.easeOutCubic,
               ),
-              IgnorePointer(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      AppStrings.choose('Total', 'Tổng'),
-                      style: TextStyle(
-                        fontFamily: 'Hanken Grotesk',
-                        fontSize: Responsive.sp(context, 10),
-                        color: _outlineVariant,
+              SizedBox(height: Responsive.h(context, 10)),
+              Text(
+                centerLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'Hanken Grotesk',
+                  fontSize: Responsive.sp(context, 11.5),
+                  fontWeight: FontWeight.w700,
+                  color: _onSurfaceVariant,
+                ),
+              ),
+              SizedBox(height: Responsive.h(context, 2)),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(text: _formatChartCompact(centerValue)),
+                      TextSpan(
+                        text: ' VND',
+                        style: TextStyle(
+                          fontFamily: 'Hanken Grotesk',
+                          fontSize: Responsive.sp(context, 10),
+                          fontWeight: FontWeight.w700,
+                          color: _onSurfaceVariant,
+                        ),
                       ),
-                    ),
-                    Text(
-                      _formatChartCompact(total),
-                      style: TextStyle(
-                        fontFamily: 'Manrope',
-                        fontSize: Responsive.sp(context, 17),
-                        fontWeight: FontWeight.w800,
-                        color: _primary,
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
+                  maxLines: 1,
+                  style: TextStyle(
+                    fontFamily: 'Manrope',
+                    fontSize: Responsive.sp(context, 18),
+                    fontWeight: FontWeight.w800,
+                    color: _primary,
+                  ),
                 ),
               ),
             ],
@@ -1226,13 +1255,14 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         SizedBox(width: Responsive.w(context, 16)),
         Expanded(
           child: Column(
-            mainAxisAlignment: mainEntries.length > 5
+            mainAxisAlignment: detailEntries.length > 5
                 ? MainAxisAlignment.start
                 : MainAxisAlignment.center,
-            children: mainEntries.asMap().entries.map((entry) {
+            children: detailEntries.asMap().entries.map((entry) {
               final i = entry.key;
               final e = entry.value;
-              final color = palette[i % palette.length];
+              final chartIndex = breakdown.chartIndexForDetailedEntry(e);
+              final color = palette[chartIndex % palette.length];
               final category = TransactionCategory.resolve(e.key);
               return Padding(
                 padding: EdgeInsets.symmetric(
@@ -1270,7 +1300,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                       ),
                     ),
                     Text(
-                      '${roundedPercentages[i]}%',
+                      breakdown.percentageLabel(i),
                       style: TextStyle(
                         fontFamily: 'Manrope',
                         fontSize: Responsive.sp(
@@ -1291,36 +1321,11 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     );
   }
 
-  List<MapEntry<String, int>> _donutEntries(Map<String, int> data) {
-    final entries = data.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-    return entries;
-  }
-
-  List<int> _roundedDonutPercentages(
-    List<MapEntry<String, int>> entries,
-    int total,
-  ) {
-    final exact = entries.map((e) => e.value / total * 100).toList();
-    final result = exact.map((value) => value.floor()).toList();
-    var remaining = 100 - result.fold<int>(0, (sum, value) => sum + value);
-    final remainderOrder = List<int>.generate(entries.length, (i) => i)
-      ..sort(
-        (a, b) => (exact[b] - exact[b].floor()).compareTo(
-          exact[a] - exact[a].floor(),
-        ),
-      );
-    for (var i = 0; i < remaining; i++) {
-      result[remainderOrder[i % remainderOrder.length]]++;
-    }
-    return result;
-  }
-
   double _donutChartHeight(Map<String, int> data, int total) {
     if (total <= 0 || data.isEmpty) return 180;
     final count = data.length;
     final rowHeight = count > 8 ? 25.0 : (count > 5 ? 29.0 : 34.0);
-    return math.max(170, count * rowHeight);
+    return math.max(225, count * rowHeight);
   }
 
   // ════════════════════════════════════════════════════════════════════════════

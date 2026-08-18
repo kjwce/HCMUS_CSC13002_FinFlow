@@ -38,6 +38,9 @@ class TransactionService extends ChangeNotifier {
 
   static final TransactionService instance = TransactionService._();
   List<TransactionModel> _transactions = [];
+  RealtimeChannel? _transactionsChannel;
+  String? _realtimeUserId;
+  int _fetchEpoch = 0;
 
   List<TransactionModel> get transactions => List.unmodifiable(_transactions);
 
@@ -158,6 +161,26 @@ class TransactionService extends ChangeNotifier {
       }
     }
     return initial + income - expense;
+  }
+
+  /// Lifetime income recorded against one wallet.
+  int incomeByWallet(String walletId) {
+    return currentUserTransactions
+        .where(
+          (transaction) =>
+              transaction.walletId == walletId && transaction.amount > 0,
+        )
+        .fold(0, (total, transaction) => total + transaction.amount);
+  }
+
+  /// Lifetime expense recorded against one wallet.
+  int expenseByWallet(String walletId) {
+    return currentUserTransactions
+        .where(
+          (transaction) =>
+              transaction.walletId == walletId && transaction.amount < 0,
+        )
+        .fold(0, (total, transaction) => total + transaction.amount.abs());
   }
 
   /// Income for a specific wallet this month.
@@ -575,19 +598,60 @@ class TransactionService extends ChangeNotifier {
   Future<void> fetchTransactions() async {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) {
+      stopRealtime();
       _transactions = [];
       notifyListeners();
       return;
     }
+    startRealtime(userId);
+    final fetchEpoch = ++_fetchEpoch;
     final res = await Supabase.instance.client
         .from('transactions')
         .select()
         .eq('user_id', userId)
         .order('date', ascending: false);
+    if (fetchEpoch != _fetchEpoch ||
+        Supabase.instance.client.auth.currentUser?.id != userId) {
+      return;
+    }
     _transactions = (res as List)
         .map((t) => TransactionModel.fromJson(t as Map<String, dynamic>))
         .toList(growable: false);
     notifyListeners();
+  }
+
+  /// Keep every transaction-backed surface synchronized with changes made on
+  /// another device or directly in Supabase.
+  void startRealtime(String userId) {
+    if (_realtimeUserId == userId && _transactionsChannel != null) return;
+    stopRealtime(clearUser: false);
+    _realtimeUserId = userId;
+    _transactionsChannel = Supabase.instance.client
+        .channel('transactions-$userId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'transactions',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'user_id',
+            value: userId,
+          ),
+          callback: (_) {
+            if (Supabase.instance.client.auth.currentUser?.id != userId) return;
+            fetchTransactions().catchError(
+              (Object error) =>
+                  debugPrint('Realtime transaction refresh failed: $error'),
+            );
+          },
+        )
+        .subscribe();
+  }
+
+  void stopRealtime({bool clearUser = true}) {
+    _transactionsChannel?.unsubscribe();
+    _transactionsChannel = null;
+    if (clearUser) _realtimeUserId = null;
   }
 
   Future<List<String>> add(

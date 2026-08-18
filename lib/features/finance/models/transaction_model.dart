@@ -7,6 +7,7 @@ class TransactionModel {
     required this.amount,
     required this.date,
     this.walletId,
+    this.createdAt,
   });
 
   factory TransactionModel.fromJson(Map<String, dynamic> json) {
@@ -21,6 +22,7 @@ class TransactionModel {
       amount: json['amount'] as int,
       date: _parseStoredDate(json),
       walletId: json['wallet_id'] as String?,
+      createdAt: _parseCreatedAt(json['created_at']),
     );
   }
 
@@ -65,6 +67,11 @@ class TransactionModel {
     return rawDate;
   }
 
+  static DateTime? _parseCreatedAt(dynamic value) {
+    if (value is! String) return null;
+    return DateTime.tryParse(value)?.toLocal();
+  }
+
   final String id;
   final String userId;
   final String name;
@@ -72,4 +79,21 @@ class TransactionModel {
   final int amount;
   final DateTime date;
   final String? walletId;
+  final DateTime? createdAt;
+
+  /// When the record was actually entered into FinFlow. Older/local records
+  /// may not have this field, so their transaction date is the safe fallback.
+  DateTime get recordedAt => createdAt ?? date;
+
+  static TransactionModel? latestRecorded(
+    Iterable<TransactionModel> transactions,
+  ) {
+    TransactionModel? latest;
+    for (final transaction in transactions) {
+      if (latest == null || transaction.recordedAt.isAfter(latest.recordedAt)) {
+        latest = transaction;
+      }
+    }
+    return latest;
+  }
 }

@@ -58,7 +58,6 @@ class _TransactionHistoryScreenState
   int? _maximumAmount;
   _HistorySort _sort = _HistorySort.newest;
   final TextEditingController _searchController = TextEditingController();
-  bool _searchOpen = false;
   bool _isSavingWeeklyBudget = false;
 
   bool get _isDark => Theme.of(context).brightness == Brightness.dark;
@@ -119,7 +118,7 @@ class _TransactionHistoryScreenState
         child: Column(
           children: [
             _buildHeader(),
-            if (_searchOpen) _buildSearchField(),
+            _buildSearchField(),
             Padding(
               padding: EdgeInsets.fromLTRB(
                 Responsive.w(context, 20),
@@ -177,8 +176,10 @@ class _TransactionHistoryScreenState
           IconButton(
             tooltip: AppStrings.choose('Back', 'Quay lại'),
             onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.arrow_back_ios_new_rounded),
-            color: _isDark ? _darkTextPrimary : AppColors.deepEmerald,
+            icon: const Icon(Icons.arrow_back_rounded),
+            color: _isDark
+                ? _darkTextPrimary
+                : context.finFlowColors.primaryText,
           ),
           Expanded(
             child: Text(
@@ -193,21 +194,6 @@ class _TransactionHistoryScreenState
               ),
             ),
           ),
-          IconButton(
-            tooltip: _searchOpen
-                ? AppStrings.choose('Close search', 'Đóng tìm kiếm')
-                : AppStrings.choose('Search transactions', 'Tìm giao dịch'),
-            onPressed: () {
-              setState(() {
-                _searchOpen = !_searchOpen;
-                if (!_searchOpen) _searchController.clear();
-              });
-            },
-            icon: Icon(
-              _searchOpen ? Icons.close_rounded : Icons.search_rounded,
-            ),
-            color: _isDark ? _darkTextPrimary : AppColors.darkText,
-          ),
         ],
       ),
     );
@@ -218,18 +204,38 @@ class _TransactionHistoryScreenState
       padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 20)),
       child: TextField(
         controller: _searchController,
-        autofocus: true,
         textInputAction: TextInputAction.search,
         onChanged: (_) => setState(() {}),
         decoration: InputDecoration(
           hintText: AppStrings.choose('Search transactions', 'Tìm giao dịch'),
           prefixIcon: const Icon(Icons.search_rounded),
+          suffixIcon: _searchController.text.isEmpty
+              ? null
+              : IconButton(
+                  tooltip: AppStrings.choose('Clear search', 'Xóa tìm kiếm'),
+                  onPressed: () {
+                    _searchController.clear();
+                    setState(() {});
+                  },
+                  icon: const Icon(Icons.close_rounded),
+                ),
           filled: true,
           fillColor: _surface,
           isDense: true,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide.none,
+            borderSide: BorderSide(color: _accent, width: 1.2),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide(
+              color: _accent.withValues(alpha: .78),
+              width: 1.2,
+            ),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide(color: _accent, width: 1.6),
           ),
         ),
       ),
