@@ -10,6 +10,7 @@ import '../../core/widgets/in_app_notification_host.dart';
 import '../../features/auth/presentation/forgot_password_screen.dart';
 import '../../features/auth/presentation/change_password_screen.dart';
 import '../../features/auth/presentation/new_password_screen.dart';
+import '../../features/auth/presentation/reset_success_screen.dart';
 import '../../features/auth/presentation/sign_in_screen.dart';
 import '../../features/auth/presentation/sign_up_screen.dart';
 import '../../features/auth/presentation/verification_screen.dart';
@@ -49,6 +50,7 @@ class AppRoutes {
   static const forgotPassword = '/forgot-password';
   static const verification = '/verify';
   static const newPassword = '/new-password';
+  static const resetSuccess = '/reset-success';
   static const dashboard = '/dashboard';
   static const settings = '/settings';
   static const moneySources = '/settings/money-sources';
@@ -144,6 +146,8 @@ class FinFlowApp extends StatelessWidget {
                   _LanguageAwarePage(pageBuilder: (_) => VerificationScreen()),
               AppRoutes.newPassword: (_) =>
                   _LanguageAwarePage(pageBuilder: (_) => NewPasswordScreen()),
+              AppRoutes.resetSuccess: (_) =>
+                  _LanguageAwarePage(pageBuilder: (_) => ResetSuccessScreen()),
               AppRoutes.dashboard: (_) =>
                   _LanguageAwarePage(pageBuilder: (_) => MainShell()),
               AppRoutes.settings: (_) =>

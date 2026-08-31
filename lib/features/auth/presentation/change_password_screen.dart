@@ -20,6 +20,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   var _hideNew = true;
   var _hideConfirm = true;
   var _isSaving = false;
+  String? _currentError;
+  String? _newError;
+  String? _confirmError;
 
   @override
   void dispose() {
@@ -33,30 +36,32 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     final currentPassword = _currentController.text;
     final newPassword = _newController.text;
     final confirmation = _confirmController.text;
-    if (currentPassword.isEmpty) {
-      _showMessage(
-        AppStrings.choose(
-          'Please enter your current password.',
-          'Vui lòng nhập mật khẩu hiện tại.',
-        ),
-      );
-      return;
-    }
-    if (newPassword.length < 6) {
-      _showMessage(AppStrings.passwordTooShort);
-      return;
-    }
-    if (newPassword != confirmation) {
-      _showMessage(AppStrings.passwordsDoNotMatch);
-      return;
-    }
-    if (newPassword == currentPassword) {
-      _showMessage(
-        AppStrings.choose(
-          'The new password must be different.',
-          'Mật khẩu mới phải khác mật khẩu hiện tại.',
-        ),
-      );
+    final currentError = currentPassword.isEmpty
+        ? AppStrings.choose(
+            'Please enter your current password.',
+            'Vui lòng nhập mật khẩu hiện tại.',
+          )
+        : null;
+    final newError = newPassword.length < 6
+        ? AppStrings.passwordTooShort
+        : (newPassword == currentPassword
+              ? AppStrings.choose(
+                  'The new password must be different.',
+                  'Mật khẩu mới phải khác mật khẩu hiện tại.',
+                )
+              : null);
+    final confirmError = confirmation.isEmpty
+        ? AppStrings.choose(
+            'Please confirm your new password.',
+            'Vui lòng xác nhận mật khẩu mới.',
+          )
+        : (newPassword != confirmation ? AppStrings.passwordsDoNotMatch : null);
+    setState(() {
+      _currentError = currentError;
+      _newError = newError;
+      _confirmError = confirmError;
+    });
+    if (currentError != null || newError != null || confirmError != null) {
       return;
     }
 
@@ -81,20 +86,14 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       Navigator.of(context).pop();
     } catch (_) {
       if (!mounted) return;
-      setState(() => _isSaving = false);
-      _showMessage(
-        AppStrings.choose(
+      setState(() {
+        _isSaving = false;
+        _currentError = AppStrings.choose(
           'Current password is incorrect or could not be verified.',
           'Mật khẩu hiện tại không đúng hoặc không thể xác minh.',
-        ),
-      );
+        );
+      });
     }
-  }
-
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -164,6 +163,12 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
               obscureText: _hideCurrent,
               onToggleVisibility: () =>
                   setState(() => _hideCurrent = !_hideCurrent),
+              errorText: _currentError,
+              onChanged: (_) {
+                if (_currentError != null) {
+                  setState(() => _currentError = null);
+                }
+              },
             ),
             SizedBox(height: Responsive.h(context, 16)),
             _PasswordField(
@@ -171,6 +176,10 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
               label: AppStrings.newPasswordLabel,
               obscureText: _hideNew,
               onToggleVisibility: () => setState(() => _hideNew = !_hideNew),
+              errorText: _newError,
+              onChanged: (_) {
+                if (_newError != null) setState(() => _newError = null);
+              },
             ),
             SizedBox(height: Responsive.h(context, 16)),
             _PasswordField(
@@ -179,6 +188,12 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
               obscureText: _hideConfirm,
               onToggleVisibility: () =>
                   setState(() => _hideConfirm = !_hideConfirm),
+              errorText: _confirmError,
+              onChanged: (_) {
+                if (_confirmError != null) {
+                  setState(() => _confirmError = null);
+                }
+              },
             ),
             SizedBox(height: Responsive.h(context, 30)),
             FilledButton(
@@ -215,21 +230,28 @@ class _PasswordField extends StatelessWidget {
     required this.label,
     required this.obscureText,
     required this.onToggleVisibility,
+    this.errorText,
+    this.onChanged,
   });
 
   final TextEditingController controller;
   final String label;
   final bool obscureText;
   final VoidCallback onToggleVisibility;
+  final String? errorText;
+  final ValueChanged<String>? onChanged;
 
   @override
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
       obscureText: obscureText,
+      onChanged: onChanged,
       textInputAction: TextInputAction.next,
       decoration: InputDecoration(
         labelText: label,
+        errorText: errorText,
+        errorMaxLines: 2,
         prefixIcon: const Icon(Icons.lock_outline_rounded),
         suffixIcon: IconButton(
           onPressed: onToggleVisibility,
@@ -242,6 +264,20 @@ class _PasswordField extends StatelessWidget {
         filled: true,
         fillColor: context.finFlowColors.surface,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(
+            color: context.finFlowColors.negativeAmount,
+            width: 1.2,
+          ),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(
+            color: context.finFlowColors.negativeAmount,
+            width: 1.5,
+          ),
+        ),
       ),
     );
   }
