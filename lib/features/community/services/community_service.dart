@@ -62,6 +62,7 @@ class CommunityService extends ChangeNotifier {
           schema: 'public',
           table: 'community_posts',
           callback: (payload) {
+            if (payload.newRecord['moderation_status'] != 'approved') return;
             final newPost = CommunityPostModel.fromJson(payload.newRecord);
             _fetchAuthors([newPost.userId]).then((authors) {
               final author = authors[newPost.userId];
@@ -80,11 +81,23 @@ class CommunityService extends ChangeNotifier {
           table: 'community_posts',
           callback: (payload) {
             final postId = payload.newRecord['id'] as String?;
+            final moderationStatus =
+                payload.newRecord['moderation_status'] as String?;
             final commentsCount = payload.newRecord['comments_count'] as int?;
             final likesCount = payload.newRecord['likes_count'] as int?;
             if (postId == null) return;
             final index = _posts.indexWhere((post) => post.id == postId);
-            if (index < 0) return;
+            if (moderationStatus != null && moderationStatus != 'approved') {
+              if (index >= 0) {
+                _posts.removeAt(index);
+                notifyListeners();
+              }
+              return;
+            }
+            if (index < 0) {
+              fetchPosts();
+              return;
+            }
             _posts[index] = _posts[index].copyWith(
               commentsCount: commentsCount ?? _posts[index].commentsCount,
               likesCount: likesCount ?? _posts[index].likesCount,
@@ -188,6 +201,7 @@ class CommunityService extends ChangeNotifier {
       final postsRes = await client
           .from('community_posts')
           .select()
+          .eq('moderation_status', 'approved')
           .order('created_at', ascending: false);
 
       final rawPosts = (postsRes as List)
@@ -301,19 +315,26 @@ class CommunityService extends ChangeNotifier {
     final userId = _userId;
     if (userId == null) throw Exception('Not authenticated');
 
-    final row = await Supabase.instance.client
-        .from('community_posts')
-        .insert({
-          'user_id': userId,
-          'content': content,
-          'is_anonymous': isAnonymous,
-          'category': category,
-          'is_spoiler': isSpoiler,
-        })
-        .select('id')
-        .single();
-    // Realtime sẽ tự thêm post mới vào danh sách
-    return row['id'] as String;
+    try {
+      final row = await Supabase.instance.client
+          .from('community_posts')
+          .insert({
+            'user_id': userId,
+            'content': content,
+            'is_anonymous': isAnonymous,
+            'category': category,
+            'is_spoiler': isSpoiler,
+          })
+          .select('id')
+          .single();
+      // Realtime sẽ tự thêm post mới vào danh sách
+      return row['id'] as String;
+    } on PostgrestException catch (error) {
+      if (error.message.contains('COMMUNITY_USER_MUTED')) {
+        throw const CommunityPostingMutedException();
+      }
+      rethrow;
+    }
   }
 
   Future<void> addPostImage({required String postId, required XFile image}) =>
@@ -729,4 +750,11 @@ class CommunityService extends ChangeNotifier {
       commentsCount: comments.length,
     );
   }
+}
+
+class CommunityPostingMutedException implements Exception {
+  const CommunityPostingMutedException();
+
+  @override
+  String toString() => 'Tài khoản đã bị tạm khóa quyền đăng bài Community.';
 }

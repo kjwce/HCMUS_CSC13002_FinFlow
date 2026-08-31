@@ -3,11 +3,6 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../utils/responsive.dart';
 
-/// One switch keeps the finance-pattern trial fully reversible.
-abstract final class AuthBackgroundStyle {
-  static const useFinancePattern = true;
-}
-
 class DecoratedPhoneScaffold extends StatelessWidget {
   const DecoratedPhoneScaffold({
     super.key,
@@ -25,37 +20,7 @@ class DecoratedPhoneScaffold extends StatelessWidget {
     return Scaffold(
       backgroundColor: backgroundColor ?? context.finFlowColors.pageBackground,
       body: SafeArea(
-        child: Stack(
-          children: [
-            if (AuthBackgroundStyle.useFinancePattern)
-              const Positioned.fill(child: AuthFinanceBackground())
-            else if (showCorners)
-              const _CornerBlobs(),
-            child,
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class AuthFinanceBackground extends StatelessWidget {
-  const AuthFinanceBackground({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return IgnorePointer(
-      child: Opacity(
-        opacity: isDark ? 0.10 : 0.20,
-        child: Image.asset(
-          'assets/images/auth_finance_pattern.png',
-          fit: BoxFit.cover,
-          alignment: Alignment.center,
-          color: isDark ? const Color(0xFF176B58) : null,
-          colorBlendMode: isDark ? BlendMode.modulate : null,
-          filterQuality: FilterQuality.medium,
-        ),
+        child: Stack(children: [if (showCorners) const _CornerBlobs(), child]),
       ),
     );
   }

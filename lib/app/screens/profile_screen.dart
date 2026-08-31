@@ -11,7 +11,7 @@ import '../shell/finflow_app.dart';
 
 const _profileBackground = Color(0xFFEDF7F3);
 const _profileText = Color(0xFF102F29);
-const _secondaryText = Color(0xFF75817C);
+const _secondaryText = Color(0xFF52655E);
 const _profileBorder = Color(0xFFE3EAE7);
 const _profileDarkBackground = Color(0xFF081C18);
 const _profileDarkSurface = Color(0xFF16352E);
@@ -454,8 +454,8 @@ class _MenuRow extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontFamily: 'Hanken Grotesk',
-                        fontSize: Responsive.sp(context, 14),
-                        fontWeight: FontWeight.w600,
+                        fontSize: Responsive.sp(context, 15.5),
+                        fontWeight: FontWeight.w700,
                         color: data.isDestructive
                             ? (isDark
                                   ? _profileDarkLogout
@@ -471,8 +471,8 @@ class _MenuRow extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontFamily: 'Hanken Grotesk',
-                          fontSize: Responsive.sp(context, 11.5),
-                          fontWeight: FontWeight.w400,
+                          fontSize: Responsive.sp(context, 13),
+                          fontWeight: FontWeight.w500,
                           color: isDark
                               ? _profileDarkSecondaryText
                               : _secondaryText,

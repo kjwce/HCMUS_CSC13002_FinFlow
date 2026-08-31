@@ -55,4 +55,3 @@ JOIN public.profiles p ON p.id = u.id
 ON CONFLICT (user_id) DO NOTHING;
 
 COMMIT;
-

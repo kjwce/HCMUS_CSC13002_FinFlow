@@ -85,4 +85,3 @@ $$;
 
 GRANT SELECT, INSERT ON public.community_post_reports TO authenticated;
 GRANT SELECT, INSERT ON public.community_comment_reports TO authenticated;
-

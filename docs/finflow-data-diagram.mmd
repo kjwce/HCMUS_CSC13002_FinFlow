@@ -1,0 +1,328 @@
+erDiagram
+    AUTH_USERS ||--|| PROFILES : has
+
+    PROFILES ||--o{ WALLETS : owns
+    PROFILES ||--o{ TRANSACTIONS : records
+    PROFILES ||--o{ BUDGETS : defines
+    WALLETS o|--o{ TRANSACTIONS : logical_source
+
+    PROFILES ||--o{ GOALS : creates
+    PROFILES ||--o{ GOAL_FUND_ENTRIES : owns
+    PROFILES ||--|| GOAL_SETTINGS : configures
+    GOALS ||--o{ GOAL_FUND_ENTRIES : receives_entries
+    TRANSACTIONS o|--o{ GOAL_FUND_ENTRIES : funds_automatically
+    GOALS o|--o{ GOALS : redirects_to
+
+    PROFILES ||--o{ RECURRING_SCHEDULES : schedules
+    WALLETS o|--o{ RECURRING_SCHEDULES : uses
+    PROFILES ||--o{ RECURRING_NOTIFICATIONS : receives
+    RECURRING_SCHEDULES ||--o{ RECURRING_NOTIFICATIONS : logical_origin
+
+    PROFILES ||--o{ COMMUNITY_POSTS : creates
+    PROFILES ||--o{ COMMUNITY_COMMENTS : writes
+    PROFILES ||--o{ COMMUNITY_LIKES : gives
+    PROFILES ||--o{ COMMUNITY_COMMENT_LIKES : gives
+    PROFILES ||--o{ COMMUNITY_SAVES : bookmarks
+    PROFILES ||--o{ COMMUNITY_MEDIA : uploads
+
+    COMMUNITY_POSTS ||--o{ COMMUNITY_COMMENTS : contains
+    COMMUNITY_POSTS ||--o{ COMMUNITY_LIKES : receives
+    COMMUNITY_POSTS ||--o{ COMMUNITY_SAVES : saved_by
+    COMMUNITY_POSTS ||--o{ COMMUNITY_MEDIA : contains
+    COMMUNITY_COMMENTS o|--o{ COMMUNITY_COMMENTS : has_replies
+    COMMUNITY_COMMENTS ||--o{ COMMUNITY_COMMENT_LIKES : receives
+
+    PROFILES ||--o{ COMMUNITY_POST_REPORTS : submits
+    COMMUNITY_POSTS ||--o{ COMMUNITY_POST_REPORTS : reported_by
+    PROFILES ||--o{ COMMUNITY_COMMENT_REPORTS : submits
+    COMMUNITY_COMMENTS ||--o{ COMMUNITY_COMMENT_REPORTS : reported_by
+
+    PROFILES ||--o{ COMMUNITY_NOTIFICATIONS : receives
+    PROFILES ||--o{ COMMUNITY_NOTIFICATIONS : triggers
+    COMMUNITY_POSTS o|--o{ COMMUNITY_NOTIFICATIONS : references
+    COMMUNITY_COMMENTS o|--o{ COMMUNITY_NOTIFICATIONS : references
+
+    PROFILES ||--|| COMMUNITY_AUTHORS : derives_view
+
+    PROFILES ||--o{ CHAT_CONVERSATIONS : owns
+    CHAT_CONVERSATIONS ||--o{ CHAT_MESSAGES : contains
+    PROFILES ||--o{ CHAT_MESSAGES : owns
+
+    AUTH_USERS {
+        uuid id PK
+        text email
+        timestamptz created_at
+    }
+
+    PROFILES {
+        uuid id PK,FK
+        text full_name
+        text email
+        text phone
+        text avatar_url
+        bigint budget_limit
+        bigint weekly_budget
+        bigint daily_budget
+        text selected_category
+        timestamptz created_at
+    }
+
+    WALLETS {
+        text id PK
+        uuid user_id FK
+        text name
+        text logo_asset_path
+        text brand_color
+        text type
+        bigint initial_balance
+        boolean is_active
+        timestamptz created_at
+    }
+
+    TRANSACTIONS {
+        text id PK
+        uuid user_id FK
+        text wallet_id
+        text name
+        text category
+        bigint amount
+        timestamptz date
+        timestamptz created_at
+    }
+
+    BUDGETS {
+        uuid id PK
+        uuid user_id FK
+        text category
+        bigint limit_amount
+        integer month
+        integer year
+        timestamptz created_at
+    }
+
+    GOALS {
+        text id PK
+        uuid user_id FK
+        text redirect_goal_id FK
+        text name
+        text category
+        bigint target_amount
+        date target_date
+        text funding_method
+        numeric auto_allocation_percent
+        boolean is_active
+        boolean is_primary
+        boolean is_protected
+        integer withdrawal_priority
+        text status
+        text completion_behavior
+        text image_url
+        timestamptz created_at
+    }
+
+    GOAL_FUND_ENTRIES {
+        uuid id PK
+        uuid user_id FK
+        text goal_id FK
+        text source_transaction_id FK
+        bigint amount
+        text entry_type
+        text note
+        timestamptz created_at
+    }
+
+    GOAL_SETTINGS {
+        uuid user_id PK,FK
+        text expense_shortfall_policy
+        text imported_transaction_policy
+        timestamptz updated_at
+    }
+
+    RECURRING_SCHEDULES {
+        text id PK
+        uuid user_id FK
+        text wallet_id FK
+        text name
+        text category
+        bigint amount
+        text frequency
+        timestamptz next_occurrence
+        boolean is_active
+        text posting_mode
+        integer reminder_days
+        boolean use_last_day
+        timestamptz created_at
+    }
+
+    RECURRING_NOTIFICATIONS {
+        text id PK
+        uuid user_id FK
+        text schedule_id
+        text title
+        text body
+        text posting_mode
+        timestamptz occurrence_at
+        timestamptz scheduled_for
+        boolean is_read
+        text status
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    COMMUNITY_POSTS {
+        uuid id PK
+        uuid user_id FK
+        text content
+        text category
+        boolean is_anonymous
+        boolean is_spoiler
+        integer likes_count
+        integer comments_count
+        timestamptz created_at
+    }
+
+    COMMUNITY_COMMENTS {
+        uuid id PK
+        uuid post_id FK
+        uuid user_id FK
+        uuid parent_comment_id FK
+        text content
+        boolean is_anonymous
+        integer likes_count
+        timestamptz created_at
+    }
+
+    COMMUNITY_LIKES {
+        uuid id PK
+        uuid post_id FK
+        uuid user_id FK
+        timestamptz created_at
+    }
+
+    COMMUNITY_COMMENT_LIKES {
+        uuid id PK
+        uuid comment_id FK
+        uuid user_id FK
+        timestamptz created_at
+    }
+
+    COMMUNITY_SAVES {
+        uuid id PK
+        uuid post_id FK
+        uuid user_id FK
+        timestamptz created_at
+    }
+
+    COMMUNITY_MEDIA {
+        uuid id PK
+        uuid post_id FK
+        uuid user_id FK
+        text url
+        text media_type
+        timestamptz created_at
+    }
+
+    COMMUNITY_POST_REPORTS {
+        uuid id PK
+        uuid post_id FK
+        uuid reporter_id FK
+        text reason
+        text description
+        text status
+        timestamptz created_at
+    }
+
+    COMMUNITY_COMMENT_REPORTS {
+        uuid id PK
+        uuid comment_id FK
+        uuid reporter_id FK
+        text reason
+        text description
+        text status
+        timestamptz created_at
+    }
+
+    COMMUNITY_NOTIFICATIONS {
+        uuid id PK
+        uuid user_id FK
+        uuid actor_id FK
+        uuid post_id FK
+        uuid comment_id FK
+        text type
+        boolean is_read
+        timestamptz created_at
+    }
+
+    COMMUNITY_AUTHORS {
+        uuid id
+        text full_name
+        text avatar_url
+    }
+
+    CHAT_CONVERSATIONS {
+        uuid id PK
+        uuid user_id FK
+        text title
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    CHAT_MESSAGES {
+        uuid id PK
+        uuid conversation_id FK
+        uuid user_id FK
+        text role
+        text message
+        jsonb insight
+        jsonb chart
+        text image_path
+        text image_mime_type
+        bigint sequence_number
+        timestamptz created_at
+    }
+
+    classDef authUsers fill:#dbe7ff,stroke:#4f67d7,color:#102a2e
+    classDef profiles fill:#ccefe8,stroke:#0f8f78,color:#102a2e
+    classDef wallets fill:#d9f1ff,stroke:#2688b8,color:#102a2e
+    classDef transactions fill:#d7ecff,stroke:#2875b8,color:#102a2e
+    classDef budgets fill:#d8f4f2,stroke:#258c83,color:#102a2e
+    classDef goals fill:#e9ddff,stroke:#7853b8,color:#102a2e
+    classDef goalEntries fill:#eee2ff,stroke:#8b5ec2,color:#102a2e
+    classDef goalSettings fill:#e4ddff,stroke:#6957b5,color:#102a2e
+    classDef recurringSchedules fill:#ffe5c2,stroke:#c77621,color:#102a2e
+    classDef recurringNotifications fill:#ffedc7,stroke:#b9821f,color:#102a2e
+    classDef communityPosts fill:#ffdce5,stroke:#c55273,color:#102a2e
+    classDef communityComments fill:#f7def0,stroke:#a9588d,color:#102a2e
+    classDef communityLikes fill:#ffdcd4,stroke:#c75e4b,color:#102a2e
+    classDef communityCommentLikes fill:#ffe4d8,stroke:#bd6b4c,color:#102a2e
+    classDef communitySaves fill:#fff0bd,stroke:#ad831d,color:#102a2e
+    classDef communityMedia fill:#e2f3c9,stroke:#6d9935,color:#102a2e
+    classDef communityPostReports fill:#ffd9df,stroke:#bd4458,color:#102a2e
+    classDef communityCommentReports fill:#fbd9e8,stroke:#b34d79,color:#102a2e
+    classDef communityNotifications fill:#d3f2ec,stroke:#258c78,color:#102a2e
+    classDef communityAuthors fill:#e1e8f0,stroke:#617287,color:#102a2e
+    classDef chatConversations fill:#d5f2df,stroke:#34875a,color:#102a2e
+    classDef chatMessages fill:#d5f0ea,stroke:#2f8270,color:#102a2e
+
+    class AUTH_USERS authUsers
+    class PROFILES profiles
+    class WALLETS wallets
+    class TRANSACTIONS transactions
+    class BUDGETS budgets
+    class GOALS goals
+    class GOAL_FUND_ENTRIES goalEntries
+    class GOAL_SETTINGS goalSettings
+    class RECURRING_SCHEDULES recurringSchedules
+    class RECURRING_NOTIFICATIONS recurringNotifications
+    class COMMUNITY_POSTS communityPosts
+    class COMMUNITY_COMMENTS communityComments
+    class COMMUNITY_LIKES communityLikes
+    class COMMUNITY_COMMENT_LIKES communityCommentLikes
+    class COMMUNITY_SAVES communitySaves
+    class COMMUNITY_MEDIA communityMedia
+    class COMMUNITY_POST_REPORTS communityPostReports
+    class COMMUNITY_COMMENT_REPORTS communityCommentReports
+    class COMMUNITY_NOTIFICATIONS communityNotifications
+    class COMMUNITY_AUTHORS communityAuthors
+    class CHAT_CONVERSATIONS chatConversations
+    class CHAT_MESSAGES chatMessages

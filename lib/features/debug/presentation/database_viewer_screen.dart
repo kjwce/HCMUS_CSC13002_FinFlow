@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../../core/i18n/app_language.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/finflow_action_icon.dart';
 import '../../finance/providers/transaction_provider.dart';
 
 class DatabaseViewerScreen extends ConsumerStatefulWidget {
@@ -101,7 +102,9 @@ class _DatabaseViewerScreenState extends ConsumerState<DatabaseViewerScreen> {
                       width: 20,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Icon(Icons.delete_sweep),
+                  : FinFlowTrashIcon(
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
               tooltip: AppStrings.clearAllData,
             ),
           ),

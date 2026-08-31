@@ -22,4 +22,3 @@ CREATE INDEX IF NOT EXISTS recurring_notifications_schedule_status_idx
   ON public.recurring_notifications (schedule_id, status, occurrence_at DESC);
 
 NOTIFY pgrst, 'reload schema';
-

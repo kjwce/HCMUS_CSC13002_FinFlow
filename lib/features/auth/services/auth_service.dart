@@ -154,12 +154,6 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  Future<void> sendOtp({required String email}) async {
-    await Supabase.instance.client.auth.signInWithOtp(
-      email: email.trim().toLowerCase(),
-    );
-  }
-
   Future<bool> completeRegistration({
     required String email,
     required String token,
@@ -184,21 +178,6 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  Future<bool> verifyOtp({required String email, required String token}) async {
-    try {
-      final response = await Supabase.instance.client.auth.verifyOTP(
-        email: email.trim().toLowerCase(),
-        token: token,
-        type: OtpType.email,
-      );
-      return response.user != null;
-    } on AuthException {
-      return false;
-    }
-  }
-
-  /// Verifies the OTP issued by Supabase's password-recovery flow.
-  /// This intentionally remains separate from the regular email OTP method.
   Future<bool> verifyPasswordRecoveryOtp({
     required String email,
     required String token,

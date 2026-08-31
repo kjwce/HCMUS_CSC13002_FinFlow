@@ -6,6 +6,8 @@ import '../../features/auth/services/auth_service.dart';
 import '../../features/chatbot/presentation/chat_screen.dart';
 import '../../features/community/services/notification_service.dart';
 import '../../features/finance/presentation/add_transaction_sheet.dart';
+import '../../features/finance/services/recurring_reminder_service.dart';
+import '../../features/finance/services/recurring_service.dart';
 import '../../features/scan/presentation/scan_screen.dart';
 import '../screens/community_screen.dart';
 import '../screens/home_screen.dart';
@@ -21,9 +23,16 @@ class MainShell extends ConsumerStatefulWidget {
   ConsumerState<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends ConsumerState<MainShell> {
+class _MainShellState extends ConsumerState<MainShell>
+    with WidgetsBindingObserver {
   var _index = 0;
   bool _argsRead = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
 
   @override
   void didChangeDependencies() {
@@ -50,14 +59,33 @@ class _MainShellState extends ConsumerState<MainShell> {
       // Init notification service for community features
       if (user != null) {
         NotificationService.instance.startForUser(user.id);
+        _syncRecurring();
       }
     }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     NotificationService.instance.unsubscribe();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+    NotificationService.instance.fetchNotifications();
+    _syncRecurring();
+    RecurringReminderService.instance.processPendingAction();
+  }
+
+  Future<void> _syncRecurring() async {
+    try {
+      await RecurringService.instance.fetch();
+      await RecurringReminderService.instance.syncAll(
+        RecurringService.instance.schedules,
+      );
+    } catch (_) {}
   }
 
   @override

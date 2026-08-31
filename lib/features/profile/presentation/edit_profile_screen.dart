@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../core/i18n/app_language.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/responsive.dart';
 import '../../auth/services/auth_service.dart';
 
@@ -31,9 +32,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   Color get _surfaceColor => _isDark ? _darkSurface : Colors.white;
   Color get _primaryTextColor => _isDark ? _darkText : _onSurface;
   Color get _secondaryTextColor =>
-      _isDark ? _darkSecondaryText : const Color(0xFF556B65);
+      _isDark ? _darkSecondaryText : const Color(0xFF52655E);
   Color get _mutedTextColor =>
-      _isDark ? _darkMutedText : const Color(0xFF667A74);
+      _isDark ? _darkMutedText : const Color(0xFF52655E);
   Color get _borderColor => _isDark ? _darkBorder : Colors.transparent;
 
   @override
@@ -132,27 +133,27 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       ),
       child: Padding(
         padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 8)),
-        child: Stack(
-          alignment: Alignment.center,
+        child: Row(
           children: [
-            Align(
-              alignment: Alignment.centerLeft,
-              child: IconButton(
-                onPressed: () => Navigator.of(context).pop(),
-                icon: Icon(
-                  Icons.arrow_back_rounded,
-                  size: Responsive.w(context, 24),
-                  color: _primaryTextColor,
-                ),
+            IconButton(
+              onPressed: () => Navigator.of(context).pop(),
+              icon: Icon(
+                Icons.arrow_back_rounded,
+                size: Responsive.w(context, 24),
+                color: _primaryTextColor,
               ),
             ),
-            Text(
-              AppStrings.choose('Edit Profile', 'Chỉnh sửa hồ sơ'),
-              style: TextStyle(
-                fontFamily: 'Manrope',
-                fontSize: Responsive.sp(context, 20),
-                fontWeight: FontWeight.w600,
-                color: _primaryTextColor,
+            Expanded(
+              child: Text(
+                AppStrings.choose('Edit Profile', 'Chỉnh sửa hồ sơ'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: 'Manrope',
+                  fontSize: Responsive.sp(context, 22),
+                  fontWeight: FontWeight.w700,
+                  color: _isDark ? _primaryTextColor : AppColors.deepEmerald,
+                ),
               ),
             ),
           ],
@@ -473,7 +474,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     helperText,
                     style: TextStyle(
                       fontFamily: 'Hanken Grotesk',
-                      fontSize: Responsive.sp(context, 11.5),
+                      fontSize: Responsive.sp(context, 12.5),
                       fontWeight: FontWeight.w600,
                       color: _mutedTextColor,
                     ),

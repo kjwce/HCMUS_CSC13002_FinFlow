@@ -356,4 +356,3 @@ END
 $migration$;
 
 NOTIFY pgrst, 'reload schema';
-

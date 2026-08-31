@@ -1,0 +1,77 @@
+%%{init: {"layout":"elk","theme":"base","themeVariables":{"background":"#ffffff","edgeLabelBackground":"#ffffff","lineColor":"#657786","fontFamily":"Inter, Segoe UI, Arial, sans-serif"},"flowchart":{"htmlLabels":true,"curve":"linear","nodeSpacing":42,"rankSpacing":70}}}%%
+flowchart TB
+    subgraph IDENTITY["IDENTITY & USER"]
+        direction LR
+        AUTH_USERS["AUTH_USERS"] -->|"1 : 1"| PROFILES["PROFILES"]
+    end
+
+    subgraph FINANCE["CORE FINANCE"]
+        direction LR
+        WALLETS["WALLETS"] -->|"source"| TRANSACTIONS["TRANSACTIONS"]
+        BUDGETS["BUDGETS"]
+    end
+
+    subgraph SAVING["SAVING GOALS"]
+        direction LR
+        GOAL_SETTINGS["GOAL_SETTINGS"]
+        GOALS["GOALS"] -->|"entries"| GOAL_FUND_ENTRIES["GOAL_FUND_ENTRIES"]
+    end
+
+    subgraph RECURRING["RECURRING"]
+        direction LR
+        RECURRING_SCHEDULES["RECURRING_SCHEDULES"] -->|"creates"| RECURRING_NOTIFICATIONS["RECURRING_NOTIFICATIONS"]
+    end
+
+    subgraph COMMUNITY["COMMUNITY"]
+        direction TB
+        COMMUNITY_POSTS["COMMUNITY_POSTS"] --> COMMUNITY_COMMENTS["COMMUNITY_COMMENTS"]
+        COMMUNITY_POSTS --> COMMUNITY_LIKES["COMMUNITY_LIKES"]
+        COMMUNITY_POSTS --> COMMUNITY_SAVES["COMMUNITY_SAVES"]
+        COMMUNITY_POSTS --> COMMUNITY_MEDIA["COMMUNITY_MEDIA"]
+        COMMUNITY_POSTS --> COMMUNITY_POST_REPORTS["COMMUNITY_POST_REPORTS"]
+        COMMUNITY_POSTS --> COMMUNITY_NOTIFICATIONS["COMMUNITY_NOTIFICATIONS"]
+        COMMUNITY_COMMENTS --> COMMUNITY_COMMENT_LIKES["COMMUNITY_COMMENT_LIKES"]
+        COMMUNITY_COMMENTS --> COMMUNITY_COMMENT_REPORTS["COMMUNITY_COMMENT_REPORTS"]
+        COMMUNITY_COMMENTS --> COMMUNITY_NOTIFICATIONS
+        COMMUNITY_AUTHORS["COMMUNITY_AUTHORS · VIEW"]
+    end
+
+    subgraph CHAT["AI CHAT"]
+        direction LR
+        CHAT_CONVERSATIONS["CHAT_CONVERSATIONS"] -->|"contains"| CHAT_MESSAGES["CHAT_MESSAGES"]
+    end
+
+    PROFILES -->|"owns"| WALLETS
+    PROFILES -->|"records"| TRANSACTIONS
+    PROFILES -->|"defines"| BUDGETS
+    PROFILES -->|"creates"| GOALS
+    PROFILES -->|"configures"| GOAL_SETTINGS
+    TRANSACTIONS -.->|"auto funding"| GOAL_FUND_ENTRIES
+    PROFILES -->|"schedules"| RECURRING_SCHEDULES
+    WALLETS -.->|"payment source"| RECURRING_SCHEDULES
+    PROFILES -->|"participates"| COMMUNITY_POSTS
+    PROFILES -.->|"derived view"| COMMUNITY_AUTHORS
+    PROFILES -->|"owns"| CHAT_CONVERSATIONS
+
+    classDef identity fill:#d9f3ed,stroke:#168b75,color:#123b35,stroke-width:1.6px
+    classDef finance fill:#dcefff,stroke:#2f7eb7,color:#173b55,stroke-width:1.6px
+    classDef goal fill:#eadfff,stroke:#7853b8,color:#3f2b66,stroke-width:1.6px
+    classDef recurring fill:#ffe8c8,stroke:#c77621,color:#624017,stroke-width:1.6px
+    classDef community fill:#ffe0e8,stroke:#bd526f,color:#652c3c,stroke-width:1.6px
+    classDef chat fill:#d8f2e2,stroke:#34875a,color:#224c34,stroke-width:1.6px
+
+    class AUTH_USERS,PROFILES identity
+    class WALLETS,TRANSACTIONS,BUDGETS finance
+    class GOALS,GOAL_FUND_ENTRIES,GOAL_SETTINGS goal
+    class RECURRING_SCHEDULES,RECURRING_NOTIFICATIONS recurring
+    class COMMUNITY_POSTS,COMMUNITY_COMMENTS,COMMUNITY_LIKES,COMMUNITY_COMMENT_LIKES,COMMUNITY_SAVES,COMMUNITY_MEDIA,COMMUNITY_POST_REPORTS,COMMUNITY_COMMENT_REPORTS,COMMUNITY_NOTIFICATIONS,COMMUNITY_AUTHORS community
+    class CHAT_CONVERSATIONS,CHAT_MESSAGES chat
+
+    style IDENTITY fill:#f5fcfa,stroke:#79b9aa,stroke-width:1.4px
+    style FINANCE fill:#f5faff,stroke:#8bb8d7,stroke-width:1.4px
+    style SAVING fill:#faf7ff,stroke:#af96d8,stroke-width:1.4px
+    style RECURRING fill:#fffaf2,stroke:#dfaa69,stroke-width:1.4px
+    style COMMUNITY fill:#fff7f9,stroke:#d99aac,stroke-width:1.4px
+    style CHAT fill:#f5fcf7,stroke:#8bbd9e,stroke-width:1.4px
+
+    linkStyle default stroke:#657786,stroke-width:1.25px
