@@ -149,7 +149,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   String? _selectedWalletId;
   String? _selectedWalletName;
   _AccountCategory? _selectedAcctCategory;
-  var _selectedCategory = 'Food';
+  var _selectedCategory = 'Salary';
   DateTime? _transactionDate;
   var _isFormatting = false;
   var _allowPop = false;
@@ -179,7 +179,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   Color get _primaryText =>
       _isDark ? _addTransactionDarkText : const Color(0xFF1A1C1E);
   Color get _mutedText =>
-      _isDark ? _addTransactionDarkMutedText : const Color(0xFF74817B);
+      _isDark ? _addTransactionDarkMutedText : const Color(0xFF52655E);
   bool get _isVoiceProcessing =>
       _voiceState == _QuickAddVoiceState.initializing ||
       _voiceState == _QuickAddVoiceState.processingFinal;
@@ -197,7 +197,8 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
         widget.initialDate != null;
     _mode = hasInitialDraft ? _AddMode.manual : null;
     _isExpense = widget.initialIsExpense ?? false;
-    _selectedCategory = widget.initialCategoryKey ?? 'Food';
+    _selectedCategory =
+        widget.initialCategoryKey ?? (_isExpense ? 'Food' : 'Salary');
     _selectedWalletId = widget.initialWalletId;
     _transactionDate = widget.initialDate;
     _nameController.text = widget.initialName ?? '';
@@ -224,6 +225,21 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       // unavailable. The mode picker also needs to remain preview/test safe.
       debugPrint('Unable to refresh recent transactions: $error');
     }
+  }
+
+  void _setTransactionType(bool isExpense) {
+    final selected = TransactionCategory.resolve(_selectedCategory);
+    final custom = CustomCategoryStore.instance.findByKey(_selectedCategory);
+    final selectedType = custom?.type ?? selected.type;
+    setState(() {
+      _isExpense = isExpense;
+      final requiredType = isExpense
+          ? TransactionCategoryType.expense
+          : TransactionCategoryType.income;
+      if (selectedType != requiredType) {
+        _selectedCategory = isExpense ? 'Food' : 'Salary';
+      }
+    });
   }
 
   @override
@@ -330,41 +346,39 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       height: Responsive.h(context, _mode == _AddMode.manual ? 52 : 64),
       padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 10)),
       decoration: BoxDecoration(color: _pageBackground),
-      child: Stack(
-        alignment: Alignment.center,
+      child: Row(
         children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            child: IconButton(
-              onPressed: _handleHeaderBack,
-              tooltip: AppStrings.choose('Back', 'Quay lại'),
-              icon: Icon(
-                Icons.arrow_back_rounded,
-                size: 22,
-                color: _isDark
-                    ? _addTransactionDarkText
-                    : const Color(0xFF43474E),
-              ),
-            ),
-          ),
-          Text(
-            title,
-            style: TextStyle(
-              fontFamily: 'Manrope',
-              fontSize: Responsive.sp(context, 18),
-              fontWeight: FontWeight.w600,
-              color: _primaryText,
-            ),
-          ),
-          Align(
-            alignment: Alignment.centerRight,
-            child: Icon(
-              Icons.more_horiz_rounded,
+          IconButton(
+            onPressed: _handleHeaderBack,
+            tooltip: AppStrings.choose('Back', 'Quay lại'),
+            icon: Icon(
+              Icons.arrow_back_rounded,
+              size: 22,
               color: _isDark
                   ? _addTransactionDarkText
                   : const Color(0xFF43474E),
             ),
           ),
+          Expanded(
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: 'Manrope',
+                fontSize: Responsive.sp(context, 22),
+                fontWeight: FontWeight.w700,
+                color: _isDark
+                    ? _addTransactionDarkText
+                    : AppColors.deepEmerald,
+              ),
+            ),
+          ),
+          Icon(
+            Icons.more_horiz_rounded,
+            color: _isDark ? _addTransactionDarkText : const Color(0xFF43474E),
+          ),
+          const SizedBox(width: 12),
         ],
       ),
     );
@@ -525,9 +539,10 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
               Text(
                 AppStrings.choose('Tap to reuse', 'Chạm để dùng lại'),
                 style: _labelStyle.copyWith(
-                  fontSize: 9.5,
+                  fontSize: 11.5,
                   color: _mutedText,
                   letterSpacing: 0,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ],
@@ -609,11 +624,11 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
               ),
               style: TextStyle(
                 fontFamily: 'Hanken Grotesk',
-                fontSize: 13.5,
-                fontWeight: FontWeight.w500,
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
                 color: _isDark
                     ? _addTransactionDarkSecondaryText
-                    : const Color(0xFF30413B),
+                    : const Color(0xFF203A32),
               ),
             ),
           ),
@@ -670,8 +685,8 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                 child: Text(
                   AppStrings.choose('REMAINING BALANCE', 'SỐ DƯ CÒN LẠI'),
                   style: _labelStyle.copyWith(
-                    color: Colors.white.withValues(alpha: 0.72),
-                    fontSize: 10,
+                    color: Colors.white.withValues(alpha: 0.9),
+                    fontSize: 11.5,
                   ),
                 ),
               ),
@@ -691,9 +706,9 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                         ),
                   style: TextStyle(
                     fontFamily: 'Manrope',
-                    fontSize: Responsive.sp(context, hasBudget ? 29 : 22),
+                    fontSize: Responsive.sp(context, hasBudget ? 31 : 23),
                     height: 1.05,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w800,
                     color: amountColor,
                     fontFeatures: const [FontFeature.tabularFigures()],
                   ),
@@ -703,9 +718,9 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                     text: ' VND',
                     style: TextStyle(
                       fontFamily: 'Hanken Grotesk',
-                      fontSize: Responsive.sp(context, 12),
-                      fontWeight: FontWeight.w500,
-                      color: amountColor.withValues(alpha: 0.8),
+                      fontSize: Responsive.sp(context, 14),
+                      fontWeight: FontWeight.w600,
+                      color: amountColor.withValues(alpha: 0.92),
                     ),
                   ),
               ],
@@ -743,8 +758,8 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                       style: _labelStyle.copyWith(
                         color: isOverBudget
                             ? const Color(0xFFFF777C)
-                            : Colors.white.withValues(alpha: 0.65),
-                        fontSize: 8.5,
+                            : Colors.white.withValues(alpha: 0.82),
+                        fontSize: 10,
                       ),
                     ),
                     Text(
@@ -764,8 +779,8 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                             ),
                       style: const TextStyle(
                         fontFamily: 'Hanken Grotesk',
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
                         color: Colors.white,
                       ),
                     ),
@@ -799,7 +814,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
           const SizedBox(width: 5),
           Text(
             AppStrings.choose('$daysLeft DAYS LEFT', 'CÒN $daysLeft NGÀY'),
-            style: _labelStyle.copyWith(color: Colors.white, fontSize: 8.5),
+            style: _labelStyle.copyWith(color: Colors.white, fontSize: 10),
           ),
         ],
       ),
@@ -831,8 +846,8 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
             : AppStrings.choose('ON TRACK', 'ĐÚNG KẾ HOẠCH'),
         style: _labelStyle.copyWith(
           color: foreground,
-          fontSize: 8,
-          fontWeight: FontWeight.w700,
+          fontSize: 9.5,
+          fontWeight: FontWeight.w800,
         ),
       ),
     );
@@ -874,11 +889,11 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
               ),
               style: TextStyle(
                 fontFamily: 'Hanken Grotesk',
-                fontSize: 11.5,
-                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
                 color: _isDark
                     ? const Color(0xFFFFBF47)
-                    : const Color(0xFF704E24),
+                    : const Color(0xFF604018),
               ),
             ),
           ),
@@ -993,8 +1008,8 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                                 : _isDark
                                 ? _addTransactionDarkSecondaryText
                                 : foreground,
-                            fontSize: 9.5,
-                            fontWeight: FontWeight.w700,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w800,
                           ),
                           child: Text(label),
                         ),
@@ -1019,8 +1034,8 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                   badge,
                   style: _labelStyle.copyWith(
                     color: const Color(0xFF5C4300),
-                    fontSize: 8,
-                    fontWeight: FontWeight.w700,
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
               ),
@@ -1031,7 +1046,9 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   }
 
   Widget _buildQuickCategories() {
-    final categories = TransactionCategory.popular.take(4).toList();
+    final categories = TransactionCategory.forType(
+      isIncome: !_isExpense,
+    ).take(4).toList();
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -1064,6 +1081,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                 top: false,
                 child: TransactionCategorySelectionSheet(
                   initialKey: _selectedCategory,
+                  isIncome: !_isExpense,
                 ),
               ),
             );
@@ -1139,8 +1157,8 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontFamily: 'Hanken Grotesk',
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w700,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
                             color: _primaryText,
                           ),
                         ),
@@ -1148,7 +1166,8 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                           _formatRecentDate(transaction.date),
                           style: TextStyle(
                             fontFamily: 'Hanken Grotesk',
-                            fontSize: 10.5,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
                             color: _mutedText,
                           ),
                         ),
@@ -1159,8 +1178,8 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                     '${isExpense ? '-' : '+'}${_formatInsightMoney(transaction.amount.abs())}đ',
                     style: TextStyle(
                       fontFamily: 'Manrope',
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w700,
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w800,
                       color: isExpense
                           ? (_isDark
                                 ? const Color(0xFFFF6B70)
@@ -1218,7 +1237,8 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
         textAlign: TextAlign.center,
         style: TextStyle(
           fontFamily: 'Hanken Grotesk',
-          fontSize: 12,
+          fontSize: 13.5,
+          fontWeight: FontWeight.w600,
           color: _mutedText,
         ),
       ),
@@ -1362,30 +1382,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
           ),
           child: Column(
             children: [
-              _buildSelectionField(
-                fieldKey: const Key('manual_category_field'),
-                label: AppStrings.choose('CATEGORY', 'DANH MỤC'),
-                value: AppStrings.categoryName(category.label),
-                leading: Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: category.color.withValues(
-                      alpha: _isDark ? 0.2 : 0.12,
-                    ),
-                    shape: BoxShape.circle,
-                  ),
-                  child: category.buildIcon(size: 18),
-                ),
-                trailing: Icon(
-                  Icons.chevron_right_rounded,
-                  size: 20,
-                  color: controlAccent,
-                ),
-                onTap: _showCategorySelection,
-                accent: controlAccent,
-                embedded: true,
-              ),
+              _buildManualCategoryPicker(category, controlAccent),
               Divider(height: 1, indent: 62, color: _border),
               _buildSelectionField(
                 label: AppStrings.choose('DATE', 'NGÀY'),
@@ -1487,7 +1484,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
               accent: _isDark
                   ? const Color(0xFF006C53)
                   : const Color(0xFF007C61),
-              onTap: () => setState(() => _isExpense = false),
+              onTap: () => _setTransactionType(false),
             ),
           ),
           Expanded(
@@ -1497,7 +1494,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
               accent: _isDark
                   ? const Color(0xFFD9434E)
                   : const Color(0xFFDF394A),
-              onTap: () => setState(() => _isExpense = true),
+              onTap: () => _setTransactionType(true),
             ),
           ),
         ],
@@ -2093,11 +2090,11 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
 
   TextStyle get _labelStyle => TextStyle(
     fontFamily: 'Manrope',
-    fontSize: 11.5,
+    fontSize: 12.5,
     height: 1.2,
-    letterSpacing: 0.65,
-    fontWeight: FontWeight.w700,
-    color: _isDark ? _addTransactionDarkMutedText : const Color(0xFF53615C),
+    letterSpacing: 0.55,
+    fontWeight: FontWeight.w800,
+    color: _isDark ? _addTransactionDarkMutedText : const Color(0xFF30463E),
   );
 
   void _formatAmount() {
@@ -2120,27 +2117,184 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   }
 
   Future<void> _pickDate() async {
+    final today = DateTime.now();
+    final selectedDate = _transactionDate;
     final picked = await showDatePicker(
       context: context,
-      initialDate: _transactionDate ?? DateTime.now(),
+      initialDate: selectedDate == null || selectedDate.isAfter(today)
+          ? today
+          : selectedDate,
       firstDate: DateTime(2000),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
+      lastDate: today,
     );
     if (picked != null && mounted) setState(() => _transactionDate = picked);
   }
 
-  Future<void> _showCategorySelection() async {
-    final result = await showModalBottomSheet<String>(
-      context: context,
-      useSafeArea: true,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => SafeArea(
-        top: false,
-        child: TransactionCategorySelectionSheet(initialKey: _selectedCategory),
+  static const _createCustomCategoryMenuValue =
+      '__create_custom_transaction_category__';
+
+  List<TransactionCategory> get _manualCategoryOptions => [
+    ...TransactionCategory.forType(isIncome: !_isExpense),
+    ...CustomCategoryStore.instance.items
+        .where(
+          (item) =>
+              item.type ==
+              (_isExpense
+                  ? TransactionCategoryType.expense
+                  : TransactionCategoryType.income),
+        )
+        .map(
+          (item) => TransactionCategory(
+            key: item.name,
+            label: item.name,
+            icon: item.iconData,
+            color: item.color,
+            type: item.type,
+          ),
+        ),
+  ];
+
+  Widget _buildManualCategoryPicker(
+    TransactionCategory selectedCategory,
+    Color accent,
+  ) {
+    return LayoutBuilder(
+      builder: (context, constraints) => PopupMenuButton<String>(
+        key: const Key('manual_category_field'),
+        tooltip: AppStrings.choose('Choose category', 'Chọn danh mục'),
+        initialValue: _selectedCategory,
+        position: PopupMenuPosition.under,
+        color: _surface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 10,
+        constraints: BoxConstraints(
+          minWidth: constraints.maxWidth,
+          maxWidth: constraints.maxWidth,
+          maxHeight: Responsive.h(context, 344).clamp(280.0, 370.0),
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(color: _border),
+        ),
+        onSelected: (value) {
+          if (value == _createCustomCategoryMenuValue) {
+            unawaited(_createManualCustomCategory());
+            return;
+          }
+          setState(() => _selectedCategory = value);
+        },
+        itemBuilder: (context) => [
+          for (final category in _manualCategoryOptions)
+            PopupMenuItem<String>(
+              key: Key('manual_category_option_${category.key}'),
+              value: category.key,
+              height: 50,
+              padding: EdgeInsets.zero,
+              child: Container(
+                height: 50,
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                color: category.key == _selectedCategory
+                    ? (_isDark
+                          ? _addTransactionDarkRaisedSurface
+                          : const Color(0xFFE4F4EF))
+                    : Colors.transparent,
+                child: Row(
+                  children: [
+                    SizedBox(width: 28, child: category.buildIcon(size: 20)),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        AppStrings.categoryName(category.label),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'Hanken Grotesk',
+                          fontSize: 14,
+                          fontWeight: category.key == _selectedCategory
+                              ? FontWeight.w700
+                              : FontWeight.w600,
+                          color: _primaryText,
+                        ),
+                      ),
+                    ),
+                    if (category.key == _selectedCategory)
+                      Icon(Icons.check_rounded, size: 20, color: accent),
+                  ],
+                ),
+              ),
+            ),
+          const PopupMenuDivider(height: 1),
+          PopupMenuItem<String>(
+            key: const Key('manual_category_create_custom'),
+            value: _createCustomCategoryMenuValue,
+            height: 50,
+            child: Row(
+              children: [
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: _isDark ? 0.2 : 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(Icons.add_rounded, size: 19, color: accent),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    AppStrings.choose(
+                      'Create custom category',
+                      'Tạo danh mục tùy chỉnh',
+                    ),
+                    style: TextStyle(
+                      fontFamily: 'Hanken Grotesk',
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: accent,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+        child: IgnorePointer(
+          child: _buildSelectionField(
+            label: AppStrings.choose('CATEGORY', 'DANH MỤC'),
+            value: AppStrings.categoryName(selectedCategory.label),
+            leading: Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: selectedCategory.color.withValues(
+                  alpha: _isDark ? 0.2 : 0.12,
+                ),
+                shape: BoxShape.circle,
+              ),
+              child: selectedCategory.buildIcon(size: 18),
+            ),
+            trailing: Icon(Icons.expand_more_rounded, size: 21, color: accent),
+            onTap: () {},
+            accent: accent,
+            embedded: true,
+          ),
+        ),
       ),
     );
-    if (result != null && mounted) setState(() => _selectedCategory = result);
+  }
+
+  Future<void> _createManualCustomCategory() async {
+    final created = await showDialog<CustomCategoryDef>(
+      context: context,
+      builder: (_) => _CreateCategoryDialog(
+        type: _isExpense
+            ? TransactionCategoryType.expense
+            : TransactionCategoryType.income,
+      ),
+    );
+    if (created == null || !mounted) return;
+    CustomCategoryStore.instance.add(created);
+    setState(() => _selectedCategory = created.name);
   }
 
   Future<void> _showSourceSelection() async {
@@ -2781,11 +2935,11 @@ class _QuickCategoryButton extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontFamily: 'Hanken Grotesk',
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
                   color: isDark
                       ? _addTransactionDarkSecondaryText
-                      : const Color(0xFF586861),
+                      : const Color(0xFF3F554D),
                 ),
               ),
             ],
@@ -2800,9 +2954,11 @@ class TransactionCategorySelectionSheet extends StatefulWidget {
   const TransactionCategorySelectionSheet({
     super.key,
     required this.initialKey,
+    required this.isIncome,
   });
 
   final String initialKey;
+  final bool isIncome;
 
   @override
   State<TransactionCategorySelectionSheet> createState() =>
@@ -2813,16 +2969,38 @@ class _TransactionCategorySelectionSheetState
     extends State<TransactionCategorySelectionSheet> {
   late String _selectedKey = widget.initialKey;
 
+  @override
+  void initState() {
+    super.initState();
+    final available = _categories.any(
+      (category) => category.key == _selectedKey,
+    );
+    if (!available) {
+      _selectedKey = TransactionCategory.forType(
+        isIncome: widget.isIncome,
+      ).first.key;
+    }
+  }
+
   List<TransactionCategory> get _categories => [
-    ...TransactionCategory.all,
-    ...CustomCategoryStore.instance.items.map(
-      (item) => TransactionCategory(
-        key: item.name,
-        label: item.name,
-        icon: item.iconData,
-        color: item.color,
-      ),
-    ),
+    ...TransactionCategory.forType(isIncome: widget.isIncome),
+    ...CustomCategoryStore.instance.items
+        .where(
+          (item) =>
+              item.type ==
+              (widget.isIncome
+                  ? TransactionCategoryType.income
+                  : TransactionCategoryType.expense),
+        )
+        .map(
+          (item) => TransactionCategory(
+            key: item.name,
+            label: item.name,
+            icon: item.iconData,
+            color: item.color,
+            type: item.type,
+          ),
+        ),
   ];
 
   @override
@@ -2955,7 +3133,11 @@ class _TransactionCategorySelectionSheetState
   Future<void> _createCustomCategory() async {
     final created = await showDialog<CustomCategoryDef>(
       context: context,
-      builder: (_) => const _CreateCategoryDialog(),
+      builder: (_) => _CreateCategoryDialog(
+        type: widget.isIncome
+            ? TransactionCategoryType.income
+            : TransactionCategoryType.expense,
+      ),
     );
     if (created == null || !mounted) return;
     CustomCategoryStore.instance.add(created);
@@ -3164,7 +3346,7 @@ class _SourceSelectionSheetState extends State<_SourceSelectionSheet> {
                           fontSize: 11,
                           color: isDark
                               ? _addTransactionDarkSecondaryText
-                              : const Color(0xFF6D7B74),
+                              : const Color(0xFF52655E),
                         ),
                       ),
                     ],
@@ -3289,7 +3471,9 @@ class _SheetApplyButton extends StatelessWidget {
 }
 
 class _CreateCategoryDialog extends StatefulWidget {
-  const _CreateCategoryDialog();
+  const _CreateCategoryDialog({required this.type});
+
+  final TransactionCategoryType type;
 
   @override
   State<_CreateCategoryDialog> createState() => _CreateCategoryDialogState();
@@ -3376,7 +3560,12 @@ class _CreateCategoryDialogState extends State<_CreateCategoryDialog> {
             final name = _controller.text.trim();
             if (name.isEmpty) return;
             Navigator.of(context).pop(
-              CustomCategoryDef(name: name, iconData: _icon, color: _color),
+              CustomCategoryDef(
+                name: name,
+                iconData: _icon,
+                color: _color,
+                type: widget.type,
+              ),
             );
           },
           child: Text(AppStrings.choose('Save Category', 'Lưu danh mục')),

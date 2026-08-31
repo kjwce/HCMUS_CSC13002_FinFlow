@@ -107,7 +107,7 @@ void main() {
       expect(find.text('INCOME'), findsOneWidget);
       expect(
         TransactionCategory.fromKey('Salary').assetPath,
-        'assets/icons/categories/fill/income_salary.svg',
+        'assets/icons/categories/duotone/income/salary.svg',
       );
       expect(find.byKey(const Key('quick_add_category_icon')), findsOneWidget);
       expect(find.byIcon(Icons.restaurant_rounded), findsNothing);
@@ -195,7 +195,7 @@ void main() {
         ),
       );
       expect(find.text('Cinema night'), findsWidgets);
-      expect(find.text('Other'), findsOneWidget);
+      expect(find.text('Other Expense'), findsOneWidget);
       expect(
         find.text('No matching category was found. Other was used.'),
         findsNothing,

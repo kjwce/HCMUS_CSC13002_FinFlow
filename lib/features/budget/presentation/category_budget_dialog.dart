@@ -257,7 +257,7 @@ class _CategoryBudgetDialogState extends State<_CategoryBudgetDialog> {
                 borderRadius: BorderRadius.circular(14),
                 decoration: _inputDecoration(dark: _isDarkEdit),
                 items: [
-                  if (!TransactionCategory.all.any(
+                  if (!TransactionCategory.expenses.any(
                     (category) => category.key == _category,
                   ))
                     DropdownMenuItem(
@@ -267,17 +267,15 @@ class _CategoryBudgetDialogState extends State<_CategoryBudgetDialog> {
                         dark: _isDarkEdit,
                       ),
                     ),
-                  ...TransactionCategory.all
-                      .where((category) => category.key != 'Salary')
-                      .map(
-                        (category) => DropdownMenuItem(
-                          value: category.key,
-                          child: _CategoryOption(
-                            categoryKey: category.key,
-                            dark: _isDarkEdit,
-                          ),
-                        ),
+                  ...TransactionCategory.expenses.map(
+                    (category) => DropdownMenuItem(
+                      value: category.key,
+                      child: _CategoryOption(
+                        categoryKey: category.key,
+                        dark: _isDarkEdit,
                       ),
+                    ),
+                  ),
                 ],
                 onChanged: (value) {
                   if (value != null) setState(() => _category = value);

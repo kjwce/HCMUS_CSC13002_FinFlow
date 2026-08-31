@@ -119,13 +119,14 @@ class _BudgetLimitsScreenState extends State<BudgetLimitsScreen> {
           onPressed: () => Navigator.of(context).pop(),
           icon: const Icon(Icons.arrow_back_rounded),
         ),
-        centerTitle: true,
+        centerTitle: false,
+        titleSpacing: 0,
         title: Text(
           AppStrings.choose('Budget Limits', 'Hạn mức ngân sách'),
           style: const TextStyle(
             color: Color(0xFF00785D),
-            fontFamily: 'Hanken Grotesk',
-            fontSize: 20,
+            fontFamily: 'Manrope',
+            fontSize: 22,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -301,7 +302,8 @@ class _BudgetLimitCard extends StatelessWidget {
                     Text(
                       subtitle,
                       style: TextStyle(
-                        fontSize: Responsive.sp(context, 11),
+                        fontSize: Responsive.sp(context, 12.5),
+                        height: 1.3,
                         color: colors.secondaryText,
                       ),
                     ),

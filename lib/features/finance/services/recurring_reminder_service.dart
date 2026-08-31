@@ -240,39 +240,47 @@ class RecurringReminderService extends ChangeNotifier {
 
   Future<void> syncSchedule(RecurringSchedule schedule) async {
     await initialize();
-    await cancelSchedule(schedule.id);
-    await _syncHistory(schedule);
-    if (!_enabled || !schedule.isActive) return;
+    final effectiveSchedule = schedule.isActive
+        ? schedule.copyWith(
+            nextOccurrence: schedule.nextOccurrenceOnOrAfter(DateTime.now()),
+          )
+        : schedule;
+    await cancelSchedule(effectiveSchedule.id);
+    await _syncHistory(effectiveSchedule);
+    if (!_enabled || !effectiveSchedule.isActive) return;
 
     final action = RecurringNotificationAction(
-      scheduleId: schedule.id,
-      occurrenceAt: schedule.nextOccurrence,
-      postingMode: schedule.postingMode.name,
+      scheduleId: effectiveSchedule.id,
+      occurrenceAt: effectiveSchedule.nextOccurrence,
+      postingMode: effectiveSchedule.postingMode.name,
       type: RecurringNotificationActionType.open,
     );
-    final id = notificationIdFor(schedule.id, schedule.nextOccurrence);
-    final reminderAt = reminderTimeFor(schedule);
+    final id = notificationIdFor(
+      effectiveSchedule.id,
+      effectiveSchedule.nextOccurrence,
+    );
+    final reminderAt = reminderTimeFor(effectiveSchedule);
     final now = DateTime.now();
-    if (schedule.nextOccurrence.isBefore(
+    if (effectiveSchedule.nextOccurrence.isBefore(
       DateTime(now.year, now.month, now.day),
     )) {
       return;
     }
 
-    final details = _detailsFor(schedule);
+    final details = _detailsFor(effectiveSchedule);
     if (reminderAt.isAfter(now)) {
       try {
         await _plugin.zonedSchedule(
           id: id,
-          title: _titleFor(schedule),
-          body: _bodyFor(schedule),
+          title: _titleFor(effectiveSchedule),
+          body: _bodyFor(effectiveSchedule),
           scheduledDate: tz.TZDateTime.from(reminderAt, tz.local),
           notificationDetails: details,
           androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
           payload: action.toPayload(),
         );
         await _rememberScheduledKey(
-          historyIdFor(schedule.id, schedule.nextOccurrence),
+          historyIdFor(effectiveSchedule.id, effectiveSchedule.nextOccurrence),
         );
       } catch (error) {
         debugPrint('Could not schedule recurring reminder: $error');
@@ -280,13 +288,16 @@ class RecurringReminderService extends ChangeNotifier {
       return;
     }
 
-    final key = historyIdFor(schedule.id, schedule.nextOccurrence);
+    final key = historyIdFor(
+      effectiveSchedule.id,
+      effectiveSchedule.nextOccurrence,
+    );
     if (await _wasScheduled(key)) return;
     try {
       await _plugin.show(
         id: id,
-        title: _titleFor(schedule),
-        body: _bodyFor(schedule),
+        title: _titleFor(effectiveSchedule),
+        body: _bodyFor(effectiveSchedule),
         notificationDetails: details,
         payload: action.toPayload(),
       );
@@ -328,13 +339,40 @@ class RecurringReminderService extends ChangeNotifier {
   }
 
   Future<void> markOccurrenceCompleted(RecurringSchedule schedule) async {
+    await _setOccurrenceStatus(schedule, 'completed');
+  }
+
+  Future<void> markOccurrenceSkipped(RecurringSchedule schedule) async {
+    await _setOccurrenceStatus(schedule, 'skipped');
+  }
+
+  Future<void> markOccurrenceFailed(RecurringSchedule schedule) async {
+    await _setOccurrenceStatus(schedule, 'failed');
+  }
+
+  Future<void> _setOccurrenceStatus(
+    RecurringSchedule schedule,
+    String status,
+  ) async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return;
     try {
-      await Supabase.instance.client
-          .from('recurring_notifications')
-          .update({'status': 'completed', 'is_read': true})
-          .eq('id', historyIdFor(schedule.id, schedule.nextOccurrence));
+      await Supabase.instance.client.from('recurring_notifications').upsert({
+        'id': historyIdFor(schedule.id, schedule.nextOccurrence),
+        'user_id': userId,
+        'schedule_id': schedule.id,
+        'title': _titleFor(schedule),
+        'body': _bodyFor(schedule),
+        'posting_mode': schedule.postingMode.name,
+        'amount': schedule.amount,
+        'occurrence_at': schedule.nextOccurrence.toUtc().toIso8601String(),
+        'scheduled_for': reminderTimeFor(schedule).toUtc().toIso8601String(),
+        'status': status,
+        'is_read': true,
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      });
     } catch (error) {
-      debugPrint('Could not complete recurring notification: $error');
+      debugPrint('Could not set recurring occurrence to $status: $error');
     }
   }
 
@@ -358,6 +396,7 @@ class RecurringReminderService extends ChangeNotifier {
         'title': _titleFor(schedule),
         'body': _bodyFor(schedule),
         'posting_mode': schedule.postingMode.name,
+        'amount': schedule.amount,
         'occurrence_at': schedule.nextOccurrence.toUtc().toIso8601String(),
         'scheduled_for': reminderTimeFor(schedule).toUtc().toIso8601String(),
         'updated_at': DateTime.now().toUtc().toIso8601String(),

@@ -13,7 +13,7 @@ class GoalModel {
     required this.name,
     required this.targetAmount,
     required this.createdAt,
-    this.category = 'Other',
+    this.category = 'Other Goal',
     this.targetDate,
     this.fundingMethod = GoalFundingMethod.manual,
     this.autoAllocationPercent = 0,
@@ -37,7 +37,7 @@ class GoalModel {
       name: json['name'] as String,
       targetAmount: (json['target_amount'] as num).toInt(),
       createdAt: DateTime.parse(json['created_at'] as String),
-      category: json['category'] as String? ?? 'Other',
+      category: json['category'] as String? ?? 'Other Goal',
       targetDate: _parseDate(json['target_date']),
       fundingMethod: json['funding_method'] == 'automatic'
           ? GoalFundingMethod.automatic

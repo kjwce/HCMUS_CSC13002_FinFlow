@@ -25,6 +25,9 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
 
   bool _isSubmitting = false;
   bool _obscurePassword = true;
+  bool _rememberMe = false;
+  String? _emailError;
+  String? _passwordError;
 
   @override
   void dispose() {
@@ -80,193 +83,247 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     ).pushNamedAndRemoveUntil(destination, (route) => false);
   }
 
+  Future<void> _handleGoogleSignIn() async {
+    final authService = ref.read(authServiceProvider);
+    setState(() => _isSubmitting = true);
+    try {
+      await authService.signInWithGoogle();
+      final ok = await _waitForGoogleSession(authService);
+      if (!mounted) return;
+      if (ok) _navigateAfterSignIn();
+    } catch (e) {
+      debugPrint('Google sign-in error: $e');
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return AuthShell(
-      title: AppStrings.signIn,
-      footer: Column(
+      title: AppStrings.choose('Log In', 'Đăng nhập'),
+      headerTitle: AppStrings.choose('Log In', 'Đăng nhập'),
+      showBackButton: true,
+      showLogo: false,
+      showCardTitle: false,
+      footerOutsideCard: true,
+      fillViewport: true,
+      onBackPressed: () => Navigator.of(
+        context,
+      ).pushNamedAndRemoveUntil(AppRoutes.onboarding, (route) => false),
+      cardHorizontalPadding: 14,
+      cardVerticalPadding: 16,
+      cardRadius: 16,
+      topContent: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(AppStrings.orContinueWith),
-          SizedBox(height: Responsive.h(context, 12)),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _SocialButton(
-                iconWidget: Padding(
-                  padding: EdgeInsets.all(Responsive.w(context, 7)),
-                  child: SvgPicture.asset(
-                    'assets/icons/icon-google.svg',
-                    width: Responsive.w(context, 24),
-                    height: Responsive.h(context, 24),
-                  ),
-                ),
-                onTap: () async {
-                  final authService = ref.read(authServiceProvider);
-                  setState(() => _isSubmitting = true);
-                  try {
-                    // On Android, signInWithGoogle() only opens the external
-                    // browser — the session is completed later via a deep-link
-                    // callback. Wait for the auth listener to sync the session
-                    // and profile before navigating.
-                    await authService.signInWithGoogle();
-                    final ok = await _waitForGoogleSession(authService);
-                    if (!context.mounted) return;
-                    if (ok) {
-                      _navigateAfterSignIn();
-                    }
-                  } catch (e) {
-                    debugPrint('Google sign-in error: $e');
-                  } finally {
-                    if (mounted) {
-                      setState(() => _isSubmitting = false);
-                    }
-                  }
-                },
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              AppStrings.choose(
+                'Welcome back to FinFlow',
+                'Chào mừng bạn quay lại FinFlow',
               ),
-              SizedBox(width: Responsive.w(context, 12)),
-              _SocialButton(
-                icon: Icons.facebook,
-                onTap: () async {
-                  setState(() => _isSubmitting = true);
-                  try {
-                    final ok = await ref
-                        .read(authServiceProvider)
-                        .signInWithFacebook();
-                    if (!context.mounted) return;
-                    if (ok) {
-                      _navigateAfterSignIn();
-                    }
-                  } catch (e) {
-                    debugPrint('Facebook sign-in error: $e');
-                  }
-                  if (!context.mounted) return;
-                  setState(() => _isSubmitting = false);
-                },
+              style: TextStyle(
+                fontFamily: 'Hanken Grotesk',
+                fontSize: Responsive.sp(context, 17),
+                fontWeight: FontWeight.w500,
+                color: context.finFlowColors.secondaryText,
               ),
-              SizedBox(width: Responsive.w(context, 12)),
-              _SocialButton(
-                icon: Icons.apple,
-                onTap: () async {
-                  setState(() => _isSubmitting = true);
-                  try {
-                    final ok = await ref
-                        .read(authServiceProvider)
-                        .signInWithApple();
-                    if (!context.mounted) return;
-                    if (ok) {
-                      _navigateAfterSignIn();
-                    }
-                  } catch (e) {
-                    debugPrint('Apple sign-in error: $e');
-                  }
-                  if (!context.mounted) return;
-                  setState(() => _isSubmitting = false);
-                },
-              ),
-            ],
-          ),
-          SizedBox(height: Responsive.h(context, 18)),
-          TextButton(
-            onPressed: () =>
-                Navigator.of(context).pushReplacementNamed(AppRoutes.signUp),
-            child: Text(AppStrings.newToFinflowSignUp),
+            ),
           ),
         ],
       ),
-      children: [
-        TextField(
-          controller: _emailController,
-          keyboardType: TextInputType.emailAddress,
-          decoration: InputDecoration(labelText: AppStrings.email),
-        ),
-        SizedBox(height: Responsive.h(context, 12)),
-        TextField(
-          controller: _passwordController,
-          obscureText: _obscurePassword,
-          decoration: InputDecoration(
-            labelText: AppStrings.password,
-            suffixIcon: IconButton(
-              icon: Icon(
-                _obscurePassword ? Icons.visibility_off : Icons.visibility,
-              ),
-              onPressed: () =>
-                  setState(() => _obscurePassword = !_obscurePassword),
+      footer: Padding(
+        padding: EdgeInsets.only(bottom: Responsive.h(context, 10)),
+        child: TextButton(
+          onPressed: () =>
+              Navigator.of(context).pushReplacementNamed(AppRoutes.signUp),
+          child: Text(
+            AppStrings.newToFinflowSignUp,
+            style: TextStyle(
+              fontSize: Responsive.sp(context, 15),
+              fontWeight: FontWeight.w600,
             ),
           ),
         ),
-        Align(
-          alignment: Alignment.centerRight,
-          child: TextButton(
-            onPressed: () =>
-                Navigator.of(context).pushNamed(AppRoutes.forgotPassword),
-            child: Text(AppStrings.forgotPassword),
-          ),
+      ),
+      children: [
+        AuthField(
+          label: AppStrings.email,
+          controller: _emailController,
+          icon: Icons.mail_outline,
+          hintText: AppStrings.choose('Enter your email', 'Nhập email của bạn'),
+          keyboardType: TextInputType.emailAddress,
+          errorText: _emailError,
+          onChanged: (_) {
+            if (_emailError != null) setState(() => _emailError = null);
+          },
         ),
+        SizedBox(height: Responsive.h(context, 12)),
+        AuthField(
+          label: AppStrings.password,
+          controller: _passwordController,
+          icon: Icons.lock_outline,
+          hintText: AppStrings.choose('Enter your password', 'Nhập mật khẩu'),
+          obscureText: _obscurePassword,
+          onToggleVisibility: () =>
+              setState(() => _obscurePassword = !_obscurePassword),
+          isObscured: _obscurePassword,
+          errorText: _passwordError,
+          onChanged: (_) {
+            if (_passwordError != null) setState(() => _passwordError = null);
+          },
+        ),
+        Row(
+          children: [
+            Checkbox(
+              value: _rememberMe,
+              onChanged: (value) =>
+                  setState(() => _rememberMe = value ?? false),
+              visualDensity: VisualDensity.compact,
+            ),
+            Expanded(
+              child: Text(
+                AppStrings.choose('Remember me', 'Ghi nhớ tôi'),
+                style: TextStyle(
+                  fontFamily: 'Hanken Grotesk',
+                  fontSize: Responsive.sp(context, 14),
+                  fontWeight: FontWeight.w500,
+                  color: context.finFlowColors.secondaryText,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () =>
+                  Navigator.of(context).pushNamed(AppRoutes.forgotPassword),
+              child: Text(
+                AppStrings.forgotPassword,
+                style: TextStyle(
+                  fontFamily: 'Hanken Grotesk',
+                  fontSize: Responsive.sp(context, 14),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: Responsive.h(context, 6)),
         ElevatedButton(
           onPressed: _isSubmitting
               ? null
               : () async {
-                  setState(() => _isSubmitting = true);
+                  final email = _emailController.text.trim().toLowerCase();
+                  final password = _passwordController.text;
+                  final emailError = email.isEmpty
+                      ? AppStrings.choose(
+                          'Email is required.',
+                          'Vui lòng nhập email.',
+                        )
+                      : (!isValidAuthEmail(email)
+                            ? AppStrings.choose(
+                                'Please enter a valid email address.',
+                                'Vui lòng nhập địa chỉ email hợp lệ.',
+                              )
+                            : null);
+                  final passwordError = password.isEmpty
+                      ? AppStrings.choose(
+                          'Password is required.',
+                          'Vui lòng nhập mật khẩu.',
+                        )
+                      : null;
+                  setState(() {
+                    _emailError = emailError;
+                    _passwordError = passwordError;
+                  });
+                  if (emailError != null || passwordError != null) return;
 
+                  setState(() => _isSubmitting = true);
                   try {
                     final success = await ref
                         .read(authServiceProvider)
-                        .signIn(
-                          email: _emailController.text.trim().toLowerCase(),
-                          password: _passwordController.text,
-                        );
+                        .signIn(email: email, password: password);
                     if (!context.mounted) return;
-
                     if (success) {
-                      // Profile is already loaded inside signIn(), so
-                      // currentUser is ready — navigate immediately.
-                      // No setState needed: we are navigating away.
                       _navigateAfterSignIn();
                     } else {
-                      setState(() => _isSubmitting = false);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(AppStrings.invalidEmailOrPassword),
-                        ),
-                      );
+                      setState(() {
+                        _isSubmitting = false;
+                        _passwordError = AppStrings.invalidEmailOrPassword;
+                      });
                     }
                   } catch (e) {
                     if (!context.mounted) return;
-                    setState(() => _isSubmitting = false);
-                    ScaffoldMessenger.of(
-                      context,
-                    ).showSnackBar(SnackBar(content: Text('$e')));
+                    setState(() {
+                      _isSubmitting = false;
+                      _passwordError = AppStrings.choose(
+                        'Unable to log in. Please try again.',
+                        'Không thể đăng nhập. Vui lòng thử lại.',
+                      );
+                    });
                   }
                 },
-          child: Text(_isSubmitting ? AppStrings.signingIn : AppStrings.signIn),
+          child: Text(
+            _isSubmitting ? AppStrings.signingIn : AppStrings.signIn,
+            style: TextStyle(
+              fontSize: Responsive.sp(context, 16),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        SizedBox(height: Responsive.h(context, 18)),
+        Row(
+          children: [
+            Expanded(child: Divider(color: context.finFlowColors.divider)),
+            Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: Responsive.w(context, 12),
+              ),
+              child: Text(
+                AppStrings.orContinueWith,
+                style: TextStyle(
+                  fontFamily: 'Hanken Grotesk',
+                  fontSize: Responsive.sp(context, 13),
+                  fontWeight: FontWeight.w500,
+                  color: context.finFlowColors.secondaryText,
+                ),
+              ),
+            ),
+            Expanded(child: Divider(color: context.finFlowColors.divider)),
+          ],
+        ),
+        SizedBox(height: Responsive.h(context, 18)),
+        SizedBox(
+          width: double.infinity,
+          height: Responsive.h(context, 52),
+          child: OutlinedButton.icon(
+            onPressed: _isSubmitting ? null : _handleGoogleSignIn,
+            style: OutlinedButton.styleFrom(
+              minimumSize: Size.fromHeight(Responsive.h(context, 52)),
+              backgroundColor: context.finFlowColors.surface,
+              foregroundColor: Theme.of(context).brightness == Brightness.dark
+                  ? context.finFlowColors.primaryText
+                  : AppColors.deepEmerald,
+              side: BorderSide(color: context.finFlowColors.inputBorder),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            icon: SvgPicture.asset(
+              'assets/icons/icon-google.svg',
+              width: Responsive.w(context, 22),
+              height: Responsive.w(context, 22),
+            ),
+            label: Text(
+              AppStrings.choose('Continue with Google', 'Tiếp tục với Google'),
+              style: TextStyle(
+                fontSize: Responsive.sp(context, 15),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
         ),
       ],
-    );
-  }
-}
-
-class _SocialButton extends StatelessWidget {
-  const _SocialButton({this.icon, this.iconWidget, required this.onTap});
-
-  final IconData? icon;
-  final Widget? iconWidget;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(24),
-      child: Container(
-        height: Responsive.w(context, 44),
-        width: Responsive.w(context, 44),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          shape: BoxShape.circle,
-          border: Border.all(color: AppColors.sage),
-        ),
-        child: iconWidget ?? Icon(icon, color: AppColors.deepEmerald),
-      ),
     );
   }
 }

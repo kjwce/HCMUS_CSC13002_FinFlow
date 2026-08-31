@@ -390,11 +390,12 @@ class _CommunityComposerScreenState
               _isEditing
                   ? AppStrings.choose('Edit post', 'Chỉnh sửa bài viết')
                   : AppStrings.choose('New post', 'Bài viết mới'),
-              textAlign: TextAlign.center,
+              textAlign: TextAlign.left,
               style: TextStyle(
+                fontFamily: 'Manrope',
                 fontWeight: FontWeight.w700,
-                fontSize: Responsive.sp(context, 16),
-                color: colors.primaryText,
+                fontSize: Responsive.sp(context, 22),
+                color: isDark ? colors.primaryText : AppColors.deepEmerald,
               ),
             ),
           ),

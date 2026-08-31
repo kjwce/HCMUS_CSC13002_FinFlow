@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../core/i18n/app_language.dart';
 import '../../core/theme/app_colors.dart';
@@ -35,7 +36,7 @@ class _AppBottomNavBarState extends State<AppBottomNavBar> {
         ? const Color(0xFF081C18)
         : context.finFlowColors.pageBackground;
     final navColor = isDark
-        ? const Color(0xFF16352E)
+        ? const Color(0xFF112622)
         : context.finFlowColors.surface;
 
     return ColoredBox(
@@ -78,8 +79,10 @@ class _AppBottomNavBarState extends State<AppBottomNavBar> {
                     Expanded(
                       child: _navItem(
                         context,
-                        outlinedIcon: Icons.home_outlined,
-                        filledIcon: Icons.home_rounded,
+                        regularAsset:
+                            'assets/icons/navigation/house-line-regular.svg',
+                        filledAsset:
+                            'assets/icons/navigation/house-line-fill.svg',
                         label: AppStrings.navHome,
                         index: 0,
                       ),
@@ -87,8 +90,9 @@ class _AppBottomNavBarState extends State<AppBottomNavBar> {
                     Expanded(
                       child: _navItem(
                         context,
-                        outlinedIcon: Icons.smart_toy_outlined,
-                        filledIcon: Icons.smart_toy_rounded,
+                        regularAsset:
+                            'assets/icons/navigation/robot-regular.svg',
+                        filledAsset: 'assets/icons/navigation/robot-fill.svg',
                         label: AppStrings.choose('Chatbot', 'Trợ lý AI'),
                         index: 1,
                       ),
@@ -97,8 +101,10 @@ class _AppBottomNavBarState extends State<AppBottomNavBar> {
                     Expanded(
                       child: _navItem(
                         context,
-                        outlinedIcon: Icons.group_outlined,
-                        filledIcon: Icons.group_rounded,
+                        regularAsset:
+                            'assets/icons/navigation/users-three-regular.svg',
+                        filledAsset:
+                            'assets/icons/navigation/users-three-fill.svg',
                         label: AppStrings.navCommunity,
                         index: 3,
                       ),
@@ -106,8 +112,10 @@ class _AppBottomNavBarState extends State<AppBottomNavBar> {
                     Expanded(
                       child: _navItem(
                         context,
-                        outlinedIcon: Icons.person_outline_rounded,
-                        filledIcon: Icons.person_rounded,
+                        regularAsset:
+                            'assets/icons/navigation/user-circle-regular.svg',
+                        filledAsset:
+                            'assets/icons/navigation/user-circle-fill.svg',
                         label: AppStrings.navProfile,
                         index: 4,
                       ),
@@ -124,8 +132,8 @@ class _AppBottomNavBarState extends State<AppBottomNavBar> {
 
   Widget _navItem(
     BuildContext context, {
-    required IconData outlinedIcon,
-    required IconData filledIcon,
+    required String regularAsset,
+    required String filledAsset,
     required String label,
     required int index,
   }) {
@@ -138,6 +146,7 @@ class _AppBottomNavBarState extends State<AppBottomNavBar> {
         : isSelected
         ? _primary
         : _inactive;
+    final iconAsset = isSelected ? filledAsset : regularAsset;
 
     return Semantics(
       button: true,
@@ -158,10 +167,19 @@ class _AppBottomNavBarState extends State<AppBottomNavBar> {
                 curve: _bouncingIndex == index
                     ? Curves.easeOutCubic
                     : Curves.easeInCubic,
-                child: Icon(
-                  isSelected ? filledIcon : outlinedIcon,
-                  size: Responsive.w(context, 28),
-                  color: color,
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 180),
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeInCubic,
+                  child: SvgPicture.asset(
+                    iconAsset,
+                    key: Key(
+                      'bottom-nav-icon-$index-${isSelected ? 'fill' : 'regular'}',
+                    ),
+                    width: Responsive.w(context, 28),
+                    height: Responsive.w(context, 28),
+                    colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+                  ),
                 ),
               ),
               SizedBox(height: Responsive.h(context, 1)),
@@ -171,7 +189,7 @@ class _AppBottomNavBarState extends State<AppBottomNavBar> {
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontFamily: 'Hanken Grotesk',
-                  fontSize: Responsive.sp(context, 10),
+                  fontSize: Responsive.sp(context, 11.5),
                   height: 1.1,
                   fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                   color: color,
@@ -200,7 +218,7 @@ class _AppBottomNavBarState extends State<AppBottomNavBar> {
             height: Responsive.w(context, 56),
             decoration: BoxDecoration(
               color: isDark
-                  ? const Color(0xFF38D6AC)
+                  ? const Color(0xFF006C53)
                   : _isAddAnimating
                   ? _primary
                   : AppColors.primaryGreen,
@@ -223,7 +241,7 @@ class _AppBottomNavBarState extends State<AppBottomNavBar> {
               curve: Curves.easeOutCubic,
               child: Icon(
                 Icons.add_rounded,
-                color: isDark ? const Color(0xFF081C18) : Colors.white,
+                color: Colors.white,
                 size: Responsive.w(context, 32),
               ),
             ),

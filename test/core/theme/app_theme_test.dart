@@ -46,6 +46,9 @@ void main() {
       AppTheme.dark.extension<FinFlowColors>()?.pageBackground,
       FinFlowColors.dark.pageBackground,
     );
+    expect(FinFlowColors.light.secondaryText, const Color(0xFF52655E));
+    expect(AppTheme.light.textTheme.bodySmall?.fontWeight, FontWeight.w500);
+    expect(AppTheme.light.textTheme.labelSmall?.fontWeight, FontWeight.w600);
   });
 
   testWidgets('selected FinFlow theme does not read platform brightness', (

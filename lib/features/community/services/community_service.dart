@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/community_comment_model.dart';
 import '../models/community_post_model.dart';
+import '../models/community_report_model.dart';
 
 /// Service handling community feed CRUD + likes/saves/comments via Supabase.
 /// Supports realtime updates via Supabase Realtime channels.
@@ -14,6 +15,7 @@ class CommunityService extends ChangeNotifier {
 
   List<CommunityPostModel> _posts = [];
   final Map<String, List<CommunityCommentModel>> _commentsByPost = {};
+  final Set<String> _commentCacheReady = {};
   bool _isLoading = false;
 
   List<CommunityPostModel> get posts => List.unmodifiable(_posts);
@@ -34,6 +36,9 @@ class CommunityService extends ChangeNotifier {
 
   List<CommunityCommentModel> commentsFor(String postId) =>
       List.unmodifiable(_commentsByPost[postId] ?? const []);
+
+  bool hasCachedCommentsFor(String postId) =>
+      _commentCacheReady.contains(postId);
 
   String? get _userId => Supabase.instance.client.auth.currentUser?.id;
 
@@ -244,6 +249,7 @@ class CommunityService extends ChangeNotifier {
           mediaUrls: mediaByPost[p.id] ?? const [],
         );
       }).toList();
+      await _prefetchComments(_posts.map((post) => post.id).toList());
     } catch (e) {
       debugPrint('fetchPosts error: $e');
     } finally {
@@ -399,6 +405,67 @@ class CommunityService extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<CommunityReportSubmitResult> reportPost({
+    required String postId,
+    required CommunityReportReason reason,
+    String? description,
+  }) => _submitReport(
+    table: 'community_post_reports',
+    targetColumn: 'post_id',
+    targetId: postId,
+    reason: reason,
+    description: description,
+  );
+
+  Future<CommunityReportSubmitResult> reportComment({
+    required String commentId,
+    required CommunityReportReason reason,
+    String? description,
+  }) => _submitReport(
+    table: 'community_comment_reports',
+    targetColumn: 'comment_id',
+    targetId: commentId,
+    reason: reason,
+    description: description,
+  );
+
+  Future<CommunityReportSubmitResult> _submitReport({
+    required String table,
+    required String targetColumn,
+    required String targetId,
+    required CommunityReportReason reason,
+    String? description,
+  }) async {
+    final userId = _userId;
+    if (userId == null) throw Exception('Not authenticated');
+    final client = Supabase.instance.client;
+
+    final existing = await client
+        .from(table)
+        .select('id')
+        .eq(targetColumn, targetId)
+        .eq('reporter_id', userId)
+        .maybeSingle();
+    if (existing != null) {
+      return CommunityReportSubmitResult.alreadyReported;
+    }
+
+    try {
+      await client.from(table).insert({
+        targetColumn: targetId,
+        'reporter_id': userId,
+        'reason': reason.code,
+        'description': description,
+      });
+      return CommunityReportSubmitResult.submitted;
+    } on PostgrestException catch (error) {
+      if (error.code == '23505') {
+        return CommunityReportSubmitResult.alreadyReported;
+      }
+      rethrow;
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Like / Save
   // ---------------------------------------------------------------------------
@@ -476,13 +543,28 @@ class CommunityService extends ChangeNotifier {
   // ---------------------------------------------------------------------------
   // Comments
   // ---------------------------------------------------------------------------
-  Future<void> fetchComments(String postId) async {
+  Future<void> fetchComments(String postId) =>
+      _loadCommentsForPosts([postId], notify: true);
+
+  Future<void> _prefetchComments(List<String> postIds) async {
+    final missingIds = postIds
+        .where((postId) => !_commentCacheReady.contains(postId))
+        .toList();
+    if (missingIds.isEmpty) return;
+    await _loadCommentsForPosts(missingIds, notify: false);
+  }
+
+  Future<void> _loadCommentsForPosts(
+    List<String> postIds, {
+    required bool notify,
+  }) async {
+    if (postIds.isEmpty) return;
     try {
       final client = Supabase.instance.client;
       final res = await client
           .from('community_comments')
           .select()
-          .eq('post_id', postId)
+          .inFilter('post_id', postIds)
           .order('created_at', ascending: true);
 
       final rawComments = (res as List)
@@ -511,7 +593,7 @@ class CommunityService extends ChangeNotifier {
         }
       }
 
-      _commentsByPost[postId] = rawComments.map((c) {
+      final hydratedComments = rawComments.map((c) {
         final author = authors[c.userId];
         return c.copyWith(
           authorName: author?['full_name'] as String?,
@@ -519,10 +601,17 @@ class CommunityService extends ChangeNotifier {
           isLikedByMe: likedCommentIds.contains(c.id),
         );
       }).toList();
-      _syncPostCommentsCount(postId);
-      notifyListeners();
+
+      for (final postId in postIds) {
+        _commentsByPost[postId] = hydratedComments
+            .where((comment) => comment.postId == postId)
+            .toList();
+        _commentCacheReady.add(postId);
+        _syncPostCommentsCount(postId);
+      }
+      if (notify) notifyListeners();
     } catch (e) {
-      debugPrint('fetchComments error: $e');
+      debugPrint('loadComments error: $e');
     }
   }
 

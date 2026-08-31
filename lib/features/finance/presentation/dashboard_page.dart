@@ -387,13 +387,15 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
                 padding: EdgeInsets.zero,
               ),
-              SizedBox(width: Responsive.w(context, 4)),
+              SizedBox(width: Responsive.w(context, 8)),
               Text(
                 AppStrings.choose('Financial Insights', 'Phân tích tài chính'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontFamily: 'Manrope',
                   fontWeight: FontWeight.w700,
-                  fontSize: Responsive.sp(context, 21),
+                  fontSize: Responsive.sp(context, 22),
                   color: _primary,
                 ),
               ),

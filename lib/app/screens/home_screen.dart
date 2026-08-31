@@ -6,8 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../core/i18n/app_language.dart';
-import '../../core/widgets/home_header_controls.dart';
 import '../../core/utils/responsive.dart';
+import '../../core/widgets/finflow_action_icon.dart';
+import '../../core/widgets/home_header_controls.dart';
 import '../../core/widgets/notification_bell.dart';
 import '../../features/auth/providers/auth_provider.dart';
 import '../../features/auth/services/auth_service.dart';
@@ -18,6 +19,7 @@ import '../../features/budget/models/category_budget_model.dart';
 import '../../features/budget/presentation/category_budget_dialog.dart';
 import '../../features/finance/models/transaction_category.dart';
 import '../../features/finance/models/goal_model.dart';
+import '../../features/finance/models/goal_category.dart';
 import '../../features/finance/models/recurring_model.dart';
 import '../../features/finance/models/transaction_model.dart';
 import '../../features/finance/presentation/dashboard_page.dart';
@@ -64,7 +66,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
   static const _darkMutedText = Color(0xFF78958B);
   static const _darkPositive = Color(0xFF38D6AC);
   static const _darkNegative = Color(0xFFFF6B70);
-  static const _darkWarning = Color(0xFFFFBF47);
+  static const _darkWarning = Color(0xFFFFD166);
+  static const _darkHeroLowerSurface = Color(0xFF112622);
+  static const _darkTransactionsSurface = Color(0xFF111A2C);
+  static const _darkBudgetSurface = Color(0xFF241B11);
+  static const _darkGoalsSurface = Color(0xFF1C162A);
+  static const _darkCategoriesSurface = Color(0xFF122421);
+  static const _darkRecurringSurface = Color(0xFF151726);
+  static const _darkInsightSurface = Color(0xFF102923);
 
   var _summaryMetric = _SummaryMetric.revenue;
   var _summaryPeriod = _SummaryPeriod.week;
@@ -131,12 +140,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
     if (!oldWidget.isActive && widget.isActive) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _restartHomeProgressAnimations();
+        _refreshTransactions();
       });
     }
   }
 
   @override
-  void didPopNext() => _restartHomeProgressAnimations();
+  void didPopNext() {
+    _restartHomeProgressAnimations();
+    _refreshTransactions();
+    ref
+        .read(recurringServiceProvider)
+        .fetch()
+        .catchError((error) => debugPrint('refreshRecurring error: $error'));
+  }
 
   @override
   void dispose() {
@@ -152,6 +169,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
   void _restartHomeProgressAnimations() {
     if (!mounted || !widget.isActive) return;
     setState(() => _progressAnimationEpoch++);
+  }
+
+  void _refreshTransactions() {
+    if (!mounted) return;
+    ref
+        .read(transactionServiceProvider)
+        .fetchTransactions()
+        .catchError((error) => debugPrint('refreshTransactions error: $error'));
   }
 
   Widget _animatedHomeProgress({
@@ -236,69 +261,77 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
     final avatarUrl = user?.avatarUrl?.trim();
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(
-        Responsive.w(context, 20),
-        Responsive.h(context, 10),
-        Responsive.w(context, 20),
-        Responsive.h(context, 10),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: Responsive.w(context, 42),
-            height: Responsive.w(context, 42),
-            padding: const EdgeInsets.all(2),
-            decoration: BoxDecoration(
-              color: isDark ? _darkPositive : const Color(0xFF8DE6C4),
-              shape: BoxShape.circle,
+      padding: EdgeInsets.zero,
+      child: Container(
+        padding: EdgeInsets.fromLTRB(
+          Responsive.w(context, 20),
+          Responsive.h(context, 10),
+          Responsive.w(context, 20),
+          Responsive.h(context, 10),
+        ),
+        decoration: BoxDecoration(
+          border: isDark
+              ? const Border(bottom: BorderSide(color: _darkBorder))
+              : null,
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: Responsive.w(context, 42),
+              height: Responsive.w(context, 42),
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                color: isDark ? _darkPositive : const Color(0xFF8DE6C4),
+                shape: BoxShape.circle,
+              ),
+              child: ClipOval(
+                child: avatarUrl != null && avatarUrl.isNotEmpty
+                    ? Image.network(
+                        avatarUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => _avatarFallback(displayName),
+                      )
+                    : _avatarFallback(displayName),
+              ),
             ),
-            child: ClipOval(
-              child: avatarUrl != null && avatarUrl.isNotEmpty
-                  ? Image.network(
-                      avatarUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => _avatarFallback(displayName),
-                    )
-                  : _avatarFallback(displayName),
-            ),
-          ),
-          SizedBox(width: Responsive.w(context, 12)),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _greeting(),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: _bodyFont,
-                    fontSize: Responsive.sp(context, 12),
-                    color: isDark
-                        ? _darkSecondaryText
-                        : const Color(0xFF60736D),
+            SizedBox(width: Responsive.w(context, 12)),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _greeting(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: _bodyFont,
+                      fontSize: Responsive.sp(context, 12),
+                      color: isDark
+                          ? _darkSecondaryText
+                          : const Color(0xFF60736D),
+                    ),
                   ),
-                ),
-                Text(
-                  displayName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: _headlineFont,
-                    fontSize: Responsive.sp(context, 20),
-                    fontWeight: FontWeight.w700,
-                    color: isDark ? _darkText : const Color(0xFF063B30),
+                  Text(
+                    displayName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: _headlineFont,
+                      fontSize: Responsive.sp(context, 20),
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? _darkText : const Color(0xFF063B30),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const HomeLanguageSelector(),
-          SizedBox(width: Responsive.w(context, 8)),
-          const HomeThemeToggle(),
-          SizedBox(width: Responsive.w(context, 8)),
-          const NotificationBell(),
-        ],
+            const HomeLanguageSelector(),
+            SizedBox(width: Responsive.w(context, 8)),
+            const HomeThemeToggle(),
+            SizedBox(width: Responsive.w(context, 8)),
+            const NotificationBell(),
+          ],
+        ),
       ),
     );
   }
@@ -351,7 +384,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
       (sum, transaction) => sum + transaction.amount,
     );
     final allTransactions = ts.currentUserTransactions;
-    final latestTransaction = TransactionModel.latestRecorded(allTransactions);
+    final latestTransaction = TransactionModel.latestOccurred(
+      allTransactions,
+      asOf: now,
+    );
 
     final weeklyRange = ts.dateRangeForPeriod(ChartPeriod.week);
     final weeklySpent = ts.expenseBetween(weeklyRange.start, weeklyRange.end);
@@ -388,12 +424,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
 
     ref.watch(recurringServiceRevisionProvider);
     final recurring = ref.read(recurringServiceProvider);
-    final upcoming7 = [...recurring.upcomingWithin(const Duration(days: 7))]
-      ..sort((a, b) => a.nextOccurrence.compareTo(b.nextOccurrence));
-    final nextRecurring = upcoming7.firstOrNull;
+    final upcoming7 = recurring.upcomingOccurrencesWithin(
+      const Duration(days: 7),
+    );
+    final nextOccurrence = upcoming7.firstOrNull;
+    final nextRecurring = nextOccurrence?.schedule;
     final recurringTotal = upcoming7.fold<int>(
       0,
-      (sum, schedule) => sum + schedule.amount.abs(),
+      (sum, occurrence) => sum + occurrence.schedule.amount.abs(),
     );
 
     final horizontalGap = Responsive.w(context, 12).clamp(8.0, 12.0);
@@ -402,14 +440,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
     // first Bento row. Keeping this row taller leaves a visibly empty footer,
     // especially in the Categories card.
     final rowTwoHeight = MediaQuery.sizeOf(context).width < 360
-        ? 210.0
-        : Responsive.w(context, 190).clamp(198.0, 204.0);
+        ? 218.0
+        : Responsive.w(context, 198).clamp(206.0, 212.0);
     // The weekly calendar and the two-bar insight chart both fit comfortably
     // at this height. The previous 292–308 range left a large empty footer in
     // both cards on common phone widths.
     final rowThreeHeight = MediaQuery.sizeOf(context).width < 360
-        ? 286.0
-        : 280.0;
+        ? 294.0
+        : 288.0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -479,6 +517,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
               Expanded(
                 child: _buildRecurringBentoCard(
                   next: nextRecurring,
+                  nextDate: nextOccurrence?.date,
                   upcoming: upcoming7,
                   total: recurringTotal,
                 ),
@@ -517,6 +556,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
       icon: Icons.receipt_long_rounded,
       accent: accent,
       lightBackground: const Color(0xFFF0F8FF),
+      darkBackground: _darkTransactionsSurface,
       semanticsValue: latest == null
           ? AppStrings.choose('No transactions yet', 'Chưa có giao dịch')
           : '${latest.name}, ${_overviewSignedMoney(latest.amount)}',
@@ -526,12 +566,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
         children: [
           Text(
             AppStrings.choose('$count today', '$count hôm nay'),
-            style: _bentoValueStyle(accent, 18),
+            style: _bentoValueStyle(accent, 20),
           ),
           const SizedBox(height: 2),
           _fitBentoText(
             _overviewSignedMoney(netAmount),
-            style: _bentoBodyStyle(11, strong: true),
+            style: _bentoBodyStyle(12, strong: true),
           ),
           const Spacer(),
           _bentoEyebrow(AppStrings.choose('LATEST', 'GẦN NHẤT')),
@@ -541,7 +581,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
               AppStrings.choose('No recent activity', 'Chưa có hoạt động mới'),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: _bentoBodyStyle(10, muted: true, strong: true),
+              style: _bentoBodyStyle(11.5, muted: true, strong: true),
             )
           else ...[
             Row(
@@ -565,12 +605,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
                         latest.name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: _bentoBodyStyle(13, strong: true),
+                        style: _bentoBodyStyle(14, strong: true),
                       ),
                       _fitBentoText(
                         _overviewSignedMoney(latest.amount),
                         style: _bentoBodyStyle(
-                          11,
+                          12,
                           strong: true,
                         ).copyWith(color: amountColor),
                       ),
@@ -582,7 +622,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
             const SizedBox(height: 5),
             _fitBentoText(
               '${AppStrings.categoryName(latest.category)} · ${_overviewTransactionDate(latest.date)}',
-              style: _bentoBodyStyle(9.5, muted: true),
+              style: _bentoBodyStyle(10.5, muted: true),
             ),
           ],
         ],
@@ -602,8 +642,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
       key: const Key('overview-card-budget'),
       title: AppStrings.choose('Budget', 'Ngân sách'),
       icon: Icons.account_balance_wallet_rounded,
+      iconAssetPath: 'assets/icons/home/bento_budget_wallet.svg',
       accent: const Color(0xFFE49A18),
       lightBackground: const Color(0xFFFFFDF5),
+      darkBackground: _darkBudgetSurface,
       semanticsValue: limit > 0
           ? '$displayPercent%, ${formatVnd(remaining)} VND'
           : AppStrings.choose('No limit set', 'Chưa đặt hạn mức'),
@@ -620,7 +662,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
                     'Đã dùng $displayPercent%',
                   )
                 : AppStrings.choose('No limit set', 'Chưa đặt hạn mức'),
-            style: _bentoValueStyle(status.color, 18),
+            style: _bentoValueStyle(status.color, 20),
           ),
           const SizedBox(height: 2),
           _fitBentoText(
@@ -633,7 +675,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
                     'Set a weekly limit',
                     'Đặt hạn mức hàng tuần',
                   ),
-            style: _bentoBodyStyle(10),
+            style: _bentoBodyStyle(11.5),
           ),
           const SizedBox(height: 13),
           _overviewProgress(percent, status.color),
@@ -644,7 +686,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontFamily: _bodyFont,
-              fontSize: 9,
+              fontSize: 11.5,
               fontWeight: FontWeight.w800,
               color: status.color,
             ),
@@ -663,9 +705,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
     return _buildBentoShell(
       key: const Key('overview-card-goals'),
       title: AppStrings.choose('Goals', 'Mục tiêu'),
-      icon: Icons.savings_rounded,
+      icon: Icons.savings_outlined,
       accent: accent,
       lightBackground: const Color(0xFFFCF9FF),
+      darkBackground: _darkGoalsSurface,
       semanticsValue: goal == null
           ? AppStrings.choose('No active goals', 'Chưa có mục tiêu')
           : '${goal.name}, $displayPercent%',
@@ -699,7 +742,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
                     '$displayPercent% achieved',
                     'Đạt $displayPercent%',
                   ),
-            style: _bentoValueStyle(accent, 14),
+            style: _bentoValueStyle(accent, 16),
           ),
           const SizedBox(height: 2),
           _fitBentoText(
@@ -709,7 +752,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
                     'Bắt đầu mục tiêu đầu tiên',
                   )
                 : '${formatVnd(goal.allocatedAmount)}/${formatVnd(goal.targetAmount)} VND',
-            style: _bentoBodyStyle(9.5),
+            style: _bentoBodyStyle(10.5),
           ),
           const SizedBox(height: 7),
           _overviewProgress(goal?.progress ?? 0, accent),
@@ -721,7 +764,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: _bentoBodyStyle(9, muted: true),
+            style: _bentoBodyStyle(10.5, muted: true),
           ),
         ],
       ),
@@ -744,8 +787,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
       key: const Key('overview-card-categories'),
       title: AppStrings.choose('Categories', 'Danh mục'),
       icon: Icons.category_rounded,
+      iconAssetPath: 'assets/icons/home/bento_categories_shapes.svg',
       accent: accent,
       lightBackground: const Color(0xFFF2FBF9),
+      darkBackground: _darkCategoriesSurface,
       semanticsValue: category == null
           ? AppStrings.choose('No spending yet', 'Chưa có chi tiêu')
           : '${AppStrings.categoryName(category)}, $displayPercent%',
@@ -772,14 +817,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
                     '$displayPercent% used',
                     'Đã dùng $displayPercent%',
                   ),
-            style: _bentoValueStyle(status.color, 14),
+            style: _bentoValueStyle(status.color, 16),
           ),
           const SizedBox(height: 2),
           _fitBentoText(
             budget == null
                 ? '${formatVnd(spent)} VND ${AppStrings.choose('spent', 'đã chi')}'
                 : '${formatVnd(spent)} / ${formatVnd(budget.limitAmount)} VND',
-            style: _bentoBodyStyle(9.5),
+            style: _bentoBodyStyle(10.5),
           ),
           const SizedBox(height: 9),
           _overviewProgress(percent, status.color),
@@ -790,7 +835,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
 
   Widget _buildRecurringBentoCard({
     required RecurringSchedule? next,
-    required List<RecurringSchedule> upcoming,
+    required DateTime? nextDate,
+    required List<RecurringOccurrence> upcoming,
     required int total,
   }) {
     const accent = Color(0xFF4F46E5);
@@ -803,6 +849,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
       icon: Icons.event_repeat_rounded,
       accent: accent,
       lightBackground: const Color(0xFFF5F7FF),
+      darkBackground: _darkRecurringSurface,
       semanticsValue: next == null
           ? AppStrings.choose('No upcoming payments', 'Không có khoản sắp tới')
           : '${next.name}, ${_overviewSignedMoney(next.amount)}',
@@ -832,7 +879,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
                     '7 ngày tới đang trống',
                   ),
                   textAlign: TextAlign.center,
-                  style: _bentoBodyStyle(10, muted: true),
+                  style: _bentoBodyStyle(11.5, muted: true),
                 ),
               ],
             )
@@ -865,13 +912,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
                             next.name,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: _bentoBodyStyle(13, strong: true),
+                            style: _bentoBodyStyle(14, strong: true),
                           ),
                           Text(
                             '${AppStrings.categoryName(next.category)} · ${_overviewFrequency(next.frequency)}',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: _bentoBodyStyle(9.5, muted: true),
+                            style: _bentoBodyStyle(10.5, muted: true),
                           ),
                         ],
                       ),
@@ -881,14 +928,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
                 const SizedBox(height: 6),
                 _fitBentoText(
                   _overviewSignedMoney(next.amount),
-                  style: _bentoValueStyle(accent, 18),
+                  style: _bentoValueStyle(accent, 20),
                 ),
                 const SizedBox(height: 6),
                 Row(
                   children: [
                     _OverviewPill(
-                      label: _overviewDueLabel(next.nextOccurrence),
-                      color: _overviewDueColor(next.nextOccurrence),
+                      label: _overviewDueLabel(nextDate!),
+                      color: _overviewDueColor(nextDate),
                       compact: true,
                     ),
                     const SizedBox(width: 6),
@@ -913,15 +960,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
                 Row(
                   children: [
                     Expanded(
-                      child: _bentoEyebrow(
+                      child: Text(
                         AppStrings.choose('NEXT 7 DAYS', '7 NGÀY TỚI'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: _bentoBodyStyle(
+                          9.5,
+                          muted: true,
+                          strong: true,
+                        ).copyWith(letterSpacing: .4),
                       ),
                     ),
                     const SizedBox(width: 4),
                     _fitBentoText(
                       _overviewWeekRangeLabel(today),
                       alignment: Alignment.centerRight,
-                      style: _bentoBodyStyle(8.5, muted: true, strong: true),
+                      style: _bentoBodyStyle(9.5, muted: true, strong: true),
                     ),
                   ],
                 ),
@@ -936,15 +990,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: _bentoBodyStyle(10.5),
+                        style: _bentoBodyStyle(11.5),
                       ),
                     ),
                     const SizedBox(width: 5),
                     Flexible(
                       child: _fitBentoText(
-                        '${_overviewCompactMoney(total)} VND',
+                        '${formatOverviewCompactMoney(total)} VND',
                         alignment: Alignment.centerRight,
-                        style: _bentoBodyStyle(10.5, strong: true),
+                        style: _bentoBodyStyle(11.5, strong: true),
                       ),
                     ),
                   ],
@@ -952,7 +1006,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
                 const SizedBox(height: 8),
                 _OverviewWeekCalendar(
                   start: today,
-                  schedules: upcoming,
+                  occurrences: upcoming,
                   accent: accent,
                 ),
               ],
@@ -973,8 +1027,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
       key: const Key('overview-card-insight'),
       title: AppStrings.choose('Insight', 'Phân tích'),
       icon: Icons.analytics_rounded,
+      iconAssetPath: 'assets/icons/home/bento_insight_chart_bar.svg',
       accent: const Color(0xFF087A5A),
       lightBackground: const Color(0xFFF0FAF6),
+      darkBackground: _darkInsightSurface,
       semanticsValue: _overviewSignedMoney(net),
       onTap: _navigateToDashboard,
       child: Column(
@@ -986,7 +1042,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
           const SizedBox(height: 7),
           Text(
             AppStrings.choose('Net cash flow', 'Dòng tiền ròng'),
-            style: _bentoBodyStyle(10, muted: true, strong: true),
+            style: _bentoBodyStyle(11.5, muted: true, strong: true),
           ),
           const SizedBox(height: 4),
           _OverviewInlineAmount(
@@ -1018,7 +1074,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontFamily: _bodyFont,
-              fontSize: 10,
+              fontSize: 11,
               fontWeight: FontWeight.w800,
               color: valueColor,
             ),
@@ -1032,8 +1088,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
     required Key key,
     required String title,
     required IconData icon,
+    String? iconAssetPath,
     required Color accent,
     required Color lightBackground,
+    Color? darkBackground,
     required String semanticsValue,
     required VoidCallback onTap,
     required Widget child,
@@ -1054,7 +1112,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
         borderRadius: radius,
         child: Material(
           key: key,
-          color: isDark ? _darkSurface : lightBackground,
+          color: isDark ? darkBackground ?? _darkSurface : lightBackground,
           elevation: isDark ? 3 : 6,
           surfaceTintColor: Colors.transparent,
           shadowColor: isDark
@@ -1075,7 +1133,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildBentoHeader(title: title, icon: icon, accent: accent),
+                _buildBentoHeader(
+                  title: title,
+                  icon: icon,
+                  iconAssetPath: iconAssetPath,
+                  accent: accent,
+                ),
                 Expanded(
                   child: Padding(
                     padding: EdgeInsets.all(
@@ -1095,18 +1158,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
   Widget _buildBentoHeader({
     required String title,
     required IconData icon,
+    String? iconAssetPath,
     required Color accent,
   }) {
+    final headerColor = _bentoHeaderColor(accent);
     return Container(
       height: 46,
       width: double.infinity,
-      color: accent,
+      color: headerColor,
       padding: EdgeInsets.symmetric(
         horizontal: Responsive.w(context, 14).clamp(8.0, 14.0),
       ),
       child: Row(
         children: [
-          Icon(icon, size: 20, color: Colors.white),
+          if (iconAssetPath != null)
+            SvgPicture.asset(
+              iconAssetPath,
+              key: Key('bento-header-icon-$title'),
+              width: 21,
+              height: 21,
+              colorFilter: const ColorFilter.mode(
+                Colors.white,
+                BlendMode.srcIn,
+              ),
+            )
+          else
+            Icon(icon, size: 20, color: Colors.white),
           const SizedBox(width: 7),
           Expanded(
             child: FittedBox(
@@ -1117,7 +1194,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
                 maxLines: 1,
                 style: const TextStyle(
                   fontFamily: _bodyFont,
-                  fontSize: 14,
+                  fontSize: 17,
                   fontWeight: FontWeight.w800,
                   letterSpacing: -.1,
                   color: Colors.white,
@@ -1149,20 +1226,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
     value,
     maxLines: 1,
     overflow: TextOverflow.ellipsis,
-    style: _bentoBodyStyle(
-      10,
-      muted: true,
-      strong: true,
-    ).copyWith(letterSpacing: .55),
+    style: _bentoBodyStyle(11, muted: true, strong: true).copyWith(
+      letterSpacing: .55,
+      color: Theme.of(context).brightness == Brightness.dark
+          ? _darkSecondaryText
+          : null,
+    ),
   );
 
   TextStyle _bentoValueStyle(Color color, double size) => TextStyle(
     fontFamily: _headlineFont,
     fontSize: math.max(size, 9.5),
     fontWeight: FontWeight.w800,
-    color: Theme.of(context).brightness == Brightness.dark
-        ? (color == const Color(0xFFE49A18) ? _darkWarning : color)
-        : color,
+    color: _bentoContentColor(color),
     height: 1.12,
   );
 
@@ -1180,7 +1256,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
         : FontWeight.w500,
     color: muted
         ? (Theme.of(context).brightness == Brightness.dark
-              ? _darkSecondaryText
+              ? const Color(0xFF8FA89F)
               : const Color(0xFF40534F))
         : (Theme.of(context).brightness == Brightness.dark
               ? _darkText
@@ -1198,15 +1274,42 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
     child: Text(value, maxLines: 1, style: style),
   );
 
-  Widget _overviewProgress(double value, Color color) => ClipRRect(
-    borderRadius: BorderRadius.circular(99),
-    child: LinearProgressIndicator(
-      minHeight: 7,
-      value: value.clamp(0.0, 1.0),
-      backgroundColor: color.withValues(alpha: .18),
-      valueColor: AlwaysStoppedAnimation<Color>(color),
-    ),
-  );
+  Color _bentoHeaderColor(Color color) {
+    if (Theme.of(context).brightness != Brightness.dark) return color;
+    if (color == const Color(0xFFE49A18)) return const Color(0xFFD97706);
+    if (color == const Color(0xFF087A5A)) return const Color(0xFF059669);
+    return color;
+  }
+
+  Color _bentoContentColor(Color color) {
+    if (Theme.of(context).brightness != Brightness.dark) return color;
+    if (color == const Color(0xFF1677C8)) return const Color(0xFF6EAEFF);
+    if (color == const Color(0xFFE49A18)) return _darkWarning;
+    if (color == const Color(0xFF7957C8)) return const Color(0xFFB08DFF);
+    if (color == const Color(0xFF008E83) || color == const Color(0xFF087A5A)) {
+      return _darkPositive;
+    }
+    if (color == const Color(0xFF4F46E5)) return const Color(0xFF818CF8);
+    if (color == const Color(0xFFE64B3C) || color == const Color(0xFFEF6262)) {
+      return _darkNegative;
+    }
+    return color;
+  }
+
+  Widget _overviewProgress(double value, Color color) {
+    final resolvedColor = _bentoContentColor(color);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(99),
+      child: LinearProgressIndicator(
+        minHeight: 7,
+        value: value.clamp(0.0, 1.0),
+        backgroundColor: Theme.of(context).brightness == Brightness.dark
+            ? _darkHeroLowerSurface
+            : color.withValues(alpha: .18),
+        valueColor: AlwaysStoppedAnimation<Color>(resolvedColor),
+      ),
+    );
+  }
 
   // Kept temporarily while the data-driven Bento layout is rolled out.
   // ignore: unused_element
@@ -1315,8 +1418,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
             _buildOverviewCard(
               title: AppStrings.choose('Recurring', 'Định kỳ'),
               subtitle: AppStrings.choose(
-                '${recurring.upcoming.length} upcoming in 7 days',
-                '${recurring.upcoming.length} sắp tới trong 7 ngày',
+                '${recurring.upcomingOccurrences.length} upcoming in 7 days',
+                '${recurring.upcomingOccurrences.length} sắp tới trong 7 ngày',
               ),
               icon: Icons.event_repeat_rounded,
               colors: const [Color(0xFF5267D9), Color(0xFF7F8FF0)],
@@ -1488,6 +1591,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
   }
 
   Widget _buildBalanceGlassCard(TransactionService ts) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final (income, expense, balance) = switch (_cashFlowPeriod) {
       _CashFlowPeriod.daily => _cashFlowForPeriod(ts, ChartPeriod.day),
       _CashFlowPeriod.weekly => _cashFlowForPeriod(ts, ChartPeriod.week),
@@ -1505,15 +1609,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
     final radius = BorderRadius.circular(Responsive.w(context, 32));
 
     return Container(
+      key: const Key('home-balance-card'),
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: const Color(0xFF006C53),
+        gradient: isDark
+            ? const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF00513E), Color(0xFF00785D)],
+              )
+            : null,
         borderRadius: radius,
-        boxShadow: const [
+        boxShadow: [
           BoxShadow(
-            color: Color(0x4000513E),
+            color: isDark
+                ? Colors.black.withValues(alpha: .5)
+                : const Color(0x4000513E),
             blurRadius: 40,
-            offset: Offset(0, 20),
+            offset: const Offset(0, 20),
           ),
         ],
       ),
@@ -1536,16 +1650,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
                     Expanded(
                       child: Text(
                         AppStrings.choose('TOTAL BALANCE', 'TỔNG SỐ DƯ'),
+                        key: const Key('home-total-balance-label'),
                         style: TextStyle(
-                          fontFamily: _bodyFont,
-                          fontSize: Responsive.sp(context, 11),
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: .8,
-                          color: const Color(0xFFB8E8D6).withValues(alpha: .9),
+                          fontFamily: _headlineFont,
+                          fontSize: Responsive.sp(
+                            context,
+                            20,
+                          ).clamp(18.0, 22.0),
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: .2,
+                          height: 1.1,
+                          color: Colors.white,
                         ),
                       ),
                     ),
-                    _buildCashFlowPeriodMenu(false),
+                    _buildCashFlowPeriodMenu(isDark),
                   ],
                 ),
                 SizedBox(height: Responsive.h(context, 10)),
@@ -1597,8 +1716,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
                       title: AppStrings.choose('TOTAL INCOME', 'TỔNG THU NHẬP'),
                       amount: income,
                       icon: Icons.trending_up_rounded,
-                      color: const Color(0xFF064E3B),
-                      background: const Color(0xFFECFDF5),
+                      color: isDark ? _darkPositive : const Color(0xFF064E3B),
+                      background: isDark
+                          ? _darkHeroLowerSurface
+                          : const Color(0xFFECFDF5),
                       sign: '+',
                     ),
                   ),
@@ -1610,8 +1731,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
                       ),
                       amount: expense,
                       icon: Icons.trending_down_rounded,
-                      color: const Color(0xFF991B1B),
-                      background: const Color(0xFFFEF2F2),
+                      color: isDark ? _darkNegative : const Color(0xFF991B1B),
+                      background: isDark
+                          ? _darkHeroLowerSurface
+                          : const Color(0xFFFEF2F2),
                       sign: '-',
                     ),
                   ),
@@ -1642,11 +1765,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
     required Color background,
     required String sign,
   }) {
-    return ColoredBox(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
       key: Key(
         sign == '+' ? 'cash-flow-income-panel' : 'cash-flow-expense-panel',
       ),
-      color: background,
+      decoration: BoxDecoration(
+        color: background,
+        border: isDark && sign == '+'
+            ? const Border(right: BorderSide(color: _darkBorder))
+            : null,
+      ),
       child: Padding(
         padding: EdgeInsets.symmetric(
           horizontal: Responsive.w(context, 16),
@@ -2691,7 +2820,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
                 padding: const EdgeInsets.all(18),
                 child: Row(
                   children: [
-                    const GoalIconTile(category: 'Other'),
+                    const GoalIconTile(category: 'Other Goal'),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -2805,7 +2934,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
                         ),
                         SizedBox(height: Responsive.h(context, 8)),
                         Text(
-                          AppStrings.categoryName(goal.category),
+                          AppStrings.categoryName(
+                            GoalCategory.fromKey(goal.category).label,
+                          ),
                           style: TextStyle(
                             fontFamily: _bodyFont,
                             fontSize: Responsive.sp(context, 12),
@@ -3672,15 +3803,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
   /// Show a bottom sheet with all categories for the user to pick from.
   void _showCategoryPicker(String? currentSelected) {
     // Build full category list: 14 built-in + custom
-    final builtIn = TransactionCategory.all;
-    final custom = CustomCategoryStore.instance.items.map(
-      (c) => TransactionCategory(
-        key: c.name,
-        label: c.name,
-        icon: c.iconData,
-        color: c.color,
-      ),
-    );
+    final builtIn = TransactionCategory.expenses;
+    final custom = CustomCategoryStore.instance.items
+        .where((category) => category.type == TransactionCategoryType.expense)
+        .map(
+          (c) => TransactionCategory(
+            key: c.name,
+            label: c.name,
+            icon: c.iconData,
+            color: c.color,
+            type: c.type,
+          ),
+        );
     final allCategories = [...builtIn, ...custom];
 
     showModalBottomSheet(
@@ -3892,8 +4026,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
   // --- 4. Transaction List ---
   Widget _buildTransactionList(TransactionService ts) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final visibleTransactions = ts.currentUserTransactions.toList()
-      ..sort((a, b) => b.date.compareTo(a.date));
+    final now = DateTime.now();
+    final visibleTransactions =
+        ts.currentUserTransactions
+            .where((transaction) => !transaction.date.isAfter(now))
+            .toList()
+          ..sort((a, b) => b.date.compareTo(a.date));
     final recentTransactions = visibleTransactions.take(3).toList();
     final emptyMessage = AppStrings.noTransactionsYet;
 
@@ -4029,8 +4167,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
                   color: Color(0xFFFFE4E0),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
-                  Icons.delete_outline,
+                child: FinFlowTrashIcon(
                   size: Responsive.w(context, 14),
                   color: const Color(0xFFBA1A1A),
                 ),
@@ -4216,23 +4353,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
     return Container(
       padding: EdgeInsets.all(Responsive.w(context, 12)),
       decoration: BoxDecoration(
-        color: isDark ? _darkSurface : Colors.white,
+        color: isDark ? _darkHeroLowerSurface : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: isDark ? Border.all(color: _darkBorder) : null,
-        boxShadow: [
-          BoxShadow(
-            color: isDark ? const Color(0x33000000) : const Color(0x2600523C),
-            blurRadius: isDark ? 12 : 18,
-            spreadRadius: isDark ? 0 : 1,
-            offset: const Offset(0, 7),
-          ),
-          if (!isDark)
-            const BoxShadow(
-              color: Color(0x16000000),
-              blurRadius: 5,
-              offset: Offset(0, 2),
-            ),
-        ],
+        border: Border.all(
+          color: isDark ? _darkBorder : const Color(0xFFD6E7E0),
+        ),
+        boxShadow: isDark
+            ? const [
+                BoxShadow(
+                  color: Color(0x33000000),
+                  blurRadius: 12,
+                  offset: Offset(0, 7),
+                ),
+              ]
+            : const [
+                BoxShadow(
+                  color: Color(0x1800523C),
+                  blurRadius: 4,
+                  offset: Offset(0, 2),
+                ),
+                BoxShadow(
+                  color: Color(0x2400523C),
+                  blurRadius: 18,
+                  offset: Offset(0, 7),
+                ),
+              ],
       ),
       child: Row(
         children: [
@@ -4270,9 +4415,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
                     fontFamily: _bodyFont,
                     color: isDark
                         ? _darkSecondaryText
-                        : const Color(0xFF70827C),
+                        : const Color(0xFF52655E),
                     fontSize: Responsive.sp(context, 12),
-                    fontWeight: FontWeight.w400,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],
@@ -4317,11 +4462,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontFamily: _bodyFont,
-                      fontWeight: FontWeight.w400,
+                      fontWeight: FontWeight.w500,
                       fontSize: Responsive.sp(context, 12),
                       color: isDark
                           ? _darkSecondaryText
-                          : const Color(0xFF70827C),
+                          : const Color(0xFF52655E),
                     ),
                   ),
                 ],
@@ -4493,7 +4638,8 @@ String _overviewSignedMoneyValue(int amount) {
   return '$sign${formatVnd(amount.abs())}';
 }
 
-String _overviewCompactMoney(int amount) {
+@visibleForTesting
+String formatOverviewCompactMoney(int amount) {
   final absolute = amount.abs();
   if (absolute >= 1000000000) {
     return '${_trimOverviewDecimal(absolute / 1000000000)}B';
@@ -4510,8 +4656,8 @@ String _overviewCompactMoney(int amount) {
 String _trimOverviewDecimal(double value) {
   final formatted = value.toStringAsFixed(value >= 10 ? 1 : 2);
   return formatted
-      .replaceFirst(RegExp(r'\.0+$'), '')
-      .replaceFirst(RegExp(r'(\.[0-9]*?)0+$'), r'$1');
+      .replaceFirst(RegExp(r'0+$'), '')
+      .replaceFirst(RegExp(r'\.$'), '');
 }
 
 String _overviewFrequency(RecurringFrequency frequency) => switch (frequency) {
@@ -4585,6 +4731,15 @@ String _overviewWeekRangeLabel(DateTime start) {
   return '$startLabel — ${_overviewShortDate(end).toUpperCase()}';
 }
 
+String overviewCompactWeekdayLabel(DateTime day, {AppLocale? locale}) {
+  const englishWeekdays = ['M', 'T', 'W', 'T', 'F', 'Sa', 'Su'];
+  const vietnameseWeekdays = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
+  final labels = (locale ?? AppLanguage.instance.locale) == AppLocale.english
+      ? englishWeekdays
+      : vietnameseWeekdays;
+  return labels[day.weekday - DateTime.monday];
+}
+
 class _OverviewInlineAmount extends StatelessWidget {
   const _OverviewInlineAmount({required this.amount, required this.color});
 
@@ -4628,34 +4783,29 @@ class _OverviewInlineAmount extends StatelessWidget {
 class _OverviewWeekCalendar extends StatelessWidget {
   const _OverviewWeekCalendar({
     required this.start,
-    required this.schedules,
+    required this.occurrences,
     required this.accent,
   });
 
   final DateTime start;
-  final List<RecurringSchedule> schedules;
+  final List<RecurringOccurrence> occurrences;
   final Color accent;
 
   @override
   Widget build(BuildContext context) {
     final days = List.generate(7, (index) => start.add(Duration(days: index)));
-    const englishWeekdays = ['M', 'T', 'W', 'T', 'F', 'Sa', 'Su'];
-    const vietnameseWeekdays = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
-    final labels = AppLanguage.instance.locale == AppLocale.english
-        ? englishWeekdays
-        : vietnameseWeekdays;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: List.generate(days.length, (index) {
         final day = days[index];
         final isToday = index == 0;
-        final schedule = schedules.where((item) {
-          final occurrence = item.nextOccurrence;
-          return occurrence.year == day.year &&
-              occurrence.month == day.month &&
-              occurrence.day == day.day;
+        final occurrence = occurrences.where((item) {
+          return item.date.year == day.year &&
+              item.date.month == day.month &&
+              item.date.day == day.day;
         }).firstOrNull;
-        final dotColor = schedule?.postingMode == RecurringPostingMode.review
+        final dotColor =
+            occurrence?.schedule.postingMode == RecurringPostingMode.review
             ? const Color(0xFFFF6B4A)
             : accent;
         return Expanded(
@@ -4663,10 +4813,10 @@ class _OverviewWeekCalendar extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                labels[index],
+                overviewCompactWeekdayLabel(day),
                 style: TextStyle(
                   fontFamily: 'Hanken Grotesk',
-                  fontSize: 8,
+                  fontSize: 9,
                   fontWeight: FontWeight.w800,
                   color: Theme.of(context).brightness == Brightness.dark
                       ? const Color(0xFFA9C1B9)
@@ -4688,7 +4838,7 @@ class _OverviewWeekCalendar extends StatelessWidget {
                   '${day.day}',
                   style: TextStyle(
                     fontFamily: 'Hanken Grotesk',
-                    fontSize: 9,
+                    fontSize: 10,
                     fontWeight: isToday ? FontWeight.w800 : FontWeight.w600,
                     color: isToday
                         ? const Color(0xFFFF6B4A)
@@ -4703,7 +4853,7 @@ class _OverviewWeekCalendar extends StatelessWidget {
                 width: 4,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: schedule == null ? Colors.transparent : dotColor,
+                  color: occurrence == null ? Colors.transparent : dotColor,
                   shape: BoxShape.circle,
                 ),
               ),
@@ -4768,13 +4918,13 @@ class _OverviewIncomeExpenseComparison extends StatelessWidget {
           children: [
             _OverviewComparisonLabel(
               label: AppStrings.choose('Income', 'Thu nhập'),
-              value: _overviewCompactMoney(income),
+              value: formatOverviewCompactMoney(income),
               color: incomeColor,
             ),
             const SizedBox(width: 14),
             _OverviewComparisonLabel(
               label: AppStrings.choose('Expenses', 'Chi tiêu'),
-              value: _overviewCompactMoney(expense),
+              value: formatOverviewCompactMoney(expense),
               color: expenseColor,
             ),
           ],
@@ -4830,7 +4980,7 @@ class _OverviewComparisonLabel extends StatelessWidget {
             maxLines: 1,
             style: TextStyle(
               fontFamily: 'Hanken Grotesk',
-              fontSize: 9.5,
+              fontSize: 10.5,
               fontWeight: FontWeight.w800,
               color: Theme.of(context).brightness == Brightness.dark
                   ? const Color(0xFFA9C1B9)
@@ -4846,7 +4996,7 @@ class _OverviewComparisonLabel extends StatelessWidget {
             maxLines: 1,
             style: TextStyle(
               fontFamily: 'Hanken Grotesk',
-              fontSize: 10.5,
+              fontSize: 11.5,
               fontWeight: FontWeight.w800,
               color: color,
             ),
@@ -4886,7 +5036,7 @@ class _OverviewPill extends StatelessWidget {
           maxLines: 1,
           style: TextStyle(
             fontFamily: 'Hanken Grotesk',
-            fontSize: compact ? 7.5 : 8.5,
+            fontSize: compact ? 8.5 : 9.5,
             fontWeight: FontWeight.w800,
             color: color,
             height: 1,
@@ -4931,7 +5081,7 @@ class _OverviewNamedIconRow extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
             fontFamily: 'Hanken Grotesk',
-            fontSize: 12,
+            fontSize: 13,
             fontWeight: FontWeight.w800,
             color: Theme.of(context).brightness == Brightness.dark
                 ? const Color(0xFFF4FBF8)
@@ -5222,7 +5372,7 @@ class _OverviewLegend extends StatelessWidget {
         ),
         const SizedBox(width: 3),
         Text(
-          '$label ${_overviewCompactMoney(value)}',
+          '$label ${formatOverviewCompactMoney(value)}',
           style: TextStyle(
             fontFamily: 'Hanken Grotesk',
             fontSize: 8,
@@ -5342,6 +5492,7 @@ class _SwipeToDeleteTransaction extends StatefulWidget {
 class _SwipeToDeleteTransactionState extends State<_SwipeToDeleteTransaction>
     with TickerProviderStateMixin {
   static const _actionExtent = 58.0;
+  static const _cornerOverlap = 22.0;
   late final AnimationController _slideController;
   late final AnimationController _removeController;
   var _isDeleting = false;
@@ -5418,33 +5569,37 @@ class _SwipeToDeleteTransactionState extends State<_SwipeToDeleteTransaction>
                   child: Align(
                     alignment: Alignment.centerRight,
                     child: SizedBox(
-                      width: _actionExtent,
+                      width: _actionExtent + _cornerOverlap,
                       child: Material(
                         color: const Color(0xFFBA1A1A),
                         child: InkWell(
                           key: const Key('swipe-delete-transaction-button'),
                           onTap: _isDeleting ? null : _delete,
-                          child: Semantics(
-                            button: true,
-                            label: AppStrings.choose(
-                              'Delete transaction',
-                              'Xóa giao dịch',
+                          child: Padding(
+                            padding: const EdgeInsets.only(
+                              left: _cornerOverlap,
                             ),
-                            child: Center(
-                              child: _isDeleting
-                                  ? const SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
+                            child: Semantics(
+                              button: true,
+                              label: AppStrings.choose(
+                                'Delete transaction',
+                                'Xóa giao dịch',
+                              ),
+                              child: Center(
+                                child: _isDeleting
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : const FinFlowTrashIcon(
                                         color: Colors.white,
+                                        size: 24,
                                       ),
-                                    )
-                                  : const Icon(
-                                      Icons.delete_outline,
-                                      color: Colors.white,
-                                      size: 24,
-                                    ),
+                              ),
                             ),
                           ),
                         ),

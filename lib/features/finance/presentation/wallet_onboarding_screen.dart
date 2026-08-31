@@ -213,7 +213,7 @@ class _BalanceCard extends StatelessWidget {
                     Text(
                       description,
                       style: const TextStyle(
-                        color: Color(0xFF6D7B74),
+                        color: Color(0xFF52655E),
                         fontSize: 12,
                       ),
                     ),

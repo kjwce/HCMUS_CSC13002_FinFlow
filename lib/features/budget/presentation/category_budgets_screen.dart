@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/i18n/app_language.dart';
+import '../../../core/utils/responsive.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../finance/models/transaction_category.dart';
 import '../../finance/providers/transaction_provider.dart';
@@ -72,6 +73,7 @@ class _CategoryBudgetsScreenState extends ConsumerState<CategoryBudgetsScreen> {
     return Scaffold(
       backgroundColor: pageColor,
       appBar: AppBar(
+        toolbarHeight: 64,
         backgroundColor: pageColor,
         surfaceTintColor: Colors.transparent,
         foregroundColor: isDark ? const Color(0xFFF4FBF8) : goalPrimary,
@@ -84,14 +86,16 @@ class _CategoryBudgetsScreenState extends ConsumerState<CategoryBudgetsScreen> {
         ),
         title: Text(
           AppStrings.choose('Budget by Category', 'Ngân sách theo danh mục'),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(
             fontFamily: 'Manrope',
             color: isDark ? const Color(0xFFF4FBF8) : goalPrimary,
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
+            fontSize: Responsive.sp(context, 22),
+            fontWeight: FontWeight.w700,
           ),
         ),
-        centerTitle: true,
+        centerTitle: false,
       ),
       body: budgets.isEmpty
           ? Center(

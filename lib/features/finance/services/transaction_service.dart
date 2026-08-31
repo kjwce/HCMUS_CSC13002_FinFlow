@@ -1,7 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../budget/services/category_budget_service.dart';
+import '../../community/models/notification_model.dart';
+import '../../community/services/notification_service.dart';
+import '../../settings/services/notification_preferences_service.dart';
 import '../models/transaction_model.dart';
+import '../models/transaction_category.dart';
 import 'goal_service.dart';
 import 'wallet_service.dart';
 
@@ -293,8 +298,12 @@ class TransactionService extends ChangeNotifier {
     for (final t in currentUserTransactions.where(
       (t) => t.amount < 0 && _isWithinRange(t.date, start, end),
     )) {
-      map.update(
+      final category = TransactionCategory.normalizedKey(
         t.category,
+        isIncome: false,
+      );
+      map.update(
+        category,
         (v) => v + t.amount.abs(),
         ifAbsent: () => t.amount.abs(),
       );
@@ -309,7 +318,11 @@ class TransactionService extends ChangeNotifier {
     for (final t in currentUserTransactions.where(
       (t) => t.amount > 0 && _isWithinRange(t.date, start, end),
     )) {
-      map.update(t.category, (v) => v + t.amount, ifAbsent: () => t.amount);
+      final category = TransactionCategory.normalizedKey(
+        t.category,
+        isIncome: true,
+      );
+      map.update(category, (v) => v + t.amount, ifAbsent: () => t.amount);
     }
     return map;
   }
@@ -682,6 +695,7 @@ class TransactionService extends ChangeNotifier {
       },
     );
     await Future.wait([fetchTransactions(), GoalService.instance.fetchGoals()]);
+    await _emitBudgetNotifications();
     return GoalService.instance.goals
         .where((goal) => goal.isCompleted && !completedBefore.contains(goal.id))
         .map((goal) => goal.id)
@@ -710,6 +724,7 @@ class TransactionService extends ChangeNotifier {
       },
     );
     await Future.wait([fetchTransactions(), GoalService.instance.fetchGoals()]);
+    await _emitBudgetNotifications();
   }
 
   Future<void> delete(String transactionId) async {
@@ -722,6 +737,132 @@ class TransactionService extends ChangeNotifier {
         .eq('id', transactionId)
         .eq('user_id', userId);
     await Future.wait([fetchTransactions(), GoalService.instance.fetchGoals()]);
+    await _emitBudgetNotifications();
+  }
+
+  Future<void> _emitBudgetNotifications() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return;
+    try {
+      final profile = await Supabase.instance.client
+          .from('profiles')
+          .select('daily_budget, weekly_budget, budget_limit')
+          .eq('id', userId)
+          .single();
+      await CategoryBudgetService.instance.fetchCurrentMonth();
+      final preferences = NotificationPreferencesService.instance.value;
+      final now = DateTime.now();
+      final dayStart = DateTime(now.year, now.month, now.day);
+      final weekStart = dayStart.subtract(
+        Duration(days: dayStart.weekday - DateTime.monday),
+      );
+      final monthStart = DateTime(now.year, now.month);
+      final nextMonth = DateTime(now.year, now.month + 1);
+      int spent(DateTime start, DateTime end, {String? category}) {
+        return currentUserTransactions
+            .where(
+              (item) =>
+                  item.amount < 0 &&
+                  !item.date.isBefore(start) &&
+                  item.date.isBefore(end) &&
+                  (category == null || item.category == category),
+            )
+            .fold(0, (sum, item) => sum + item.amount.abs());
+      }
+
+      await _emitBudgetLevel(
+        name: 'Daily spending',
+        nameVi: 'Chi tiêu hôm nay',
+        category: null,
+        period: 'daily',
+        periodKey:
+            '${dayStart.year}-${dayStart.month.toString().padLeft(2, '0')}-${dayStart.day.toString().padLeft(2, '0')}',
+        spent: spent(dayStart, dayStart.add(const Duration(days: 1))),
+        limit: (profile['daily_budget'] as num?)?.toInt() ?? 0,
+        threshold: preferences.dailyBudgetThreshold,
+      );
+      await _emitBudgetLevel(
+        name: 'Weekly spending',
+        nameVi: 'Chi tiêu tuần này',
+        category: null,
+        period: 'weekly',
+        periodKey:
+            '${weekStart.year}-W${((weekStart.difference(DateTime(weekStart.year)).inDays) ~/ 7) + 1}',
+        spent: spent(weekStart, weekStart.add(const Duration(days: 7))),
+        limit: (profile['weekly_budget'] as num?)?.toInt() ?? 0,
+        threshold: preferences.weeklyBudgetThreshold,
+      );
+      await _emitBudgetLevel(
+        name: 'Monthly spending',
+        nameVi: 'Chi tiêu tháng này',
+        category: null,
+        period: 'monthly',
+        periodKey: '${now.year}-${now.month.toString().padLeft(2, '0')}',
+        spent: spent(monthStart, nextMonth),
+        limit: (profile['budget_limit'] as num?)?.toInt() ?? 0,
+        threshold: preferences.monthlyBudgetThreshold,
+      );
+      for (final budget in CategoryBudgetService.instance.budgets) {
+        await _emitBudgetLevel(
+          name: budget.category,
+          nameVi: budget.category,
+          category: budget.category,
+          period: 'monthly',
+          periodKey:
+              '${budget.year}-${budget.month.toString().padLeft(2, '0')}',
+          spent: spent(monthStart, nextMonth, category: budget.category),
+          limit: budget.limitAmount,
+          threshold: preferences.monthlyBudgetThreshold,
+          entityId: budget.id,
+        );
+      }
+    } catch (error) {
+      debugPrint('budget notification evaluation failed: $error');
+    }
+  }
+
+  Future<void> _emitBudgetLevel({
+    required String name,
+    required String nameVi,
+    required String? category,
+    required String period,
+    required String periodKey,
+    required int spent,
+    required int limit,
+    required int threshold,
+    String? entityId,
+  }) async {
+    if (limit <= 0) return;
+    final percent = spent * 100 / limit;
+    if (percent < threshold) return;
+    final exceeded = percent >= 100;
+    final type = exceeded ? 'budget_exceeded' : 'budget_threshold';
+    final notificationPayload = <String, dynamic>{
+      'name': name,
+      'name_vi': nameVi,
+      'period': period,
+      'spent': spent,
+      'limit': limit,
+      'remaining': (limit - spent).clamp(0, limit),
+      'percent': percent.round(),
+      'threshold': threshold,
+    };
+    if (category != null) notificationPayload['category'] = category;
+    await NotificationService.instance.create(
+      category: NotificationCategory.budget,
+      type: type,
+      priority: exceeded
+          ? NotificationPriority.high
+          : NotificationPriority.normal,
+      actionRequired: exceeded,
+      entityType: entityId == null ? 'budget' : 'category_budget',
+      entityId: entityId,
+      routeName: 'category_budgets',
+      dedupeKey:
+          'budget:${entityId ?? period}:$periodKey:${exceeded ? 'exceeded' : threshold}',
+      payload: notificationPayload,
+      body: '$spent / $limit VND',
+    );
   }
 
   Future<void> clearAll() async {

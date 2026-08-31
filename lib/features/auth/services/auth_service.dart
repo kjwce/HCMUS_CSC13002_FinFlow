@@ -197,6 +197,24 @@ class AuthService extends ChangeNotifier {
     }
   }
 
+  /// Verifies the OTP issued by Supabase's password-recovery flow.
+  /// This intentionally remains separate from the regular email OTP method.
+  Future<bool> verifyPasswordRecoveryOtp({
+    required String email,
+    required String token,
+  }) async {
+    try {
+      final response = await Supabase.instance.client.auth.verifyOTP(
+        email: email.trim().toLowerCase(),
+        token: token,
+        type: OtpType.recovery,
+      );
+      return response.user != null;
+    } on AuthException {
+      return false;
+    }
+  }
+
   Future<void> resetPassword({required String email}) async {
     await Supabase.instance.client.auth.resetPasswordForEmail(
       email.trim().toLowerCase(),

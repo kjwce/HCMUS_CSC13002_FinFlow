@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../community/models/notification_model.dart';
+import '../../community/services/notification_service.dart';
 import '../models/goal_model.dart';
 
 class GoalService extends ChangeNotifier {
@@ -27,6 +29,16 @@ class GoalService extends ChangeNotifier {
   GoalModel? get activeGoal =>
       primaryGoal ??
       _firstWhereOrNull(_goals, (goal) => goal.status == GoalStatus.active);
+
+  @visibleForTesting
+  void debugReplaceGoals(
+    List<GoalModel> goals, {
+    List<GoalFundEntry> entries = const [],
+  }) {
+    _goals = List.unmodifiable(goals);
+    _entries = List.unmodifiable(entries);
+    notifyListeners();
+  }
 
   int get totalAllocated =>
       _goals.fold(0, (sum, goal) => sum + goal.allocatedAmount);
@@ -156,7 +168,9 @@ class GoalService extends ChangeNotifier {
     String? sourceTransactionId,
   }) async {
     if (amount <= 0) throw Exception('Enter an amount greater than zero');
-    final wasCompleted = byId(goalId)?.isCompleted ?? false;
+    final before = byId(goalId);
+    final wasCompleted = before?.isCompleted ?? false;
+    final previousProgress = before?.progress ?? 0;
     await Supabase.instance.client.rpc(
       'allocate_goal_funds',
       params: {
@@ -168,6 +182,37 @@ class GoalService extends ChangeNotifier {
       },
     );
     await fetchGoals();
+    final updated = byId(goalId);
+    if (updated != null) {
+      final crossed = const [25, 50, 75, 100]
+          .where(
+            (milestone) =>
+                previousProgress * 100 < milestone &&
+                updated.progress * 100 >= milestone,
+          )
+          .lastOrNull;
+      if (crossed != null) {
+        await NotificationService.instance.create(
+          category: NotificationCategory.goal,
+          type: 'goal_milestone',
+          entityType: 'saving_goal',
+          entityId: updated.id,
+          routeName: 'goal_details',
+          dedupeKey: 'goal:${updated.id}:milestone:$crossed',
+          payload: {
+            'goal_id': updated.id,
+            'name': updated.name,
+            'category': updated.category,
+            'percent': crossed,
+            'allocated_amount': updated.allocatedAmount,
+            'target_amount': updated.targetAmount,
+            'entry_type': entryType,
+          },
+          body:
+              '${updated.name} · ${updated.allocatedAmount}/${updated.targetAmount} VND',
+        );
+      }
+    }
     return !wasCompleted && (byId(goalId)?.isCompleted ?? false);
   }
 

@@ -79,14 +79,14 @@ class _HomeLanguageSelectorState extends State<HomeLanguageSelector> {
                 ),
                 decoration: BoxDecoration(
                   color: isDark
-                      ? const Color(0xFF163D35)
+                      ? const Color(0xFF0A241F)
                       : const Color(0xFFE2F7EF),
                   borderRadius: BorderRadius.circular(
                     Responsive.w(context, 22),
                   ),
                   border: Border.all(
                     color: isDark
-                        ? const Color(0xFF28584C)
+                        ? const Color(0xFF29483F)
                         : const Color(0xFFD3EFE5),
                   ),
                 ),
@@ -152,12 +152,12 @@ class HomeThemeToggle extends StatelessWidget {
                 height: Responsive.w(context, 40),
                 decoration: BoxDecoration(
                   color: isDark
-                      ? const Color(0xFF163D35)
+                      ? const Color(0xFF0A241F)
                       : const Color(0xFFD7F5EA),
                   shape: BoxShape.circle,
                   border: Border.all(
                     color: isDark
-                        ? const Color(0xFF28584C)
+                        ? const Color(0xFF29483F)
                         : const Color(0xFFD3EFE5),
                   ),
                 ),
@@ -197,11 +197,11 @@ class _LanguageDialog extends StatelessWidget {
             ),
             clipBehavior: Clip.antiAlias,
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF153A32) : const Color(0xFFFFFFFF),
+              color: isDark ? const Color(0xFF0A241F) : const Color(0xFFFFFFFF),
               borderRadius: BorderRadius.circular(Responsive.w(context, 22)),
               border: Border.all(
                 color: isDark
-                    ? const Color(0xFF2A574C)
+                    ? const Color(0xFF29483F)
                     : const Color(0xFFE1EAE6),
               ),
               boxShadow: [

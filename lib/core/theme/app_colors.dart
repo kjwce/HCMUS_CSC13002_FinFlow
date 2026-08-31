@@ -7,7 +7,8 @@ class AppColors {
   static const mintSoft = Color(0xFFF3FBF6);
   static const sage = Color(0xFFB8D9C8);
   static const ink = Color(0xFF10251D);
-  static const muted = Color(0xFF6D7B74);
+  // Readable secondary text, synchronized with Add Transaction metadata.
+  static const muted = Color(0xFF52655E);
   static const coral = Color(0xFFE86B5D);
   static const amber = Color(0xFFE5B54B);
 
@@ -23,7 +24,7 @@ class AppColors {
   static const darkGreenText = Color(0xFF003829);
   static const mediumGreen = Color(0xFF008768);
   static const darkGray = Color(0xFF444745);
-  static const mutedGray = Color(0xFF8E928F);
+  static const mutedGray = Color(0xFF52655E);
   static const borderGray = Color(0xFFBFC9C3);
   static const deepGreen = Color(0xFF404944);
   static const ingBlue = Color(0xFF3799D2);
@@ -98,7 +99,7 @@ class FinFlowColors extends ThemeExtension<FinFlowColors> {
     surface: Color(0xFF12231B),
     elevatedSurface: Color(0xFF1A2E25),
     primaryText: Color(0xFFE3F1E9),
-    secondaryText: Color(0xFFA9B9B0),
+    secondaryText: Color(0xFFA9C1B9),
     inputBackground: Color(0xFF1A2E25),
     inputBorder: Color(0xFF496057),
     divider: Color(0xFF2D4037),

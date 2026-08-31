@@ -2,6 +2,37 @@ enum RecurringFrequency { daily, weekly, monthly }
 
 enum RecurringPostingMode { review, automatic }
 
+enum RecurringOccurrenceStatus { pending, completed, skipped, failed }
+
+class RecurringOccurrenceRecord {
+  const RecurringOccurrenceRecord({
+    required this.id,
+    required this.scheduleId,
+    required this.occurrenceAt,
+    required this.status,
+    required this.amount,
+  });
+
+  factory RecurringOccurrenceRecord.fromJson(Map<String, dynamic> json) {
+    return RecurringOccurrenceRecord(
+      id: json['id'] as String,
+      scheduleId: json['schedule_id'] as String,
+      occurrenceAt: DateTime.parse(json['occurrence_at'] as String).toLocal(),
+      status: RecurringOccurrenceStatus.values.firstWhere(
+        (value) => value.name == json['status'],
+        orElse: () => RecurringOccurrenceStatus.pending,
+      ),
+      amount: (json['amount'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  final String id;
+  final String scheduleId;
+  final DateTime occurrenceAt;
+  final RecurringOccurrenceStatus status;
+  final int amount;
+}
+
 class RecurringSchedule {
   const RecurringSchedule({
     required this.id,
@@ -81,6 +112,47 @@ class RecurringSchedule {
     useLastDay: useLastDay ?? this.useLastDay,
   );
 
+  /// Returns the first occurrence whose calendar day is on or after
+  /// [reference]. This repairs stale `next_occurrence` values for display,
+  /// reminders, and posting without losing the original recurrence anchor
+  /// used to render earlier dates in the calendar.
+  DateTime nextOccurrenceOnOrAfter(DateTime reference) {
+    final referenceDay = DateTime(
+      reference.year,
+      reference.month,
+      reference.day,
+    );
+    final occurrenceDay = DateTime(
+      nextOccurrence.year,
+      nextOccurrence.month,
+      nextOccurrence.day,
+    );
+    if (!occurrenceDay.isBefore(referenceDay)) return nextOccurrence;
+
+    switch (frequency) {
+      case RecurringFrequency.daily:
+        return nextOccurrence.add(
+          Duration(days: referenceDay.difference(occurrenceDay).inDays),
+        );
+      case RecurringFrequency.weekly:
+        final elapsedDays = referenceDay.difference(occurrenceDay).inDays;
+        final weeksToAdvance = (elapsedDays / 7).ceil();
+        return nextOccurrence.add(Duration(days: weeksToAdvance * 7));
+      case RecurringFrequency.monthly:
+        var cursor = nextOccurrence;
+        var guard = 0;
+        while (DateTime(
+              cursor.year,
+              cursor.month,
+              cursor.day,
+            ).isBefore(referenceDay) &&
+            guard++ < 2400) {
+          cursor = _nextProjectedDate(cursor);
+        }
+        return cursor;
+    }
+  }
+
   /// Projects the real occurrences represented by this schedule into [month].
   /// Paused schedules keep only their stored next occurrence and do not
   /// generate future dates.
@@ -124,6 +196,34 @@ class RecurringSchedule {
     return result;
   }
 
+  /// Projects active occurrences into an arbitrary half-open date range.
+  /// The start is included and the end is excluded, matching a seven-day
+  /// calendar such as Monday through Sunday.
+  List<DateTime> occurrencesBetween(
+    DateTime startInclusive,
+    DateTime endExclusive,
+  ) {
+    if (!isActive || !startInclusive.isBefore(endExclusive)) return const [];
+
+    final result = <DateTime>[];
+    var month = DateTime(startInclusive.year, startInclusive.month);
+    var guard = 0;
+    while (month.isBefore(endExclusive) && guard++ < 120) {
+      result.addAll(
+        occurrencesInMonth(month).where(
+          (date) =>
+              !date.isBefore(startInclusive) && date.isBefore(endExclusive),
+        ),
+      );
+      month = DateTime(month.year, month.month + 1);
+    }
+    result.sort();
+    return result;
+  }
+
+  DateTime occurrenceAfter(DateTime occurrence) =>
+      _nextProjectedDate(occurrence);
+
   DateTime _nextProjectedDate(DateTime date) => switch (frequency) {
     RecurringFrequency.daily => date.add(const Duration(days: 1)),
     RecurringFrequency.weekly => date.add(const Duration(days: 7)),
@@ -144,4 +244,11 @@ class RecurringSchedule {
       date.minute,
     );
   }
+}
+
+class RecurringOccurrence {
+  const RecurringOccurrence({required this.schedule, required this.date});
+
+  final RecurringSchedule schedule;
+  final DateTime date;
 }

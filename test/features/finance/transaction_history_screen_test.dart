@@ -39,6 +39,17 @@ void main() {
       find.widgetWithText(TextField, 'Search transactions'),
       findsOneWidget,
     );
+    final periodLabel = tester.widget<Text>(find.text('Period'));
+    final dailyLabel = tester.widget<Text>(find.text('Daily'));
+    final typeLabel = tester.widget<Text>(find.text('Transaction Type'));
+    final allLabel = tester.widget<Text>(find.text('All'));
+    final sectionTitle = tester.widget<Text>(find.text('Transactions'));
+    expect(periodLabel.style?.fontSize, closeTo(16 * 430 / 393, 0.01));
+    expect(periodLabel.style?.fontWeight, FontWeight.w700);
+    expect(dailyLabel.style?.fontSize, closeTo(13 * 430 / 393, 0.01));
+    expect(typeLabel.style?.fontSize, closeTo(16 * 430 / 393, 0.01));
+    expect(allLabel.style?.fontSize, closeTo(14 * 430 / 393, 0.01));
+    expect(sectionTitle.style?.fontSize, closeTo(20 * 430 / 393, 0.01));
     expect(find.widgetWithIcon(IconButton, Icons.search_rounded), findsNothing);
     expect(tester.takeException(), isNull);
   });

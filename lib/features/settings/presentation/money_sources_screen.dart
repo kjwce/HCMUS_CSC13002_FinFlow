@@ -103,21 +103,15 @@ class _MoneySourcesScreenState extends State<MoneySourcesScreen> {
           appBar: AppBar(
             elevation: 0,
             scrolledUnderElevation: 0,
-            centerTitle: true,
+            centerTitle: false,
+            titleSpacing: 0,
             backgroundColor: colors.pageBackground,
             foregroundColor: colors.primaryText,
             leading: IconButton(
               onPressed: () => Navigator.of(context).pop(),
               icon: const Icon(Icons.arrow_back_rounded),
             ),
-            title: Text(
-              AppStrings.choose('Money Sources', 'Nguồn tiền'),
-              style: const TextStyle(
-                fontFamily: 'Manrope',
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
+            title: Text(AppStrings.choose('Money Sources', 'Nguồn tiền')),
             actions: const [
               Padding(
                 padding: EdgeInsets.only(right: 14),
@@ -260,8 +254,8 @@ class _TotalBalanceCard extends StatelessWidget {
           Text(
             AppStrings.choose('TOTAL BALANCE', 'TỔNG SỐ DƯ'),
             style: TextStyle(
-              fontSize: Responsive.sp(context, 9),
-              fontWeight: FontWeight.w600,
+              fontSize: Responsive.sp(context, 11.5),
+              fontWeight: FontWeight.w700,
               letterSpacing: .45,
               color: colors.secondaryText,
             ),
@@ -286,7 +280,7 @@ class _TotalBalanceCard extends StatelessWidget {
               'Bao gồm Tiền mặt và Chuyển khoản',
             ),
             style: TextStyle(
-              fontSize: Responsive.sp(context, 10),
+              fontSize: Responsive.sp(context, 12.5),
               color: colors.secondaryText,
             ),
           ),
@@ -381,7 +375,8 @@ class _MoneySourceCard extends StatelessWidget {
                               'Tài khoản ngân hàng và ví điện tử',
                             ),
                       style: TextStyle(
-                        fontSize: Responsive.sp(context, 9),
+                        fontSize: Responsive.sp(context, 12),
+                        height: 1.3,
                         color: colors.secondaryText,
                       ),
                     ),
@@ -413,7 +408,7 @@ class _MoneySourceCard extends StatelessWidget {
                 Text(
                   AppStrings.choose('Current balance', 'Số dư hiện tại'),
                   style: TextStyle(
-                    fontSize: Responsive.sp(context, 9),
+                    fontSize: Responsive.sp(context, 11.5),
                     color: colors.secondaryText,
                   ),
                 ),
@@ -438,7 +433,7 @@ class _MoneySourceCard extends StatelessWidget {
                     Text(
                       AppStrings.choose('Opening balance', 'Số dư ban đầu'),
                       style: TextStyle(
-                        fontSize: Responsive.sp(context, 10),
+                        fontSize: Responsive.sp(context, 12),
                         fontWeight: FontWeight.w500,
                         color: colors.secondaryText,
                       ),
@@ -505,7 +500,8 @@ class _FlowMetric extends StatelessWidget {
                 income ? 'THU NHẬP' : 'CHI TIÊU',
               ),
               style: TextStyle(
-                fontSize: Responsive.sp(context, 8),
+                fontSize: Responsive.sp(context, 10.5),
+                fontWeight: FontWeight.w600,
                 color: context.finFlowColors.secondaryText,
               ),
             ),
@@ -517,7 +513,7 @@ class _FlowMetric extends StatelessWidget {
                 maxLines: 1,
                 style: TextStyle(
                   fontFamily: 'Manrope',
-                  fontSize: Responsive.sp(context, 11),
+                  fontSize: Responsive.sp(context, 13),
                   fontWeight: FontWeight.w600,
                   color: context.finFlowColors.primaryText,
                 ),
@@ -556,7 +552,7 @@ class _BalanceExplanation extends StatelessWidget {
               'Số dư hiện tại được tính từ số dư ban đầu cùng toàn bộ khoản thu và chi đã ghi nhận.',
             ),
             style: TextStyle(
-              fontSize: Responsive.sp(context, 10),
+              fontSize: Responsive.sp(context, 12),
               height: 1.35,
               color: context.finFlowColors.secondaryText,
             ),
@@ -710,7 +706,7 @@ class _AdjustOpeningBalancesSheetState
                       'Thay đổi các giá trị này sẽ tính lại tổng số dư hiện tại. Các giao dịch đã có sẽ không bị chỉnh sửa.',
                     ),
                     style: TextStyle(
-                      fontSize: Responsive.sp(context, 11),
+                      fontSize: Responsive.sp(context, 12.5),
                       height: 1.45,
                       color: colors.negativeAmount,
                     ),

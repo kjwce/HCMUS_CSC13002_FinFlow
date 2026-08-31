@@ -7,8 +7,10 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/responsive.dart';
 import '../../auth/services/auth_service.dart';
 import '../models/community_post_model.dart';
+import '../models/community_report_model.dart';
 import '../providers/community_provider.dart';
 import 'community_composer_screen.dart';
+import 'widgets/community_report_dialog.dart';
 import 'widgets/post_card.dart';
 
 class CommunityActivityScreen extends ConsumerStatefulWidget {
@@ -108,6 +110,19 @@ class _CommunityActivityScreenState
     }
   }
 
+  Future<void> _reportPost(CommunityPostModel post) {
+    return showCommunityReportDialog(
+      context: context,
+      target: CommunityReportTarget.post,
+      authorName: post.displayName,
+      authorAvatarUrl: post.isAnonymous ? null : post.authorAvatarUrl,
+      content: post.content,
+      onSubmit: (reason, details) => ref
+          .read(communityServiceProvider)
+          .reportPost(postId: post.id, reason: reason, description: details),
+    );
+  }
+
   void _showMessage(String message) {
     ScaffoldMessenger.of(
       context,
@@ -161,6 +176,7 @@ class _CommunityActivityScreenState
                                 onSaveTap: () => _toggleSave(post),
                                 onEditTap: () => _editPost(post),
                                 onDeleteTap: () => _deletePost(post),
+                                onReportTap: () => _reportPost(post),
                               );
                             },
                           ),

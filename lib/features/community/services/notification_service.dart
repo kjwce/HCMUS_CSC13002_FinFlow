@@ -1,289 +1,476 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../settings/services/notification_preferences_service.dart';
 import '../models/notification_model.dart';
 import '../utils/rich_text_formatter.dart';
 
-/// Service quản lý notification cho community.
-/// Singleton + ChangeNotifier để UI cập nhật realtime.
+/// Canonical notification feed backed by migration 033.
 class NotificationService extends ChangeNotifier {
   NotificationService._();
 
-  static final NotificationService instance = NotificationService._();
+  static final instance = NotificationService._();
 
-  List<NotificationModel> _notifications = [];
-  bool _isLoading = false;
-  RealtimeChannel? _communityChannel;
-  RealtimeChannel? _recurringChannel;
+  final StreamController<NotificationModel> _incomingController =
+      StreamController<NotificationModel>.broadcast();
+  List<NotificationModel> _notifications = const [];
+  RealtimeChannel? _channel;
+  Timer? _dueTimer;
+  final Set<String> _presentedIds = {};
   String? _activeUserId;
+  bool _isLoading = false;
+  bool _feedInitialized = false;
+  bool _preferenceListenerAttached = false;
 
-  List<NotificationModel> get notifications =>
-      List.unmodifiable(_notifications);
+  Stream<NotificationModel> get incoming => _incomingController.stream;
+  List<NotificationModel> get notifications => List.unmodifiable(
+    _notifications.where((item) => item.isVisible && _allows(item)),
+  );
   List<NotificationModel> get unread =>
-      _notifications.where((n) => !n.isRead).toList();
-  int get unreadCount => _notifications.where((n) => !n.isRead).length;
+      notifications.where((item) => !item.isRead).toList(growable: false);
+  int get unreadCount => unread.length;
+  int get actionRequiredCount =>
+      notifications.where((item) => item.actionRequired).length;
   bool get isLoading => _isLoading;
 
   String? get _userId => Supabase.instance.client.auth.currentUser?.id;
 
-  // ---------------------------------------------------------------------------
-  // Realtime
-  // ---------------------------------------------------------------------------
+  List<NotificationModel> filtered({
+    NotificationCategory? category,
+    bool actionRequired = false,
+  }) {
+    return notifications
+        .where((item) {
+          if (actionRequired && !item.actionRequired) return false;
+          if (category != null && item.category != category) return false;
+          return true;
+        })
+        .toList(growable: false);
+  }
 
-  void subscribe(String userId) {
-    _communityChannel?.unsubscribe();
-    _recurringChannel?.unsubscribe();
-    _communityChannel = Supabase.instance.client
-        .channel('community-notifications-$userId')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.insert,
-          schema: 'public',
-          table: 'community_notifications',
-          filter: PostgresChangeFilter(
-            type: PostgresChangeFilterType.eq,
-            column: 'user_id',
-            value: userId,
-          ),
-          callback: (payload) {
-            final notif = NotificationModel.fromJson(payload.newRecord);
-            _enrichAndPrepend(notif);
-          },
-        )
-        .subscribe();
-    _recurringChannel = Supabase.instance.client
-        .channel('recurring-notifications-$userId')
+  Future<void> startForUser(String userId) async {
+    if (_activeUserId != userId) {
+      _activeUserId = userId;
+      _notifications = const [];
+      _presentedIds.clear();
+      _feedInitialized = false;
+      notifyListeners();
+    }
+    await NotificationPreferencesService.instance.startForUser(userId);
+    if (!_preferenceListenerAttached) {
+      NotificationPreferencesService.instance.addListener(
+        _onPreferencesChanged,
+      );
+      _preferenceListenerAttached = true;
+    }
+    _subscribe(userId);
+    await fetchNotifications();
+  }
+
+  void _onPreferencesChanged() => notifyListeners();
+
+  void _subscribe(String userId) {
+    _channel?.unsubscribe();
+    _channel = Supabase.instance.client
+        .channel('app-notifications-$userId')
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
           schema: 'public',
-          table: 'recurring_notifications',
+          table: 'app_notifications',
           filter: PostgresChangeFilter(
             type: PostgresChangeFilterType.eq,
             column: 'user_id',
             value: userId,
           ),
-          callback: (_) => fetchNotifications(),
+          callback: (payload) => _handleRealtime(payload, userId),
         )
         .subscribe();
   }
 
-  void startForUser(String userId) {
-    if (_activeUserId != userId) {
-      _activeUserId = userId;
-      _notifications = [];
+  Future<void> _handleRealtime(
+    PostgresChangePayload payload,
+    String userId,
+  ) async {
+    if (_activeUserId != userId) return;
+    if (payload.eventType == PostgresChangeEvent.delete) {
+      final id = payload.oldRecord['id']?.toString();
+      _notifications = _notifications
+          .where((item) => item.id != id)
+          .toList(growable: false);
       notifyListeners();
+      return;
     }
-    subscribe(userId);
-    fetchNotifications();
-  }
-
-  void unsubscribe() {
-    _communityChannel?.unsubscribe();
-    _recurringChannel?.unsubscribe();
-    _communityChannel = null;
-    _recurringChannel = null;
-    _activeUserId = null;
-    _notifications = [];
+    final row = payload.newRecord;
+    if (row.isEmpty) return;
+    var notification = NotificationModel.fromJson(row);
+    if (notification.isCommunity) {
+      notification = await _enrichOne(notification);
+    }
+    final index = _notifications.indexWhere(
+      (item) => item.id == notification.id,
+    );
+    if (index >= 0) {
+      final mutable = [..._notifications];
+      mutable[index] = notification;
+      _notifications = mutable..sort(_newestFirst);
+    } else {
+      _notifications = [notification, ..._notifications]..sort(_newestFirst);
+      if (payload.eventType == PostgresChangeEvent.insert &&
+          notification.isVisible &&
+          _allows(notification)) {
+        _presentedIds.add(notification.id);
+        _incomingController.add(notification);
+      }
+    }
+    _scheduleNextDue();
     notifyListeners();
   }
 
-  // ---------------------------------------------------------------------------
-  // Fetch
-  // ---------------------------------------------------------------------------
-
-  Future<void> fetchNotifications() async {
+  Future<void> fetchNotifications({int limit = 100}) async {
     final userId = _userId;
     if (userId == null) return;
     _isLoading = true;
     notifyListeners();
-
     try {
-      List communityRows = const [];
-      List recurringRows = const [];
-      try {
-        communityRows = await Supabase.instance.client
-            .from('community_notifications')
-            .select()
-            .eq('user_id', userId)
-            .order('created_at', ascending: false);
-      } catch (error) {
-        debugPrint('fetch community notifications error: $error');
-      }
-      try {
-        recurringRows = await Supabase.instance.client
-            .from('recurring_notifications')
-            .select()
-            .eq('user_id', userId)
-            .lte('scheduled_for', DateTime.now().toUtc().toIso8601String())
-            .neq('status', 'dismissed')
-            .order('scheduled_for', ascending: false);
-      } catch (error) {
-        debugPrint('fetch recurring notifications error: $error');
-      }
-      final raw = communityRows
-          .map((n) => NotificationModel.fromJson(n as Map<String, dynamic>))
-          .toList();
-      final recurring = recurringRows
+      final response = await Supabase.instance.client
+          .from('app_notifications')
+          .select()
+          .eq('user_id', userId)
+          .eq('is_archived', false)
+          .neq('status', 'dismissed')
+          .order('available_at', ascending: false)
+          .limit(limit);
+      final parsed = (response as List)
           .map(
-            (n) =>
-                NotificationModel.fromRecurringJson(n as Map<String, dynamic>),
+            (item) => NotificationModel.fromJson(
+              Map<String, dynamic>.from(item as Map),
+            ),
           )
-          .toList();
-
-      _activeUserId ??= userId;
+          .toList(growable: false);
+      final enriched = await _enrichCommunity(parsed);
       if (_activeUserId == userId && _userId == userId) {
-        await _enrichAll(raw);
-        _notifications = [..._notifications, ...recurring]
-          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        _notifications = enriched..sort(_newestFirst);
+        if (_feedInitialized) {
+          for (final notification in _notifications) {
+            if (notification.isVisible &&
+                !_presentedIds.contains(notification.id) &&
+                _allows(notification)) {
+              _presentedIds.add(notification.id);
+              _incomingController.add(notification);
+            }
+          }
+        } else {
+          _presentedIds.addAll(
+            _notifications
+                .where((item) => item.isVisible)
+                .map((item) => item.id),
+          );
+          _feedInitialized = true;
+        }
+        _scheduleNextDue();
       }
-    } catch (e) {
-      debugPrint('fetchNotifications error: $e');
+    } catch (error) {
+      debugPrint('fetch app notifications error: $error');
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Mark as read
-  // ---------------------------------------------------------------------------
-
-  Future<void> markAsRead(String notificationId) async {
-    final notification = _notifications
-        .where((item) => item.id == notificationId)
-        .firstOrNull;
-    final table = notification?.isRecurring == true
-        ? 'recurring_notifications'
-        : 'community_notifications';
-    await Supabase.instance.client
-        .from(table)
-        .update({'is_read': true})
-        .eq('id', notificationId);
-
-    final idx = _notifications.indexWhere((n) => n.id == notificationId);
-    if (idx != -1) {
-      _notifications[idx] = _notifications[idx].copyWith(isRead: true);
-      notifyListeners();
-    }
+  Future<void> markAsRead(String notificationId, {bool value = true}) async {
+    await _update(notificationId, {'is_read': value});
+    _replace(notificationId, (item) => item.copyWith(isRead: value));
   }
 
   Future<void> markAllAsRead() async {
     final userId = _userId;
     if (userId == null) return;
-
-    await Future.wait([
-      Supabase.instance.client
-          .from('community_notifications')
-          .update({'is_read': true})
-          .eq('user_id', userId)
-          .eq('is_read', false),
-      Supabase.instance.client
-          .from('recurring_notifications')
-          .update({'is_read': true})
-          .eq('user_id', userId)
-          .eq('is_read', false),
-    ]);
-
+    await Supabase.instance.client
+        .from('app_notifications')
+        .update({'is_read': true})
+        .eq('user_id', userId)
+        .eq('is_read', false);
     _notifications = _notifications
-        .map((n) => n.copyWith(isRead: true))
-        .toList();
+        .map((item) => item.copyWith(isRead: true))
+        .toList(growable: false);
     notifyListeners();
   }
 
-  // ---------------------------------------------------------------------------
-  // Helpers
-  // ---------------------------------------------------------------------------
+  Future<void> archive(String notificationId) async {
+    await _update(notificationId, {'is_archived': true});
+    _notifications = _notifications
+        .where((item) => item.id != notificationId)
+        .toList(growable: false);
+    notifyListeners();
+  }
 
-  Future<void> _enrichAll(List<NotificationModel> raw) async {
-    final actorIds = raw
-        .map((n) => n.actorId)
-        .whereType<String>()
-        .toSet()
-        .toList();
-    final postIds = raw
-        .where((n) => n.postId != null)
-        .map((n) => n.postId!)
-        .toSet()
-        .toList();
+  Future<void> resolve(
+    String notificationId, {
+    String status = 'completed',
+  }) async {
+    await _update(notificationId, {
+      'status': status,
+      'action_required': false,
+      'is_read': true,
+    });
+    _replace(
+      notificationId,
+      (item) =>
+          item.copyWith(status: status, actionRequired: false, isRead: true),
+    );
+  }
 
-    Map<String, Map<String, dynamic>> authors = {};
-    Map<String, String> postPreviews = {};
+  Future<void> resolveRecurringActions(String scheduleId) async {
+    final userId = _userId;
+    if (userId == null) return;
+    await Supabase.instance.client
+        .from('app_notifications')
+        .update({
+          'status': 'dismissed',
+          'action_required': false,
+          'is_read': true,
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
+        })
+        .eq('user_id', userId)
+        .eq('entity_type', 'recurring_schedule')
+        .eq('entity_id', scheduleId)
+        .eq('action_required', true);
+    _notifications = _notifications
+        .map(
+          (item) => item.scheduleId == scheduleId && item.actionRequired
+              ? item.copyWith(
+                  status: 'dismissed',
+                  actionRequired: false,
+                  isRead: true,
+                )
+              : item,
+        )
+        .toList(growable: false);
+    notifyListeners();
+  }
 
+  Future<NotificationModel?> create({
+    required NotificationCategory category,
+    required String type,
+    String? title,
+    String? body,
+    NotificationPriority priority = NotificationPriority.normal,
+    bool actionRequired = false,
+    String? entityType,
+    String? entityId,
+    String? routeName,
+    Map<String, dynamic> payload = const {},
+    String? dedupeKey,
+    DateTime? availableAt,
+  }) async {
+    final userId = _userId;
+    if (userId == null) return null;
+    if (!_allowsCategory(category, type, payload)) return null;
     try {
-      final authorRes = await Supabase.instance.client
-          .from('community_authors')
+      final response = await Supabase.instance.client
+          .from('app_notifications')
+          .insert({
+            'user_id': userId,
+            'category': category.name,
+            'type': type,
+            'title': title,
+            'body': body,
+            'priority': priority.name,
+            'action_required': actionRequired,
+            'entity_type': entityType,
+            'entity_id': entityId,
+            'route_name': routeName,
+            'payload': payload,
+            'dedupe_key': dedupeKey,
+            'available_at': (availableAt ?? DateTime.now())
+                .toUtc()
+                .toIso8601String(),
+          })
           .select()
-          .inFilter('id', actorIds);
-      authors = {
-        for (final row in (authorRes as List))
-          (row as Map<String, dynamic>)['id'] as String: row,
-      };
-    } catch (_) {}
+          .single();
+      return NotificationModel.fromJson(response);
+    } on PostgrestException catch (error) {
+      if (error.code != '23505') {
+        debugPrint('create notification error: $error');
+      }
+      return null;
+    }
+  }
 
-    if (postIds.isNotEmpty) {
+  Future<void> _update(String id, Map<String, dynamic> values) async {
+    await Supabase.instance.client
+        .from('app_notifications')
+        .update(values)
+        .eq('id', id);
+  }
+
+  void _replace(
+    String id,
+    NotificationModel Function(NotificationModel) update,
+  ) {
+    final index = _notifications.indexWhere((item) => item.id == id);
+    if (index < 0) return;
+    final mutable = [..._notifications];
+    mutable[index] = update(mutable[index]);
+    _notifications = mutable;
+    notifyListeners();
+  }
+
+  bool _allows(NotificationModel notification) => _allowsCategory(
+    notification.category,
+    notification.type,
+    notification.payload,
+  );
+
+  bool _allowsCategory(
+    NotificationCategory category,
+    String type,
+    Map<String, dynamic> payload,
+  ) {
+    final preferences = NotificationPreferencesService.instance.value;
+    if (!preferences.masterEnabled) return false;
+    return switch (category) {
+      NotificationCategory.community => switch (type) {
+        'like' || 'comment_like' => preferences.communityLikesEnabled,
+        'comment' || 'comment_reply' => preferences.communityRepliesEnabled,
+        'post' => preferences.communityPostsEnabled,
+        _ => true,
+      },
+      NotificationCategory.recurring =>
+        type.contains('fail') || type.contains('insufficient')
+            ? preferences.recurringFailureEnabled
+            : (payload['amount'] as num? ?? 0) < 0
+            ? preferences.recurringExpenseEnabled
+            : preferences.recurringIncomeEnabled,
+      NotificationCategory.budget => switch (payload['period']) {
+        'daily' => preferences.dailyBudgetEnabled,
+        'weekly' => preferences.weeklyBudgetEnabled,
+        _ => preferences.monthlyBudgetEnabled,
+      },
+      NotificationCategory.goal => preferences.savingGoalUpdatesEnabled,
+      NotificationCategory.system => preferences.systemEnabled,
+      NotificationCategory.transaction => true,
+    };
+  }
+
+  Future<List<NotificationModel>> _enrichCommunity(
+    List<NotificationModel> source,
+  ) async {
+    final community = source.where((item) => item.isCommunity).toList();
+    if (community.isEmpty) return source;
+    final actorIds = community.map((item) => item.actorId).nonNulls.toSet();
+    final postIds = community.map((item) => item.postId).nonNulls.toSet();
+    final authors = <String, Map<String, dynamic>>{};
+    final previews = <String, String>{};
+    if (actorIds.isNotEmpty) {
       try {
-        final postRes = await Supabase.instance.client
-            .from('community_posts')
-            .select('id, content')
-            .inFilter('id', postIds);
-        for (final row in (postRes as List)) {
-          final r = row as Map<String, dynamic>;
-          final text = stripFormattingForNotificationPreview(
-            r['content'] as String? ?? '',
-          );
-          postPreviews[r['id'] as String] = text.length > 60
-              ? '${text.substring(0, 60)}…'
-              : text;
+        final rows = await Supabase.instance.client
+            .from('community_authors')
+            .select()
+            .inFilter('id', actorIds.toList());
+        for (final raw in rows as List) {
+          final row = Map<String, dynamic>.from(raw as Map);
+          authors[row['id'].toString()] = row;
         }
       } catch (_) {}
     }
+    if (postIds.isNotEmpty) {
+      try {
+        final rows = await Supabase.instance.client
+            .from('community_posts')
+            .select('id, content')
+            .inFilter('id', postIds.toList());
+        for (final raw in rows as List) {
+          final row = Map<String, dynamic>.from(raw as Map);
+          final clean = stripFormattingForNotificationPreview(
+            row['content']?.toString() ?? '',
+          );
+          previews[row['id'].toString()] = clean.length > 80
+              ? '${clean.substring(0, 80)}…'
+              : clean;
+        }
+      } catch (_) {}
+    }
+    return source
+        .map((item) {
+          if (!item.isCommunity) return item;
+          final author = authors[item.actorId];
+          return item.copyWith(
+            actorName: author?['full_name']?.toString(),
+            actorAvatarUrl: author?['avatar_url']?.toString(),
+            postContent: item.postId == null ? null : previews[item.postId],
+          );
+        })
+        .toList(growable: false);
+  }
 
-    _notifications = raw
-        .map(
-          (n) => n.copyWith(
-            actorName: authors[n.actorId]?['full_name'] as String?,
-            actorAvatarUrl: authors[n.actorId]?['avatar_url'] as String?,
-            postContent: n.postId != null ? postPreviews[n.postId!] : null,
-          ),
-        )
-        .toList();
+  Future<NotificationModel> _enrichOne(NotificationModel item) async {
+    return (await _enrichCommunity([item])).first;
+  }
+
+  static int _newestFirst(NotificationModel a, NotificationModel b) {
+    return (b.availableAt ?? b.createdAt).compareTo(
+      a.availableAt ?? a.createdAt,
+    );
+  }
+
+  void _scheduleNextDue() {
+    _dueTimer?.cancel();
+    final now = DateTime.now();
+    final upcoming =
+        _notifications
+            .where(
+              (item) =>
+                  !item.isArchived &&
+                  item.status != 'dismissed' &&
+                  (item.availableAt ?? item.createdAt).isAfter(now),
+            )
+            .toList(growable: false)
+          ..sort(
+            (a, b) => (a.availableAt ?? a.createdAt).compareTo(
+              b.availableAt ?? b.createdAt,
+            ),
+          );
+    if (upcoming.isEmpty) return;
+    final dueAt = upcoming.first.availableAt ?? upcoming.first.createdAt;
+    final delay = dueAt.difference(now);
+    _dueTimer = Timer(delay.isNegative ? Duration.zero : delay, () {
+      for (final notification in _notifications) {
+        if (notification.isVisible &&
+            !_presentedIds.contains(notification.id) &&
+            _allows(notification)) {
+          _presentedIds.add(notification.id);
+          _incomingController.add(notification);
+        }
+      }
+      notifyListeners();
+      _scheduleNextDue();
+    });
+  }
+
+  void unsubscribe() {
+    _channel?.unsubscribe();
+    _dueTimer?.cancel();
+    _channel = null;
+    _activeUserId = null;
+    _notifications = const [];
+    _presentedIds.clear();
+    _feedInitialized = false;
+    NotificationPreferencesService.instance.clear();
     notifyListeners();
   }
 
-  void _enrichAndPrepend(NotificationModel notif) async {
-    // Fetch actor + post info for the new notification
-    Map<String, Map<String, dynamic>> authors = {};
-    String? preview;
-
-    try {
-      final authorRes = await Supabase.instance.client
-          .from('community_authors')
-          .select()
-          .eq('id', notif.actorId!)
-          .single();
-      authors[notif.actorId!] = Map<String, dynamic>.from(authorRes);
-    } catch (_) {}
-
-    if (notif.postId != null) {
-      try {
-        final postRes = await Supabase.instance.client
-            .from('community_posts')
-            .select('content')
-            .eq('id', notif.postId!)
-            .single();
-        final text = stripFormattingForNotificationPreview(
-          postRes['content'] as String? ?? '',
-        );
-        preview = text.length > 60 ? '${text.substring(0, 60)}…' : text;
-      } catch (_) {}
-    }
-
-    final enriched = notif.copyWith(
-      actorName: authors[notif.actorId]?['full_name'] as String?,
-      actorAvatarUrl: authors[notif.actorId]?['avatar_url'] as String?,
-      postContent: preview,
-    );
-
-    _notifications.insert(0, enriched);
+  @visibleForTesting
+  void debugReplaceNotifications(List<NotificationModel> notifications) {
+    _notifications = List.unmodifiable(notifications);
+    _feedInitialized = true;
     notifyListeners();
+  }
+
+  @visibleForTesting
+  void debugEmit(NotificationModel notification) {
+    _incomingController.add(notification);
   }
 }

@@ -226,9 +226,32 @@ class QuickAddService {
     }
 
     String? category = rawCategory as String?;
-    if (category == null || !categoryKeys.contains(category)) {
-      if (categoryKeys.contains('Other')) {
-        category = 'Other';
+    final resolvedCategory = category == null
+        ? null
+        : TransactionCategory.resolve(category);
+    final customCategory = category == null
+        ? null
+        : CustomCategoryStore.instance.findByKey(category);
+    final expectedType = type == QuickAddTransactionType.income
+        ? TransactionCategoryType.income
+        : TransactionCategoryType.expense;
+    final categoryHasWrongType =
+        type != null &&
+        category != null &&
+        (TransactionCategory.containsKey(category) || customCategory != null) &&
+        (customCategory?.type ?? resolvedCategory?.type) != expectedType;
+    if (category == null ||
+        !categoryKeys.contains(category) ||
+        categoryHasWrongType) {
+      final fallback =
+          type == QuickAddTransactionType.income &&
+              categoryKeys.contains('Other Income')
+          ? 'Other Income'
+          : categoryKeys.contains('Other')
+          ? 'Other'
+          : null;
+      if (fallback != null) {
+        category = fallback;
         warnings.add(_warning(locale, 'categoryFallback'));
       } else {
         category = null;

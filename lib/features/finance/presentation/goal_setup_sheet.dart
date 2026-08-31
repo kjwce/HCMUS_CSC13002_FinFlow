@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/i18n/app_language.dart';
 import '../../../core/utils/responsive.dart';
+import '../../../core/widgets/finflow_action_icon.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../models/goal_model.dart';
 import '../providers/goal_provider.dart';
@@ -40,7 +41,7 @@ class _GoalSetupSheetState extends ConsumerState<GoalSetupSheet> {
   static const _bodyFont = 'Hanken Grotesk';
   static const _pageColor = Color(0xFFF7FAF9);
   static const _textColor = Color(0xFF17201D);
-  static const _mutedColor = Color(0xFF65736E);
+  static const _mutedColor = Color(0xFF52655E);
 
   final _nameController = TextEditingController();
   final _amountController = TextEditingController();
@@ -562,7 +563,7 @@ class _GoalSetupSheetState extends ConsumerState<GoalSetupSheet> {
                 onPressed: _isSaving
                     ? null
                     : () => _confirmDelete(_editingGoal!),
-                icon: const Icon(Icons.delete_outline),
+                icon: const FinFlowTrashIcon(color: Color(0xFFBA1A1A)),
                 label: Text(AppStrings.choose('Delete Goal', 'Xóa mục tiêu')),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: const Color(0xFFBA1A1A),

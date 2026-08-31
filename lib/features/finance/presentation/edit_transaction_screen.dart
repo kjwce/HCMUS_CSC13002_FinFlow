@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/i18n/app_language.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/responsive.dart';
+import '../../../core/widgets/finflow_action_icon.dart';
 import '../models/transaction_category.dart';
 import '../models/goal_model.dart';
 import '../models/transaction_model.dart';
@@ -55,16 +56,16 @@ class _EditTransactionScreenState extends ConsumerState<EditTransactionScreen> {
     _amountController = TextEditingController(
       text: _addCommas(widget.transaction.amount.abs().toString()),
     )..addListener(_formatAmount);
+    _isExpense = widget.transaction.amount < 0;
     final storedCategory = widget.transaction.category;
     final categoryExists =
-        TransactionCategory.all.any(
-          (category) => category.key == storedCategory,
-        ) ||
+        TransactionCategory.containsKey(storedCategory) ||
         CustomCategoryStore.instance.findByKey(storedCategory) != null;
-    _selectedCategory = categoryExists ? storedCategory : 'Other';
+    _selectedCategory = categoryExists
+        ? TransactionCategory.fromKey(storedCategory).key
+        : (_isExpense ? 'Other' : 'Other Income');
     _selectedWalletId = widget.transaction.walletId;
     _transactionDate = widget.transaction.date;
-    _isExpense = widget.transaction.amount < 0;
     WalletService.instance.addListener(_onWalletsChanged);
     Future.microtask(() {
       ref
@@ -94,7 +95,7 @@ class _EditTransactionScreenState extends ConsumerState<EditTransactionScreen> {
     final category = _categoryForKey(_selectedCategory);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFDFCFF),
+      backgroundColor: const Color(0xFFF1FAF6),
       body: SafeArea(
         child: Column(
           children: [
@@ -103,133 +104,145 @@ class _EditTransactionScreenState extends ConsumerState<EditTransactionScreen> {
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
                 padding: EdgeInsets.fromLTRB(
-                  Responsive.w(context, 20),
-                  Responsive.h(context, 20),
-                  Responsive.w(context, 20),
-                  Responsive.h(context, 30),
+                  Responsive.w(context, 16),
+                  Responsive.h(context, 16),
+                  Responsive.w(context, 16),
+                  MediaQuery.viewInsetsOf(context).bottom +
+                      Responsive.h(context, 24),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _TransactionTypeSelector(
                       isExpense: _isExpense,
-                      onSelected: (value) => setState(() => _isExpense = value),
+                      onSelected: _setTransactionType,
                     ),
-                    SizedBox(height: Responsive.h(context, 22)),
+                    SizedBox(height: Responsive.h(context, 16)),
                     Text(
-                      AppStrings.choose('AMOUNT (VND)', 'SỐ TIỀN (VND)'),
+                      AppStrings.choose('AMOUNT', 'SỐ TIỀN'),
                       style: _labelStyle,
                     ),
-                    SizedBox(height: Responsive.h(context, 4)),
+                    SizedBox(height: Responsive.h(context, 8)),
+                    _buildAmountCard(),
+                    SizedBox(height: Responsive.h(context, 22)),
+                    Text(
+                      AppStrings.choose(
+                        'PAYMENT METHOD',
+                        'PHƯƠNG THỨC THANH TOÁN',
+                      ),
+                      style: _labelStyle,
+                    ),
+                    SizedBox(height: Responsive.h(context, 10)),
                     Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
+                      key: const Key('edit_source_field'),
                       children: [
                         Expanded(
-                          child: TextField(
-                            key: const Key('edit_amount_field'),
-                            controller: _amountController,
-                            keyboardType: TextInputType.number,
-                            cursorColor: _accent,
-                            style: TextStyle(
-                              fontFamily: 'Manrope',
-                              fontSize: Responsive.sp(context, 44),
-                              fontWeight: FontWeight.w700,
-                              color: _accent,
-                            ),
-                            decoration: InputDecoration(
-                              hintText: '0',
-                              hintStyle: TextStyle(
-                                color: _accent.withValues(alpha: 0.28),
-                              ),
-                              enabledBorder: const UnderlineInputBorder(
-                                borderSide: BorderSide(
-                                  color: Color(0xFFC3C7CF),
-                                  width: 2,
-                                ),
-                              ),
-                              focusedBorder: UnderlineInputBorder(
-                                borderSide: BorderSide(
-                                  color: _accent,
-                                  width: 2,
-                                ),
-                              ),
-                              contentPadding: EdgeInsets.symmetric(
-                                horizontal: Responsive.w(context, 6),
-                                vertical: Responsive.h(context, 8),
-                              ),
-                            ),
+                          child: _buildPaymentMethodCard(
+                            wallets: wallets,
+                            type: WalletType.cash,
+                            label: AppStrings.choose('Cash', 'Tiền mặt'),
+                            icon: Icons.payments_outlined,
+                            selected: wallet?.type == WalletType.cash,
                           ),
                         ),
-                        Padding(
-                          padding: EdgeInsets.only(
-                            left: Responsive.w(context, 8),
-                            bottom: Responsive.h(context, 18),
-                          ),
-                          child: Text(
-                            'VND',
-                            style: _labelStyle.copyWith(
-                              color: _accent.withValues(alpha: 0.72),
-                              fontWeight: FontWeight.w700,
+                        SizedBox(width: Responsive.w(context, 10)),
+                        Expanded(
+                          child: _buildPaymentMethodCard(
+                            wallets: wallets,
+                            type: WalletType.transfer,
+                            label: AppStrings.choose(
+                              'Transfer',
+                              'Chuyển khoản',
                             ),
+                            icon: Icons.account_balance_outlined,
+                            selected: wallet?.type == WalletType.transfer,
                           ),
                         ),
                       ],
                     ),
-                    SizedBox(height: Responsive.h(context, 18)),
-                    _buildSelectionField(
-                      fieldKey: const Key('edit_category_field'),
-                      label: AppStrings.choose('CATEGORY', 'DANH MỤC'),
-                      value: AppStrings.categoryName(category.label),
-                      leading: category.buildIcon(color: _accent, size: 20),
-                      highlighted: true,
-                      onTap: _showCategorySelection,
-                    ),
-                    SizedBox(height: Responsive.h(context, 12)),
-                    _buildSelectionField(
-                      fieldKey: const Key('edit_source_field'),
-                      label: AppStrings.choose(
-                        'PAYMENT METHOD',
-                        'PHƯƠNG THỨC THANH TOÁN',
+                    SizedBox(height: Responsive.h(context, 24)),
+                    Text(
+                      AppStrings.choose(
+                        'TRANSACTION DETAILS',
+                        'CHI TIẾT GIAO DỊCH',
                       ),
-                      value: _sourceName(wallet),
-                      leading: wallet == null
-                          ? Icon(
-                              Icons.account_balance_rounded,
-                              color: _accent,
-                              size: 22,
-                            )
-                          : _walletLogo(wallet),
-                      onTap: () => _showSourceSelection(wallets),
+                      style: _labelStyle,
                     ),
-                    SizedBox(height: Responsive.h(context, 12)),
-                    _buildSelectionField(
-                      label: AppStrings.choose('DATE', 'NGÀY'),
-                      value: _formatDate(_transactionDate),
-                      leading: Icon(
-                        Icons.calendar_today_outlined,
-                        color: _accent,
-                        size: 21,
+                    SizedBox(height: Responsive.h(context, 10)),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFFDDE8E3)),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x14004736),
+                            blurRadius: 18,
+                            offset: Offset(0, 7),
+                          ),
+                        ],
                       ),
-                      trailing: const Icon(
-                        Icons.calendar_month_outlined,
-                        size: 19,
+                      child: Column(
+                        children: [
+                          _buildSelectionField(
+                            fieldKey: const Key('edit_category_field'),
+                            label: AppStrings.choose('CATEGORY', 'DANH MỤC'),
+                            value: AppStrings.categoryName(category.label),
+                            leading: _detailIcon(
+                              category.buildIcon(color: _accent, size: 19),
+                            ),
+                            onTap: _showCategorySelection,
+                            embedded: true,
+                          ),
+                          const Divider(
+                            height: 1,
+                            indent: 62,
+                            color: Color(0xFFDDE8E3),
+                          ),
+                          _buildSelectionField(
+                            label: AppStrings.choose('DATE', 'NGÀY'),
+                            value: _formatDate(_transactionDate),
+                            leading: _detailIcon(
+                              const Icon(
+                                Icons.calendar_today_outlined,
+                                color: Color(0xFF3F6FE5),
+                                size: 18,
+                              ),
+                              background: const Color(0xFFE8F0FF),
+                            ),
+                            trailing: const Icon(
+                              Icons.calendar_month_outlined,
+                              size: 19,
+                              color: Color(0xFF007C61),
+                            ),
+                            onTap: _pickDate,
+                            embedded: true,
+                          ),
+                          const Divider(
+                            height: 1,
+                            indent: 62,
+                            color: Color(0xFFDDE8E3),
+                          ),
+                          _buildNameField(embedded: true),
+                        ],
                       ),
-                      onTap: _pickDate,
                     ),
-                    SizedBox(height: Responsive.h(context, 12)),
-                    _buildNameField(),
-                    SizedBox(height: Responsive.h(context, 18)),
+                    SizedBox(height: Responsive.h(context, 24)),
                     FilledButton(
                       key: const Key('edit_save_button'),
                       onPressed: _isSaving || _isDeleting ? null : _save,
                       style: FilledButton.styleFrom(
-                        backgroundColor: _accent,
+                        backgroundColor: const Color(0xFF007C61),
                         foregroundColor: Colors.white,
-                        disabledBackgroundColor: _accent.withValues(alpha: 0.5),
+                        disabledBackgroundColor: const Color(
+                          0xFF007C61,
+                        ).withValues(alpha: 0.5),
                         minimumSize: Size.fromHeight(Responsive.h(context, 56)),
-                        shape: const StadiumBorder(),
-                        elevation: 7,
-                        shadowColor: _accent.withValues(alpha: 0.35),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        elevation: 5,
+                        shadowColor: const Color(0x33004736),
                       ),
                       child: _isSaving
                           ? const SizedBox(
@@ -246,6 +259,7 @@ class _EditTransactionScreenState extends ConsumerState<EditTransactionScreen> {
                                 'Cập nhật giao dịch',
                               ),
                               style: const TextStyle(
+                                fontFamily: 'Hanken Grotesk',
                                 fontSize: 16,
                                 fontWeight: FontWeight.w700,
                               ),
@@ -263,54 +277,226 @@ class _EditTransactionScreenState extends ConsumerState<EditTransactionScreen> {
 
   Widget _buildHeader() {
     return Container(
-      height: Responsive.h(context, 64),
-      padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 8)),
-      decoration: const BoxDecoration(
-        color: Color(0xFFFDFCFF),
-        border: Border(bottom: BorderSide(color: Color(0xFFC3C7CF))),
-      ),
-      child: Stack(
-        alignment: Alignment.center,
+      height: Responsive.h(context, 52),
+      padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 10)),
+      color: const Color(0xFFF1FAF6),
+      child: Row(
         children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            child: IconButton(
-              tooltip: AppStrings.choose('Back', 'Quay lại'),
-              onPressed: () => Navigator.of(context).pop(),
-              icon: const Icon(
-                Icons.arrow_back_rounded,
-                color: Color(0xFF43474E),
+          IconButton(
+            tooltip: AppStrings.choose('Back', 'Quay lại'),
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(
+              Icons.arrow_back_rounded,
+              color: Color(0xFF43474E),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              AppStrings.editTransaction,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: 'Manrope',
+                fontSize: Responsive.sp(context, 22),
+                fontWeight: FontWeight.w700,
+                color: AppColors.deepEmerald,
               ),
             ),
           ),
-          Text(
-            AppStrings.editTransaction,
-            style: TextStyle(
-              fontFamily: 'Manrope',
-              fontSize: Responsive.sp(context, 18),
-              fontWeight: FontWeight.w600,
-              color: const Color(0xFF1A1C1E),
+          _isDeleting
+              ? const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: SizedBox.square(
+                    dimension: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
+              : PopupMenuButton<String>(
+                  tooltip: AppStrings.choose('More options', 'Tùy chọn khác'),
+                  enabled: !_isSaving,
+                  icon: const Icon(
+                    Icons.more_horiz_rounded,
+                    color: Color(0xFF43474E),
+                  ),
+                  color: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  onSelected: (value) {
+                    if (value == 'delete') _delete();
+                  },
+                  itemBuilder: (_) => [
+                    PopupMenuItem<String>(
+                      value: 'delete',
+                      child: Row(
+                        children: [
+                          const FinFlowTrashIcon(
+                            color: AppColors.coral,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            AppStrings.choose(
+                              'Delete transaction',
+                              'Xóa giao dịch',
+                            ),
+                            style: const TextStyle(
+                              color: AppColors.coral,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAmountCard() {
+    return Container(
+      constraints: BoxConstraints(minHeight: Responsive.h(context, 104)),
+      padding: EdgeInsets.symmetric(
+        horizontal: Responsive.w(context, 18),
+        vertical: Responsive.h(context, 12),
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFDDE8E3)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x16004736),
+            blurRadius: 20,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: TextField(
+              key: const Key('edit_amount_field'),
+              controller: _amountController,
+              keyboardType: TextInputType.number,
+              cursorColor: _accent,
+              style: TextStyle(
+                fontFamily: 'Manrope',
+                fontSize: Responsive.sp(context, 36),
+                fontWeight: FontWeight.w700,
+                color: _accent,
+              ),
+              decoration: InputDecoration(
+                hintText: '0',
+                hintStyle: TextStyle(color: _accent.withValues(alpha: 0.3)),
+                border: InputBorder.none,
+                isCollapsed: true,
+              ),
             ),
           ),
-          Align(
-            alignment: Alignment.centerRight,
-            child: IconButton(
-              tooltip: AppStrings.choose('Delete transaction', 'Xóa giao dịch'),
-              onPressed: _isSaving || _isDeleting ? null : _delete,
-              icon: _isDeleting
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(
-                      Icons.delete_outline_rounded,
-                      color: AppColors.coral,
-                    ),
+          const SizedBox(width: 8),
+          Text(
+            'VND',
+            style: TextStyle(
+              fontFamily: 'Manrope',
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: _accent,
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildPaymentMethodCard({
+    required List<WalletModel> wallets,
+    required WalletType type,
+    required String label,
+    required IconData icon,
+    required bool selected,
+  }) {
+    const green = Color(0xFF007C61);
+    return Material(
+      color: selected ? const Color(0xFFE9F7F2) : Colors.white,
+      borderRadius: BorderRadius.circular(13),
+      child: InkWell(
+        onTap: () => _selectWalletType(wallets, type),
+        borderRadius: BorderRadius.circular(13),
+        child: Container(
+          constraints: BoxConstraints(minHeight: Responsive.h(context, 64)),
+          padding: EdgeInsets.symmetric(horizontal: Responsive.w(context, 13)),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(13),
+            border: Border.all(
+              color: selected ? green : const Color(0xFFDDE8E3),
+              width: selected ? 1.4 : 1,
+            ),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x10004736),
+                blurRadius: 12,
+                offset: Offset(0, 5),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFE3F4EF),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, size: 18, color: green),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontFamily: 'Hanken Grotesk',
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF263831),
+                  ),
+                ),
+              ),
+              if (selected)
+                const Icon(Icons.check_circle_rounded, size: 18, color: green),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _selectWalletType(List<WalletModel> wallets, WalletType type) {
+    final matches = wallets.where(
+      (wallet) => wallet.type == type && wallet.isActive,
+    );
+    if (matches.isEmpty) {
+      _showSourceSelection(wallets);
+      return;
+    }
+    setState(() => _selectedWalletId = matches.first.id);
+  }
+
+  Widget _detailIcon(
+    Widget icon, {
+    Color background = const Color(0xFFE3F4EF),
+  }) {
+    return Container(
+      width: 38,
+      height: 38,
+      decoration: BoxDecoration(color: background, shape: BoxShape.circle),
+      child: Center(child: icon),
     );
   }
 
@@ -322,36 +508,43 @@ class _EditTransactionScreenState extends ConsumerState<EditTransactionScreen> {
     required VoidCallback onTap,
     Widget? trailing,
     bool highlighted = false,
+    bool embedded = false,
   }) {
     return Material(
       key: fieldKey,
-      color: highlighted ? _accent.withValues(alpha: 0.06) : Colors.white,
-      borderRadius: BorderRadius.circular(12),
+      color: embedded
+          ? Colors.transparent
+          : highlighted
+          ? _accent.withValues(alpha: 0.06)
+          : Colors.white,
+      borderRadius: BorderRadius.circular(embedded ? 0 : 12),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(embedded ? 0 : 12),
         child: Container(
           constraints: BoxConstraints(minHeight: Responsive.h(context, 72)),
           padding: EdgeInsets.symmetric(
             horizontal: Responsive.w(context, 16),
             vertical: Responsive.h(context, 11),
           ),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: highlighted
-                  ? _accent.withValues(alpha: 0.55)
-                  : const Color(0xFFC3C7CF),
-              width: highlighted ? 1.5 : 1,
-            ),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x10000000),
-                blurRadius: 7,
-                offset: Offset(0, 2),
-              ),
-            ],
-          ),
+          decoration: embedded
+              ? null
+              : BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: highlighted
+                        ? _accent.withValues(alpha: 0.55)
+                        : const Color(0xFFC3C7CF),
+                    width: highlighted ? 1.5 : 1,
+                  ),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x10000000),
+                      blurRadius: 7,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
           child: Row(
             children: [
               SizedBox(width: 30, child: Center(child: leading)),
@@ -389,28 +582,30 @@ class _EditTransactionScreenState extends ConsumerState<EditTransactionScreen> {
     );
   }
 
-  Widget _buildNameField() {
+  Widget _buildNameField({bool embedded = false}) {
     return Container(
       constraints: BoxConstraints(minHeight: Responsive.h(context, 72)),
       padding: EdgeInsets.symmetric(
         horizontal: Responsive.w(context, 16),
         vertical: Responsive.h(context, 8),
       ),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFC3C7CF)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x10000000),
-            blurRadius: 7,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
+      decoration: embedded
+          ? null
+          : BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFC3C7CF)),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x10000000),
+                  blurRadius: 7,
+                  offset: Offset(0, 2),
+                ),
+              ],
+            ),
       child: Row(
         children: [
-          Icon(Icons.edit_note_rounded, color: _accent, size: 24),
+          _detailIcon(Icon(Icons.edit_note_rounded, color: _accent, size: 20)),
           SizedBox(width: Responsive.w(context, 12)),
           Expanded(
             child: TextField(
@@ -439,19 +634,6 @@ class _EditTransactionScreenState extends ConsumerState<EditTransactionScreen> {
     );
   }
 
-  Widget _walletLogo(WalletModel wallet) {
-    return SizedBox(
-      width: 30,
-      height: 30,
-      child: Image.asset(
-        wallet.logoAssetPath,
-        fit: BoxFit.contain,
-        errorBuilder: (_, _, _) =>
-            Icon(_walletIcon(wallet.type), color: wallet.brandColor, size: 22),
-      ),
-    );
-  }
-
   Future<void> _showCategorySelection() async {
     final result = await showModalBottomSheet<String>(
       context: context,
@@ -460,10 +642,26 @@ class _EditTransactionScreenState extends ConsumerState<EditTransactionScreen> {
       backgroundColor: Colors.transparent,
       builder: (_) => SafeArea(
         top: false,
-        child: TransactionCategorySelectionSheet(initialKey: _selectedCategory),
+        child: TransactionCategorySelectionSheet(
+          initialKey: _selectedCategory,
+          isIncome: !_isExpense,
+        ),
       ),
     );
     if (result != null && mounted) setState(() => _selectedCategory = result);
+  }
+
+  void _setTransactionType(bool isExpense) {
+    final selected = TransactionCategory.resolve(_selectedCategory);
+    setState(() {
+      _isExpense = isExpense;
+      final requiredType = isExpense
+          ? TransactionCategoryType.expense
+          : TransactionCategoryType.income;
+      if (selected.type != requiredType) {
+        _selectedCategory = isExpense ? 'Food' : 'Salary';
+      }
+    });
   }
 
   Future<void> _showSourceSelection(List<WalletModel> wallets) async {
@@ -486,11 +684,12 @@ class _EditTransactionScreenState extends ConsumerState<EditTransactionScreen> {
   }
 
   Future<void> _pickDate() async {
+    final today = DateTime.now();
     final picked = await showDatePicker(
       context: context,
-      initialDate: _transactionDate,
+      initialDate: _transactionDate.isAfter(today) ? today : _transactionDate,
       firstDate: DateTime(2000),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
+      lastDate: today,
     );
     if (picked != null && mounted) setState(() => _transactionDate = picked);
   }
@@ -688,20 +887,6 @@ class _EditTransactionScreenState extends ConsumerState<EditTransactionScreen> {
       if (wallet.id == id) return wallet;
     }
     return null;
-  }
-
-  String _sourceName(WalletModel? wallet) {
-    if (wallet == null) {
-      return AppStrings.choose(
-        'Select payment method',
-        'Chọn phương thức thanh toán',
-      );
-    }
-    return switch (wallet.name) {
-      'Cash' => AppStrings.choose('Cash', 'Tiền mặt'),
-      'Transfer' => AppStrings.choose('Transfer', 'Chuyển khoản'),
-      _ => wallet.name,
-    };
   }
 
   String _formatDate(DateTime value) {

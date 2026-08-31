@@ -6,9 +6,11 @@ import '../../core/i18n/app_language.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme_manager.dart';
+import '../../core/widgets/in_app_notification_host.dart';
 import '../../features/auth/presentation/forgot_password_screen.dart';
 import '../../features/auth/presentation/change_password_screen.dart';
 import '../../features/auth/presentation/new_password_screen.dart';
+import '../../features/auth/presentation/reset_success_screen.dart';
 import '../../features/auth/presentation/sign_in_screen.dart';
 import '../../features/auth/presentation/sign_up_screen.dart';
 import '../../features/auth/presentation/verification_screen.dart';
@@ -20,6 +22,7 @@ import '../../features/finance/presentation/wallet_onboarding_screen.dart';
 import '../../features/finance/presentation/goal_details_screen.dart';
 import '../../features/finance/presentation/goal_form_screen.dart';
 import '../../features/finance/presentation/saving_goals_screen.dart';
+import '../../features/finance/presentation/recurring_screens.dart';
 import '../../features/profile/presentation/edit_profile_screen.dart';
 import '../../features/community/presentation/notification_screen.dart';
 import '../../features/community/presentation/community_activity_screen.dart';
@@ -28,9 +31,11 @@ import '../../features/launch/presentation/launch_screen.dart';
 import '../../features/launch/presentation/onboarding_screen.dart';
 import '../../features/scan/presentation/scan_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
+import '../../features/settings/presentation/money_sources_screen.dart';
 import '../../features/settings/presentation/budget_limits_screen.dart';
+import '../../features/settings/presentation/budget_overview_screen.dart';
 import '../../features/settings/presentation/security_screen.dart';
-import '../../features/notification_import/presentation/bank_notification_import_screen.dart';
+import '../../features/settings/presentation/notification_preferences_screen.dart';
 import 'main_shell.dart';
 import '../../main.dart';
 
@@ -45,9 +50,12 @@ class AppRoutes {
   static const forgotPassword = '/forgot-password';
   static const verification = '/verify';
   static const newPassword = '/new-password';
+  static const resetSuccess = '/reset-success';
   static const dashboard = '/dashboard';
   static const settings = '/settings';
+  static const moneySources = '/settings/money-sources';
   static const budgetLimits = '/budget-limits';
+  static const budgetOverview = '/budget-overview';
   static const security = '/security';
   static const changePassword = '/change-password';
   static const chat = '/chat';
@@ -59,13 +67,16 @@ class AppRoutes {
   static const categoryBudgets = '/category-budgets';
   static const walletOnboarding = '/wallet-onboarding';
   static const notifications = '/notifications';
+  static const notificationPreferences = '/settings/notifications';
   static const communityPostDetail = '/community-post-detail';
   static const communityActivity = '/community-activity';
-  static const bankNotificationImport = '/bank-notification-import';
   static const savingGoals = '/saving-goals';
   static const createGoal = '/saving-goals/create';
   static const goalDetails = '/saving-goals/details';
   static const editGoal = '/saving-goals/edit';
+  static const recurring = '/recurring';
+  static const recurringNew = '/recurring/new';
+  static const recurringDetails = '/recurring/details';
 }
 
 class FinFlowApp extends StatelessWidget {
@@ -112,7 +123,10 @@ class FinFlowApp extends StatelessWidget {
                       ? Brightness.light
                       : Brightness.dark,
                 ),
-                child: child!,
+                child: InAppNotificationHost(
+                  navigatorKey: navigatorKey,
+                  child: child!,
+                ),
               );
             },
             initialRoute: AppRoutes.launch,
@@ -132,12 +146,19 @@ class FinFlowApp extends StatelessWidget {
                   _LanguageAwarePage(pageBuilder: (_) => VerificationScreen()),
               AppRoutes.newPassword: (_) =>
                   _LanguageAwarePage(pageBuilder: (_) => NewPasswordScreen()),
+              AppRoutes.resetSuccess: (_) =>
+                  _LanguageAwarePage(pageBuilder: (_) => ResetSuccessScreen()),
               AppRoutes.dashboard: (_) =>
                   _LanguageAwarePage(pageBuilder: (_) => MainShell()),
               AppRoutes.settings: (_) =>
                   _LanguageAwarePage(pageBuilder: (_) => SettingsScreen()),
+              AppRoutes.moneySources: (_) =>
+                  _LanguageAwarePage(pageBuilder: (_) => MoneySourcesScreen()),
               AppRoutes.budgetLimits: (_) =>
                   _LanguageAwarePage(pageBuilder: (_) => BudgetLimitsScreen()),
+              AppRoutes.budgetOverview: (_) => _LanguageAwarePage(
+                pageBuilder: (_) => BudgetOverviewScreen(),
+              ),
               AppRoutes.security: (_) =>
                   _LanguageAwarePage(pageBuilder: (_) => SecurityScreen()),
               AppRoutes.changePassword: (_) => _LanguageAwarePage(
@@ -164,16 +185,21 @@ class FinFlowApp extends StatelessWidget {
               ),
               AppRoutes.notifications: (_) =>
                   _LanguageAwarePage(pageBuilder: (_) => NotificationScreen()),
+              AppRoutes.notificationPreferences: (_) => _LanguageAwarePage(
+                pageBuilder: (_) => NotificationPreferencesScreen(),
+              ),
               AppRoutes.communityActivity: (_) => _LanguageAwarePage(
                 pageBuilder: (_) => CommunityActivityScreen(),
-              ),
-              AppRoutes.bankNotificationImport: (_) => _LanguageAwarePage(
-                pageBuilder: (_) => BankNotificationImportScreen(),
               ),
               AppRoutes.savingGoals: (_) =>
                   _LanguageAwarePage(pageBuilder: (_) => SavingGoalsScreen()),
               AppRoutes.createGoal: (_) =>
                   _LanguageAwarePage(pageBuilder: (_) => GoalFormScreen()),
+              AppRoutes.recurring: (_) => _LanguageAwarePage(
+                pageBuilder: (_) => RecurringControlCenterScreen(),
+              ),
+              AppRoutes.recurringNew: (_) =>
+                  _LanguageAwarePage(pageBuilder: (_) => NewRecurringScreen()),
             },
             onGenerateRoute: (settings) {
               final goalId = settings.arguments as String?;
@@ -183,6 +209,13 @@ class FinFlowApp extends StatelessWidget {
                   settings: settings,
                   builder: (_) => _LanguageAwarePage(
                     pageBuilder: (_) => GoalDetailsScreen(goalId: goalId),
+                  ),
+                ),
+                AppRoutes.recurringDetails => MaterialPageRoute<void>(
+                  settings: settings,
+                  builder: (_) => _LanguageAwarePage(
+                    pageBuilder: (_) =>
+                        RecurringScheduleDetailsScreen(scheduleId: goalId),
                   ),
                 ),
                 AppRoutes.editGoal => MaterialPageRoute<void>(

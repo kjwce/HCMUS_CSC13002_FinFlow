@@ -45,6 +45,9 @@ flutter:
     - assets/icons/home/
     - assets/icons/categories/
     - assets/icons/categories/duotone/
+    - assets/icons/categories/duotone/expense/
+    - assets/icons/categories/duotone/income/
+    - assets/icons/categories/duotone/goals/
     - assets/icons/categories/fill/
     - assets/logos/banks/
     - assets/logos/ewallets/

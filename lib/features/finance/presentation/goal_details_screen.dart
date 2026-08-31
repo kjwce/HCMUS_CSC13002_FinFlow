@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/shell/finflow_app.dart';
 import '../../../core/i18n/app_language.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/finflow_action_icon.dart';
+import '../models/goal_category.dart';
 import '../models/goal_model.dart';
 import '../providers/goal_provider.dart';
 import '../services/goal_service.dart';
@@ -85,33 +88,107 @@ class _GoalDetailsScreenState extends ConsumerState<GoalDetailsScreen> {
           AppStrings.choose('Goal Details', 'Chi tiết mục tiêu'),
           style: TextStyle(
             fontFamily: 'Manrope',
-            color: isDark ? _detailsDarkText : goalText,
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
+            color: isDark ? _detailsDarkText : AppColors.deepEmerald,
+            fontSize: 22,
+            fontWeight: FontWeight.w700,
           ),
         ),
-        centerTitle: true,
+        centerTitle: false,
+        titleSpacing: 0,
         actions: [
-          IconButton(
-            tooltip: AppStrings.choose('Edit goal', 'Sửa mục tiêu'),
-            onPressed: () => Navigator.of(
-              context,
-            ).pushNamed(AppRoutes.editGoal, arguments: goal.id),
-            icon: const Icon(Icons.edit_outlined),
-          ),
           PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == 'primary') service.activateGoal(goal.id);
-            },
+            key: const Key('goal-details-options-menu'),
+            tooltip: AppStrings.choose('Goal options', 'Tùy chọn mục tiêu'),
+            position: PopupMenuPosition.under,
+            offset: const Offset(0, 6),
+            elevation: 14,
+            color: isDark ? _detailsDarkRaisedSurface : Colors.white,
+            surfaceTintColor: Colors.transparent,
+            shadowColor: const Color(0x33001F17),
+            constraints: const BoxConstraints(minWidth: 224, maxWidth: 260),
+            padding: EdgeInsets.zero,
+            menuPadding: const EdgeInsets.symmetric(vertical: 5),
+            clipBehavior: Clip.antiAlias,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(
+                color: isDark ? _detailsDarkBorder : const Color(0xFFDCE7E2),
+              ),
+            ),
+            onSelected: (value) => _handleGoalMenu(value, goal),
             itemBuilder: (_) => [
               PopupMenuItem(
+                value: 'edit',
+                height: 56,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: _GoalMenuItem(
+                  icon: FinFlowPencilIcon(
+                    color: isDark ? _detailsDarkAccent : goalPrimary,
+                    size: 18,
+                  ),
+                  iconColor: isDark ? _detailsDarkAccent : goalPrimary,
+                  label: AppStrings.choose('Edit goal', 'Chỉnh sửa mục tiêu'),
+                ),
+              ),
+              const PopupMenuDivider(height: 1),
+              PopupMenuItem(
                 value: 'primary',
-                child: Text(
-                  AppStrings.choose('Set as primary', 'Đặt làm ưu tiên'),
+                enabled: !goal.isPrimary,
+                height: 56,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: _GoalMenuItem(
+                  icon: FinFlowPrimaryIcon(
+                    color: isDark
+                        ? const Color(0xFFFFD166)
+                        : const Color(0xFF9A6A00),
+                    size: 18,
+                  ),
+                  iconColor: isDark
+                      ? const Color(0xFFFFD166)
+                      : const Color(0xFF9A6A00),
+                  label: goal.isPrimary
+                      ? AppStrings.choose('Primary goal', 'Mục tiêu ưu tiên')
+                      : AppStrings.choose('Set as primary', 'Đặt làm ưu tiên'),
+                ),
+              ),
+              const PopupMenuDivider(height: 1),
+              PopupMenuItem(
+                value: 'delete',
+                height: 56,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: _GoalMenuItem(
+                  icon: FinFlowTrashIcon(
+                    color: isDark
+                        ? _detailsDarkDanger
+                        : const Color(0xFFBA1A1A),
+                    size: 18,
+                  ),
+                  iconColor: isDark
+                      ? _detailsDarkDanger
+                      : const Color(0xFFBA1A1A),
+                  label: AppStrings.choose('Delete goal', 'Xóa mục tiêu'),
+                  destructive: true,
                 ),
               ),
             ],
+            child: Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: isDark
+                    ? _detailsDarkBorder.withValues(alpha: .72)
+                    : const Color(0xFFF3F6F5),
+                shape: BoxShape.circle,
+              ),
+              alignment: Alignment.center,
+              child: Icon(
+                Icons.more_horiz_rounded,
+                size: 21,
+                color: isDark ? _detailsDarkSecondaryText : goalMuted,
+              ),
+            ),
           ),
+          const SizedBox(width: 8),
         ],
       ),
       body: ListView(
@@ -161,6 +238,122 @@ class _GoalDetailsScreenState extends ConsumerState<GoalDetailsScreen> {
           _ActivityCard(entries: entries),
         ],
       ),
+    );
+  }
+
+  Future<void> _handleGoalMenu(String value, GoalModel goal) async {
+    switch (value) {
+      case 'edit':
+        await Navigator.of(
+          context,
+        ).pushNamed(AppRoutes.editGoal, arguments: goal.id);
+      case 'primary':
+        await ref.read(goalServiceProvider).activateGoal(goal.id);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              AppStrings.choose(
+                '${goal.name} is now your primary goal.',
+                '${goal.name} đã được đặt làm mục tiêu ưu tiên.',
+              ),
+            ),
+          ),
+        );
+      case 'delete':
+        await _deleteGoal(goal);
+    }
+  }
+
+  Future<void> _deleteGoal(GoalModel goal) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: Container(
+          width: 48,
+          height: 48,
+          decoration: const BoxDecoration(
+            color: Color(0xFFFFE8E6),
+            shape: BoxShape.circle,
+          ),
+          alignment: Alignment.center,
+          child: const FinFlowTrashIcon(color: Color(0xFFBA1A1A), size: 24),
+        ),
+        title: Text(AppStrings.choose('Delete goal?', 'Xóa mục tiêu?')),
+        content: Text(
+          AppStrings.choose(
+            'Allocated money will return to available funds.',
+            'Tiền đã phân bổ sẽ trở lại số dư khả dụng.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(AppStrings.cancel),
+          ),
+          FilledButton(
+            key: const Key('confirm-delete-goal'),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFBA1A1A),
+              foregroundColor: Colors.white,
+            ),
+            child: Text(AppStrings.choose('Delete', 'Xóa')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await ref.read(goalServiceProvider).deleteGoal(goal.id);
+    if (mounted) Navigator.of(context).pop();
+  }
+}
+
+class _GoalMenuItem extends StatelessWidget {
+  const _GoalMenuItem({
+    required this.icon,
+    required this.iconColor,
+    required this.label,
+    this.destructive = false,
+  });
+
+  final Widget icon;
+  final Color iconColor;
+  final String label;
+  final bool destructive;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Row(
+      children: [
+        Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: iconColor.withValues(alpha: isDark ? .16 : .11),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          alignment: Alignment.center,
+          child: icon,
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: 'Hanken Grotesk',
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: destructive
+                  ? (isDark ? _detailsDarkDanger : const Color(0xFFBA1A1A))
+                  : (isDark ? _detailsDarkText : goalText),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -217,7 +410,7 @@ class _GoalOverview extends StatelessWidget {
             ),
           ),
           Text(
-            AppStrings.categoryName(goal.category),
+            AppStrings.categoryName(GoalCategory.fromKey(goal.category).label),
             style: TextStyle(
               color: isDark ? _detailsDarkSecondaryText : goalMuted,
               fontSize: 14,

@@ -36,6 +36,22 @@ class AppTheme {
       borderRadius: BorderRadius.circular(10),
       borderSide: BorderSide(color: colors.inputBorder),
     );
+    final baseTextTheme = ThemeData(
+      useMaterial3: true,
+      brightness: brightness,
+    ).textTheme;
+    final readableTextTheme = baseTextTheme.copyWith(
+      bodySmall: baseTextTheme.bodySmall?.copyWith(fontWeight: FontWeight.w500),
+      bodyMedium: baseTextTheme.bodyMedium?.copyWith(
+        fontWeight: FontWeight.w500,
+      ),
+      labelSmall: baseTextTheme.labelSmall?.copyWith(
+        fontWeight: FontWeight.w600,
+      ),
+      labelMedium: baseTextTheme.labelMedium?.copyWith(
+        fontWeight: FontWeight.w600,
+      ),
+    );
 
     return ThemeData(
       useMaterial3: true,
@@ -47,19 +63,35 @@ class AppTheme {
       dividerColor: colors.divider,
       disabledColor: colors.disabled,
       fontFamily: 'Roboto',
+      textTheme: readableTextTheme,
       extensions: [colors],
       appBarTheme: AppBarTheme(
         backgroundColor: colors.pageBackground,
         foregroundColor: colors.primaryText,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
+        centerTitle: false,
+        titleSpacing: 0,
+        toolbarHeight: 64,
+        titleTextStyle: TextStyle(
+          fontFamily: 'Manrope',
+          fontSize: 22,
+          fontWeight: FontWeight.w700,
+          color: isDark ? colors.primaryText : AppColors.deepEmerald,
+        ),
         systemOverlayStyle: overlay,
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: colors.inputBackground,
-        labelStyle: TextStyle(color: colors.secondaryText),
-        hintStyle: TextStyle(color: colors.secondaryText),
+        labelStyle: TextStyle(
+          color: colors.secondaryText,
+          fontWeight: FontWeight.w500,
+        ),
+        hintStyle: TextStyle(
+          color: colors.secondaryText,
+          fontWeight: FontWeight.w500,
+        ),
         border: inputBorder,
         enabledBorder: inputBorder,
         focusedBorder: inputBorder.copyWith(
@@ -85,7 +117,11 @@ class AppTheme {
           fontSize: 20,
           fontWeight: FontWeight.w600,
         ),
-        contentTextStyle: TextStyle(color: colors.primaryText, fontSize: 14),
+        contentTextStyle: TextStyle(
+          color: colors.primaryText,
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+        ),
       ),
       bottomSheetTheme: BottomSheetThemeData(
         backgroundColor: colors.bottomSheetBackground,
@@ -101,12 +137,23 @@ class AppTheme {
       popupMenuTheme: PopupMenuThemeData(
         color: colors.elevatedSurface,
         surfaceTintColor: Colors.transparent,
-        textStyle: TextStyle(color: colors.primaryText),
+        textStyle: TextStyle(
+          color: colors.primaryText,
+          fontWeight: FontWeight.w500,
+        ),
       ),
       dividerTheme: DividerThemeData(color: colors.divider),
       listTileTheme: ListTileThemeData(
         textColor: colors.primaryText,
         iconColor: colors.primaryText,
+        titleTextStyle: TextStyle(
+          color: colors.primaryText,
+          fontWeight: FontWeight.w600,
+        ),
+        subtitleTextStyle: TextStyle(
+          color: colors.secondaryText,
+          fontWeight: FontWeight.w500,
+        ),
       ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: colors.navigationBackground,

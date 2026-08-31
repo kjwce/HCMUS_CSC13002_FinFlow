@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../app/shell/finflow_app.dart';
 import '../../../core/i18n/app_language.dart';
@@ -11,8 +10,6 @@ import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/home_header_controls.dart';
 import '../../../core/widgets/notification_bell.dart';
 import '../../finance/models/wallet_model.dart';
-import '../../finance/services/recurring_reminder_service.dart';
-import '../../finance/services/recurring_service.dart';
 import '../../finance/services/transaction_service.dart';
 import '../../finance/services/wallet_service.dart';
 
@@ -24,24 +21,10 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  static const _notificationsKey = 'finflow_push_notifications';
-  final _preferences = SharedPreferencesAsync();
-  var _notificationsEnabled = true;
-
   @override
   void initState() {
     super.initState();
-    unawaited(_loadNotifications());
     unawaited(_loadMoneySources());
-  }
-
-  Future<void> _loadNotifications() async {
-    try {
-      final saved = await _preferences.getBool(_notificationsKey);
-      if (mounted && saved != null) {
-        setState(() => _notificationsEnabled = saved);
-      }
-    } catch (_) {}
   }
 
   Future<void> _loadMoneySources() async {
@@ -51,27 +34,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         TransactionService.instance.fetchTransactions(),
       ]);
     } catch (_) {}
-  }
-
-  Future<void> _setNotifications(bool value) async {
-    final accepted = await RecurringReminderService.instance.setEnabled(
-      value,
-      schedules: RecurringService.instance.schedules,
-    );
-    if (!mounted) return;
-    setState(() => _notificationsEnabled = accepted ? value : false);
-    if (value && !accepted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            AppStrings.choose(
-              'Notification or Alarms & reminders permission was denied. Enable it in system settings.',
-              'Quyền thông báo hoặc Báo thức và lời nhắc đã bị từ chối. Hãy bật trong cài đặt hệ thống.',
-            ),
-          ),
-        ),
-      );
-    }
   }
 
   Future<void> _chooseLanguage() => showFinFlowLanguageDialog(context);
@@ -97,21 +59,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
           appBar: AppBar(
             elevation: 0,
             scrolledUnderElevation: 0,
-            centerTitle: true,
+            centerTitle: false,
+            titleSpacing: 0,
             backgroundColor: colors.pageBackground,
             foregroundColor: colors.primaryText,
             leading: IconButton(
               onPressed: () => Navigator.of(context).pop(),
               icon: const Icon(Icons.arrow_back_rounded),
             ),
-            title: Text(
-              AppStrings.choose('App Settings', 'Cài đặt ứng dụng'),
-              style: const TextStyle(
-                fontFamily: 'Manrope',
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
+            title: Text(AppStrings.choose('App Settings', 'Cài đặt ứng dụng')),
             actions: const [
               Padding(
                 padding: EdgeInsets.only(right: 14),
@@ -191,14 +147,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _SettingsGroup(
                 children: [
                   _SettingsRow(
+                    key: const Key('notification-preferences-settings-row'),
                     icon: Icons.notifications_none_rounded,
-                    title: AppStrings.pushNotifications,
-                    subtitle: AppStrings.choose(
-                      'Alerts for spending and limits',
-                      'Cảnh báo chi tiêu và hạn mức',
+                    title: AppStrings.choose(
+                      'Notification Preferences',
+                      'Tùy chọn thông báo',
                     ),
-                    switchValue: _notificationsEnabled,
-                    onSwitchChanged: _setNotifications,
+                    subtitle: AppStrings.choose(
+                      'Budgets, recurring and community',
+                      'Ngân sách, định kỳ và cộng đồng',
+                    ),
+                    onTap: () => Navigator.of(
+                      context,
+                    ).pushNamed(AppRoutes.notificationPreferences),
                   ),
                   _SettingsRow(
                     icon: Icons.dark_mode_rounded,
@@ -263,8 +224,8 @@ class _SectionLabel extends StatelessWidget {
       text,
       style: TextStyle(
         fontFamily: 'Hanken Grotesk',
-        fontSize: Responsive.sp(context, 10),
-        fontWeight: FontWeight.w600,
+        fontSize: Responsive.sp(context, 12),
+        fontWeight: FontWeight.w700,
         letterSpacing: .45,
         color: context.finFlowColors.secondaryText,
       ),
@@ -365,8 +326,8 @@ class _SettingsRow extends StatelessWidget {
                     title,
                     style: TextStyle(
                       fontFamily: 'Hanken Grotesk',
-                      fontSize: Responsive.sp(context, 14),
-                      fontWeight: FontWeight.w600,
+                      fontSize: Responsive.sp(context, 15.5),
+                      fontWeight: FontWeight.w700,
                       color: colors.primaryText,
                     ),
                   ),
@@ -375,7 +336,8 @@ class _SettingsRow extends StatelessWidget {
                     subtitle,
                     style: TextStyle(
                       fontFamily: 'Hanken Grotesk',
-                      fontSize: Responsive.sp(context, 10),
+                      fontSize: Responsive.sp(context, 12.5),
+                      height: 1.3,
                       color: colors.secondaryText,
                     ),
                   ),
@@ -427,7 +389,7 @@ class _SourceSummary extends StatelessWidget {
       Text(
         label,
         style: TextStyle(
-          fontSize: Responsive.sp(context, 10),
+          fontSize: Responsive.sp(context, 12),
           color: context.finFlowColors.secondaryText,
         ),
       ),
@@ -440,7 +402,7 @@ class _SourceSummary extends StatelessWidget {
           maxLines: 1,
           style: TextStyle(
             fontFamily: 'Manrope',
-            fontSize: Responsive.sp(context, 12),
+            fontSize: Responsive.sp(context, 13.5),
             fontWeight: FontWeight.w700,
             color: color,
           ),

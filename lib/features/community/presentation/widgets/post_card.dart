@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/i18n/app_language.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/responsive.dart';
+import '../../../../core/widgets/finflow_action_icon.dart';
 import '../../models/community_post_model.dart';
 import '../../utils/community_date_format.dart';
 import '../../utils/community_topics.dart';
@@ -20,6 +21,7 @@ class CommunityPostCard extends StatelessWidget {
     required this.onSaveTap,
     this.onEditTap,
     this.onDeleteTap,
+    this.onReportTap,
     this.currentUserId,
     this.maxLines = 3,
   });
@@ -30,6 +32,7 @@ class CommunityPostCard extends StatelessWidget {
   final VoidCallback onSaveTap;
   final VoidCallback? onEditTap;
   final VoidCallback? onDeleteTap;
+  final VoidCallback? onReportTap;
   final String? currentUserId;
 
   /// Truncates the post body when set; pass `null` to show it in full
@@ -93,14 +96,26 @@ class CommunityPostCard extends StatelessWidget {
     final colors = context.finFlowColors;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      margin: EdgeInsets.only(bottom: Responsive.h(context, 8)),
+      margin: EdgeInsets.symmetric(vertical: Responsive.h(context, 7)),
       decoration: BoxDecoration(
         color: isDark ? _darkSurface : colors.surface,
         border: Border(
+          top: BorderSide(
+            color: isDark ? _darkBorder : const Color(0xFFD3E8DF),
+          ),
           bottom: BorderSide(
-            color: isDark ? _darkBorder : colors.divider.withValues(alpha: .55),
+            color: isDark ? _darkBorder : const Color(0xFFBCD8CC),
           ),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: isDark
+                ? Colors.black.withValues(alpha: .16)
+                : const Color(0xFF006C53).withValues(alpha: .08),
+            blurRadius: 7,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Material(
         color: Colors.transparent,
@@ -256,14 +271,22 @@ class CommunityPostCard extends StatelessWidget {
         ),
         if (currentUserId != null && post.userId == currentUserId)
           PopupMenuButton<String>(
-            icon: Icon(
-              Icons.more_horiz,
-              size: Responsive.w(context, 18),
-              color: isDark ? _darkMutedText : colors.secondaryText,
-            ),
+            tooltip: AppStrings.choose('Post options', 'Tùy chọn bài viết'),
+            position: PopupMenuPosition.under,
+            offset: Offset(0, Responsive.h(context, 6)),
+            elevation: 14,
+            color: isDark ? _darkSurface : colors.surface,
+            surfaceTintColor: Colors.transparent,
+            shadowColor: const Color(0x33001F17),
+            constraints: BoxConstraints(minWidth: Responsive.w(context, 178)),
             padding: EdgeInsets.zero,
+            menuPadding: EdgeInsets.symmetric(
+              vertical: Responsive.h(context, 5),
+            ),
+            clipBehavior: Clip.antiAlias,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(14),
+              side: BorderSide(color: isDark ? _darkBorder : colors.divider),
             ),
             onSelected: (value) {
               if (value == 'edit') onEditTap?.call();
@@ -272,32 +295,166 @@ class CommunityPostCard extends StatelessWidget {
             itemBuilder: (_) => [
               PopupMenuItem(
                 value: 'edit',
+                height: Responsive.h(context, 54),
+                padding: EdgeInsets.symmetric(
+                  horizontal: Responsive.w(context, 12),
+                ),
                 child: Row(
                   children: [
-                    const Icon(Icons.edit_outlined, size: 16),
-                    const SizedBox(width: 8),
-                    Text(AppStrings.choose('Edit', 'Chỉnh sửa')),
+                    Container(
+                      width: Responsive.w(context, 32),
+                      height: Responsive.w(context, 32),
+                      decoration: BoxDecoration(
+                        color: (isDark ? _darkMint : const Color(0xFF00785D))
+                            .withValues(alpha: .12),
+                        borderRadius: BorderRadius.circular(9),
+                      ),
+                      child: Center(
+                        child: FinFlowPencilIcon(
+                          size: Responsive.w(context, 17),
+                          color: isDark ? _darkMint : const Color(0xFF00785D),
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: Responsive.w(context, 11)),
+                    Text(
+                      AppStrings.choose('Edit post', 'Chỉnh sửa bài viết'),
+                      style: TextStyle(
+                        fontFamily: 'Hanken Grotesk',
+                        fontSize: Responsive.sp(context, 13),
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? _darkText : colors.primaryText,
+                      ),
+                    ),
                   ],
                 ),
               ),
+              const PopupMenuDivider(height: 1),
               PopupMenuItem(
                 value: 'delete',
+                height: Responsive.h(context, 54),
+                padding: EdgeInsets.symmetric(
+                  horizontal: Responsive.w(context, 12),
+                ),
                 child: Row(
                   children: [
-                    const Icon(
-                      Icons.delete_outline,
-                      size: 16,
-                      color: Colors.red,
+                    Container(
+                      width: Responsive.w(context, 32),
+                      height: Responsive.w(context, 32),
+                      decoration: BoxDecoration(
+                        color:
+                            (isDark
+                                    ? const Color(0xFFFFB4AB)
+                                    : const Color(0xFFBA1A1A))
+                                .withValues(alpha: .11),
+                        borderRadius: BorderRadius.circular(9),
+                      ),
+                      child: Center(
+                        child: FinFlowTrashIcon(
+                          size: Responsive.w(context, 18),
+                          color: isDark
+                              ? const Color(0xFFFFB4AB)
+                              : const Color(0xFFBA1A1A),
+                        ),
+                      ),
                     ),
-                    const SizedBox(width: 8),
+                    SizedBox(width: Responsive.w(context, 11)),
                     Text(
-                      AppStrings.choose('Delete', 'Xóa'),
-                      style: const TextStyle(color: Colors.red),
+                      AppStrings.choose('Delete post', 'Xóa bài viết'),
+                      style: TextStyle(
+                        fontFamily: 'Hanken Grotesk',
+                        fontSize: Responsive.sp(context, 13),
+                        fontWeight: FontWeight.w600,
+                        color: isDark
+                            ? const Color(0xFFFFB4AB)
+                            : const Color(0xFFBA1A1A),
+                      ),
                     ),
                   ],
                 ),
               ),
             ],
+            child: Container(
+              width: Responsive.w(context, 36),
+              height: Responsive.w(context, 36),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? _darkBorder.withValues(alpha: .72)
+                    : colors.elevatedSurface,
+                shape: BoxShape.circle,
+              ),
+              alignment: Alignment.center,
+              child: Icon(
+                Icons.more_horiz_rounded,
+                size: Responsive.w(context, 20),
+                color: isDark ? _darkSecondaryText : colors.secondaryText,
+              ),
+            ),
+          ),
+        if (currentUserId != null && post.userId != currentUserId)
+          PopupMenuButton<String>(
+            tooltip: AppStrings.choose('Post options', 'Tùy chọn bài viết'),
+            position: PopupMenuPosition.under,
+            offset: Offset(0, Responsive.h(context, 6)),
+            elevation: 12,
+            color: isDark ? _darkSurface : colors.surface,
+            surfaceTintColor: Colors.transparent,
+            shadowColor: const Color(0x33001F17),
+            constraints: BoxConstraints(minWidth: Responsive.w(context, 166)),
+            padding: EdgeInsets.zero,
+            menuPadding: EdgeInsets.symmetric(
+              vertical: Responsive.h(context, 5),
+            ),
+            clipBehavior: Clip.antiAlias,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+              side: BorderSide(color: isDark ? _darkBorder : colors.divider),
+            ),
+            onSelected: (_) => onReportTap?.call(),
+            itemBuilder: (_) => [
+              PopupMenuItem(
+                value: 'report',
+                height: Responsive.h(context, 50),
+                padding: EdgeInsets.symmetric(
+                  horizontal: Responsive.w(context, 14),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.outlined_flag_rounded,
+                      size: Responsive.w(context, 19),
+                      color: const Color(0xFFE86B5D),
+                    ),
+                    SizedBox(width: Responsive.w(context, 10)),
+                    Text(
+                      AppStrings.choose('Report post', 'Báo cáo bài viết'),
+                      style: TextStyle(
+                        fontFamily: 'Hanken Grotesk',
+                        fontSize: Responsive.sp(context, 13),
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? _darkText : colors.primaryText,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            child: Container(
+              width: Responsive.w(context, 36),
+              height: Responsive.w(context, 36),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? _darkBorder.withValues(alpha: .72)
+                    : colors.elevatedSurface,
+                shape: BoxShape.circle,
+              ),
+              alignment: Alignment.center,
+              child: Icon(
+                Icons.more_horiz_rounded,
+                size: Responsive.w(context, 20),
+                color: isDark ? _darkSecondaryText : colors.secondaryText,
+              ),
+            ),
           ),
       ],
     );

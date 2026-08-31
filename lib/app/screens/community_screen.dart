@@ -4,10 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/i18n/app_language.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/responsive.dart';
+import '../../core/widgets/finflow_action_icon.dart';
 import '../../features/auth/providers/auth_provider.dart';
 import '../../features/auth/services/auth_service.dart';
 import '../../features/community/models/community_post_model.dart';
+import '../../features/community/models/community_report_model.dart';
 import '../../features/community/presentation/community_composer_screen.dart';
+import '../../features/community/presentation/widgets/community_report_dialog.dart';
 import '../../features/community/presentation/widgets/post_card.dart';
 import '../../features/community/providers/community_provider.dart';
 import '../../features/community/services/community_service.dart';
@@ -162,6 +165,21 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
     if (edited == true && mounted) setState(() {});
   }
 
+  Future<void> _reportPost(CommunityPostModel post) {
+    return showCommunityReportDialog(
+      context: context,
+      target: CommunityReportTarget.post,
+      authorName: post.displayName,
+      authorAvatarUrl: post.isAnonymous ? null : post.authorAvatarUrl,
+      content: post.content,
+      onSubmit: (reason, details) => _communityService.reportPost(
+        postId: post.id,
+        reason: reason,
+        description: details,
+      ),
+    );
+  }
+
   void _openPost(CommunityPostModel post) {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -211,35 +229,49 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
             ),
             _buildTopicFilters(),
             Expanded(
-              child: !_loaded && service.isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : RefreshIndicator(
-                      onRefresh: _refresh,
-                      child: posts.isEmpty
-                          ? _buildEmptyState()
-                          : ListView.builder(
-                              padding: EdgeInsets.only(
-                                top: Responsive.h(context, 4),
-                                bottom: Responsive.h(context, 80),
-                              ),
-                              itemCount: posts.length,
-                              itemBuilder: (_, i) {
-                                final post = posts[i];
-                                return CommunityPostCard(
-                                  post: post,
-                                  currentUserId:
-                                      AuthService.instance.currentUser?.id,
-                                  onTap: () => _openPost(post),
-                                  onLikeTap: () => _toggleLike(post),
-                                  onSaveTap: () => _toggleSave(post),
-                                  onEditTap: () => _editPost(post),
-                                  onDeleteTap: () => _deletePost(post),
-                                );
-                              },
-                            ),
-                    ),
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: !_loaded && service.isLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : RefreshIndicator(
+                            onRefresh: _refresh,
+                            child: posts.isEmpty
+                                ? _buildEmptyState()
+                                : ListView.builder(
+                                    padding: EdgeInsets.only(
+                                      top: Responsive.h(context, 4),
+                                      bottom: Responsive.h(context, 108),
+                                    ),
+                                    itemCount: posts.length,
+                                    itemBuilder: (_, i) {
+                                      final post = posts[i];
+                                      return CommunityPostCard(
+                                        post: post,
+                                        currentUserId: AuthService
+                                            .instance
+                                            .currentUser
+                                            ?.id,
+                                        onTap: () => _openPost(post),
+                                        onLikeTap: () => _toggleLike(post),
+                                        onSaveTap: () => _toggleSave(post),
+                                        onEditTap: () => _editPost(post),
+                                        onDeleteTap: () => _deletePost(post),
+                                        onReportTap: () => _reportPost(post),
+                                      );
+                                    },
+                                  ),
+                          ),
+                  ),
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: Responsive.h(context, 2),
+                    child: _buildComposeEntry(),
+                  ),
+                ],
+              ),
             ),
-            _buildComposeEntry(),
           ],
         ),
       ),
@@ -313,8 +345,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
                   ),
                 ],
               ),
-              child: Icon(
-                Icons.edit_outlined,
+              child: FinFlowPencilIcon(
                 size: Responsive.w(context, 20),
                 color: _white,
               ),
@@ -432,10 +463,10 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
     return Container(
       color: Colors.transparent,
       padding: EdgeInsets.fromLTRB(
-        Responsive.w(context, 16),
-        Responsive.h(context, 4),
-        Responsive.w(context, 16),
-        Responsive.h(context, 10),
+        Responsive.w(context, 12),
+        Responsive.h(context, 8),
+        Responsive.w(context, 12),
+        Responsive.h(context, 12),
       ),
       child: Container(
         decoration: BoxDecoration(
@@ -452,10 +483,10 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
                 ]
               : [
                   BoxShadow(
-                    color: _cardShadow.withValues(alpha: 0.13),
-                    blurRadius: 20,
-                    spreadRadius: 1,
-                    offset: const Offset(0, 7),
+                    color: _cardShadow.withValues(alpha: 0.18),
+                    blurRadius: 24,
+                    spreadRadius: 2,
+                    offset: const Offset(0, 8),
                   ),
                   BoxShadow(
                     color: Theme.of(
@@ -534,8 +565,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
                           : const Color(0xFFCFF8E8),
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(
-                      Icons.edit_outlined,
+                    child: FinFlowPencilIcon(
                       size: Responsive.w(context, 21),
                       color: _isDark ? _darkMint : _headerText,
                     ),

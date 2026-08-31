@@ -36,6 +36,11 @@ void main() {
   testWidgets('savings goals uses a bottom-right create FAB', (tester) async {
     await pumpScreen(tester, const SavingGoalsScreen());
 
+    final pageTitle = tester.widget<Text>(find.text('Savings Goals'));
+    expect(pageTitle.style?.fontFamily, 'Manrope');
+    expect(pageTitle.style?.fontWeight, FontWeight.w700);
+    expect(pageTitle.style?.fontSize, closeTo(22 * 390 / 393, 0.01));
+    expect(tester.getTopLeft(find.text('Savings Goals')).dx, lessThan(90));
     final finder = find.byKey(const Key('create-goal-fab'));
     expect(finder, findsOneWidget);
     expect(find.text('Create New Goal'), findsNothing);
@@ -50,6 +55,11 @@ void main() {
   ) async {
     await pumpScreen(tester, const CategoryBudgetsScreen());
 
+    final pageTitle = tester.widget<Text>(find.text('Budget by Category'));
+    expect(pageTitle.style?.fontFamily, 'Manrope');
+    expect(pageTitle.style?.fontWeight, FontWeight.w700);
+    expect(pageTitle.style?.fontSize, closeTo(22 * 390 / 393, 0.01));
+    expect(tester.getTopLeft(find.text('Budget by Category')).dx, lessThan(90));
     final finder = find.byKey(const Key('add-category-budget-fab'));
     expect(finder, findsOneWidget);
     expect(find.text('Add Category Budget'), findsNothing);

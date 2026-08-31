@@ -5,6 +5,7 @@ import '../../../app/shell/finflow_app.dart';
 import '../../../core/i18n/app_language.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/responsive.dart';
+import '../../../core/widgets/finflow_action_icon.dart';
 import '../../auth/services/auth_service.dart';
 import '../../finance/presentation/add_transaction_sheet.dart';
 
@@ -22,11 +23,7 @@ class _SecurityScreenState extends State<SecurityScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        icon: const Icon(
-          Icons.delete_forever_rounded,
-          color: Color(0xFFBA1A1A),
-          size: 34,
-        ),
+        icon: const FinFlowTrashIcon(color: Color(0xFFBA1A1A), size: 34),
         title: Text(AppStrings.choose('Delete account?', 'Xóa tài khoản?')),
         content: Text(
           AppStrings.choose(
@@ -98,13 +95,14 @@ class _SecurityScreenState extends State<SecurityScreen> {
           onPressed: () => Navigator.of(context).pop(),
           icon: const Icon(Icons.arrow_back_rounded),
         ),
-        centerTitle: true,
+        centerTitle: false,
+        titleSpacing: 0,
         title: Text(
           AppStrings.security,
           style: TextStyle(
             color: isDark ? _securityDarkText : const Color(0xFF00785D),
-            fontFamily: 'Hanken Grotesk',
-            fontSize: 20,
+            fontFamily: 'Manrope',
+            fontSize: 22,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -121,7 +119,7 @@ class _SecurityScreenState extends State<SecurityScreen> {
             title: AppStrings.choose('Password Settings', 'Cài đặt mật khẩu'),
             children: [
               _SecurityRow(
-                icon: Icons.lock_outline_rounded,
+                icon: const Icon(Icons.lock_outline_rounded),
                 title: AppStrings.choose('Change Password', 'Đổi mật khẩu'),
                 subtitle: AppStrings.choose(
                   'Update your account password',
@@ -131,7 +129,7 @@ class _SecurityScreenState extends State<SecurityScreen> {
                     Navigator.of(context).pushNamed(AppRoutes.changePassword),
               ),
               _SecurityRow(
-                icon: Icons.verified_user_outlined,
+                icon: const Icon(Icons.verified_user_outlined),
                 title: AppStrings.choose('Forgot Password', 'Quên mật khẩu'),
                 subtitle: AppStrings.choose(
                   'Reset your account password via email',
@@ -148,7 +146,10 @@ class _SecurityScreenState extends State<SecurityScreen> {
             danger: true,
             children: [
               _SecurityRow(
-                icon: Icons.delete_outline_rounded,
+                icon: const FinFlowTrashIcon(
+                  color: Color(0xFFBA1A1A),
+                  size: 21,
+                ),
                 title: _isDeleting
                     ? AppStrings.choose(
                         'Deleting Account...',
@@ -269,7 +270,7 @@ class _SecurityRow extends StatelessWidget {
     this.trailing,
   });
 
-  final IconData icon;
+  final Widget icon;
   final String title;
   final String subtitle;
   final VoidCallback? onTap;
@@ -308,10 +309,12 @@ class _SecurityRow extends StatelessWidget {
                           : const Color(0xFF00C99A)),
                 shape: BoxShape.circle,
               ),
-              child: Icon(
-                icon,
-                color: isDark ? accent : (danger ? accent : Colors.white),
-                size: Responsive.w(context, 21),
+              child: IconTheme(
+                data: IconThemeData(
+                  color: isDark ? accent : (danger ? accent : Colors.white),
+                  size: Responsive.w(context, 21),
+                ),
+                child: icon,
               ),
             ),
             SizedBox(width: Responsive.w(context, 12)),
@@ -335,7 +338,8 @@ class _SecurityRow extends StatelessWidget {
                       color: isDark
                           ? _securityDarkSecondaryText
                           : colors.secondaryText,
-                      fontSize: Responsive.sp(context, 11),
+                      fontSize: Responsive.sp(context, 12.5),
+                      height: 1.3,
                     ),
                   ),
                 ],

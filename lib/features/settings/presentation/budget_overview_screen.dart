@@ -21,6 +21,7 @@ class BudgetOverviewScreen extends StatelessWidget {
         onAddTap: () => AddTransactionSheet.show(context),
       ),
       appBar: AppBar(
+        toolbarHeight: 64,
         elevation: 0,
         scrolledUnderElevation: 0,
         backgroundColor: context.finFlowColors.pageBackground,
@@ -31,13 +32,18 @@ class BudgetOverviewScreen extends StatelessWidget {
         ),
         title: Text(
           AppStrings.choose('Budgets', 'Ngân sách'),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(
-            color: AppColors.deepEmerald,
-            fontFamily: 'Hanken Grotesk',
-            fontSize: Responsive.sp(context, 20),
+            color: Theme.of(context).brightness == Brightness.dark
+                ? const Color(0xFFF4FBF8)
+                : AppColors.deepEmerald,
+            fontFamily: 'Manrope',
+            fontSize: Responsive.sp(context, 22),
             fontWeight: FontWeight.w700,
           ),
         ),
+        centerTitle: false,
       ),
       body: ListenableBuilder(
         listenable: Listenable.merge([
@@ -146,15 +152,28 @@ class BudgetOverviewScreen extends StatelessWidget {
         color: isDark ? const Color(0xFF16352E) : colors.surface,
         borderRadius: BorderRadius.circular(22),
         border: Border.all(
-          color: isDark ? const Color(0xFF29483F) : const Color(0x1A006C53),
+          color: isDark ? const Color(0xFF29483F) : const Color(0xFFD6E7E0),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: isDark ? const Color(0x33000000) : const Color(0x14002D22),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
-          ),
-        ],
+        boxShadow: isDark
+            ? const [
+                BoxShadow(
+                  color: Color(0x33000000),
+                  blurRadius: 14,
+                  offset: Offset(0, 6),
+                ),
+              ]
+            : const [
+                BoxShadow(
+                  color: Color(0x1800523C),
+                  blurRadius: 4,
+                  offset: Offset(0, 2),
+                ),
+                BoxShadow(
+                  color: Color(0x2400523C),
+                  blurRadius: 18,
+                  offset: Offset(0, 7),
+                ),
+              ],
       ),
       child: Material(
         color: Colors.transparent,
@@ -198,7 +217,7 @@ class BudgetOverviewScreen extends StatelessWidget {
                         status,
                         style: TextStyle(
                           fontFamily: 'Hanken Grotesk',
-                          fontSize: Responsive.sp(context, 10),
+                          fontSize: Responsive.sp(context, 11.5),
                           fontWeight: FontWeight.w800,
                           letterSpacing: .4,
                           color: statusColor,
@@ -485,7 +504,7 @@ class _EditBudgetDialogState extends State<_EditBudgetDialog> {
                               'Chỉ cập nhật hạn mức này',
                             ),
                             style: TextStyle(
-                              fontSize: Responsive.sp(context, 11),
+                              fontSize: Responsive.sp(context, 12.5),
                               color: colors.secondaryText,
                             ),
                           ),
@@ -629,7 +648,7 @@ class _EditBudgetDialogState extends State<_EditBudgetDialog> {
                                   'Còn lại ${_formatBudgetMoney(remaining)} VND',
                                 ),
                           style: TextStyle(
-                            fontSize: Responsive.sp(context, 11),
+                            fontSize: Responsive.sp(context, 12.5),
                             fontWeight: FontWeight.w600,
                             color: accent,
                           ),
@@ -714,7 +733,7 @@ class _BudgetDialogMetric extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            fontSize: Responsive.sp(context, 10),
+            fontSize: Responsive.sp(context, 12),
             color: colors.secondaryText,
           ),
         ),

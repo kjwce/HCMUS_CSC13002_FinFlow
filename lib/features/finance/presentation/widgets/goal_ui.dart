@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/i18n/app_language.dart';
-import '../../models/transaction_category.dart';
+import '../../models/goal_category.dart';
 
 const goalPrimary = Color(0xFF006C53);
 const goalDark = Color(0xFF00513E);
@@ -49,30 +49,11 @@ String formatGoalDate(DateTime? date) {
   return '${months[date.month - 1]} ${date.day}, ${date.year}';
 }
 
-IconData goalIconFor(String category) => switch (category.toLowerCase()) {
-  'tech' || 'tech upgrade' => Icons.laptop_mac_rounded,
-  'travel' => Icons.flight_takeoff_rounded,
-  'vehicle' => Icons.directions_car_rounded,
-  'home' => Icons.home_rounded,
-  'education' => Icons.school_rounded,
-  _ => TransactionCategory.resolve(category).icon,
-};
-
 Widget goalIconWidgetFor(
   String category, {
   required Color color,
   required double size,
-}) {
-  final isTransactionCategory =
-      TransactionCategory.all.any((item) => item.key == category) ||
-      CustomCategoryStore.instance.findByKey(category) != null;
-  if (isTransactionCategory) {
-    return TransactionCategory.resolve(
-      category,
-    ).buildIcon(color: color, size: size);
-  }
-  return Icon(goalIconFor(category), color: color, size: size);
-}
+}) => GoalCategory.fromKey(category).buildIcon(color: color, size: size);
 
 class GoalProgressBar extends StatelessWidget {
   const GoalProgressBar({super.key, required this.value, this.height = 10});
@@ -124,11 +105,8 @@ class GoalIconTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final resolved = TransactionCategory.resolve(category);
-    final isTransactionCategory =
-        TransactionCategory.all.any((item) => item.key == category) ||
-        CustomCategoryStore.instance.findByKey(category) != null;
-    final accent = isTransactionCategory ? resolved.color : goalPrimary;
+    final resolved = GoalCategory.fromKey(category);
+    final accent = resolved.color;
     final iconSize = (size * .46).clamp(18.0, 22.0);
     return Container(
       width: size,

@@ -6,6 +6,7 @@ import '../../../app/shell/bottom_nav_bar.dart';
 import '../../../core/i18n/app_language.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/responsive.dart';
+import '../../../core/widgets/finflow_action_icon.dart';
 import '../../auth/services/auth_service.dart';
 import '../models/transaction_category.dart';
 import '../models/transaction_model.dart';
@@ -64,7 +65,7 @@ class _TransactionHistoryScreenState
   Color get _primaryText =>
       _isDark ? _darkTextPrimary : context.finFlowColors.primaryText;
   Color get _secondaryText =>
-      _isDark ? _darkTextSecondary : context.finFlowColors.secondaryText;
+      _isDark ? _darkTextSecondary : const Color(0xFF52645E);
   Color get _surface => _isDark ? _darkSurface : context.finFlowColors.surface;
   Color get _cardSurface => _isDark ? _darkCard : context.finFlowColors.surface;
   Color get _controlSurface =>
@@ -206,8 +207,20 @@ class _TransactionHistoryScreenState
         controller: _searchController,
         textInputAction: TextInputAction.search,
         onChanged: (_) => setState(() {}),
+        style: TextStyle(
+          fontFamily: _bodyFont,
+          fontSize: Responsive.sp(context, 16),
+          fontWeight: FontWeight.w500,
+          color: _primaryText,
+        ),
         decoration: InputDecoration(
           hintText: AppStrings.choose('Search transactions', 'Tìm giao dịch'),
+          hintStyle: TextStyle(
+            fontFamily: _bodyFont,
+            fontSize: Responsive.sp(context, 16),
+            fontWeight: FontWeight.w500,
+            color: _secondaryText,
+          ),
           prefixIcon: const Icon(Icons.search_rounded),
           suffixIcon: _searchController.text.isEmpty
               ? null
@@ -250,8 +263,8 @@ class _TransactionHistoryScreenState
           AppStrings.choose('Period', 'Thời gian'),
           style: TextStyle(
             fontFamily: _bodyFont,
-            fontSize: Responsive.sp(context, 14),
-            fontWeight: FontWeight.w600,
+            fontSize: Responsive.sp(context, 16),
+            fontWeight: FontWeight.w700,
             color: _secondaryText,
           ),
         ),
@@ -319,7 +332,7 @@ class _TransactionHistoryScreenState
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontFamily: _bodyFont,
-                    fontSize: Responsive.sp(context, 14),
+                    fontSize: Responsive.sp(context, 16),
                     fontWeight: FontWeight.w700,
                     color: _primaryText,
                   ),
@@ -341,8 +354,8 @@ class _TransactionHistoryScreenState
           AppStrings.choose('Transaction Type', 'Loại giao dịch'),
           style: TextStyle(
             fontFamily: _bodyFont,
-            fontSize: Responsive.sp(context, 14),
-            fontWeight: FontWeight.w600,
+            fontSize: Responsive.sp(context, 16),
+            fontWeight: FontWeight.w700,
             color: _secondaryText,
           ),
         ),
@@ -392,7 +405,7 @@ class _TransactionHistoryScreenState
               label,
               style: TextStyle(
                 fontFamily: _bodyFont,
-                fontSize: Responsive.sp(context, 10),
+                fontSize: Responsive.sp(context, 13),
                 fontWeight: FontWeight.w700,
                 color: selected ? Colors.white : _secondaryText,
               ),
@@ -448,7 +461,7 @@ class _TransactionHistoryScreenState
             label,
             style: TextStyle(
               fontFamily: _bodyFont,
-              fontSize: Responsive.sp(context, 12),
+              fontSize: Responsive.sp(context, 14),
               fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
               color: selected ? Colors.white : _secondaryText,
             ),
@@ -726,6 +739,7 @@ class _TransactionHistoryScreenState
           ? Colors.black.withValues(alpha: .7)
           : const Color(0xFF002D22).withValues(alpha: .48),
       builder: (context) => _TransactionAdvancedFilterDialog(
+        typeFilter: _filter,
         initial: _AdvancedFilters(
           categories: _categoryFilters,
           walletTypes: _walletTypeFilters,
@@ -1102,7 +1116,7 @@ class _TransactionHistoryScreenState
               AppStrings.choose('Transactions', 'Giao dịch'),
               style: TextStyle(
                 fontFamily: _headlineFont,
-                fontSize: Responsive.sp(context, 18),
+                fontSize: Responsive.sp(context, 20),
                 fontWeight: FontWeight.w700,
                 color: _primaryText,
               ),
@@ -1112,7 +1126,7 @@ class _TransactionHistoryScreenState
             AppStrings.choose('$count items', '$count mục'),
             style: TextStyle(
               fontFamily: _bodyFont,
-              fontSize: Responsive.sp(context, 12),
+              fontSize: Responsive.sp(context, 14),
               fontWeight: FontWeight.w600,
               color: _secondaryText,
             ),
@@ -1158,7 +1172,7 @@ class _TransactionHistoryScreenState
               _dayHeader(group.key).toUpperCase(),
               style: TextStyle(
                 fontFamily: _bodyFont,
-                fontSize: Responsive.sp(context, 11),
+                fontSize: Responsive.sp(context, 13),
                 fontWeight: FontWeight.w700,
                 letterSpacing: .8,
                 color: _secondaryText,
@@ -1187,128 +1201,248 @@ class _TransactionHistoryScreenState
     final wallet = WalletService.instance.byId(tx.walletId);
     final method = _walletLabel(wallet);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: _cardSurface,
-        borderRadius: BorderRadius.circular(16),
-        border: _isDark ? Border.all(color: _darkBorder) : null,
-        boxShadow: _isDark
-            ? null
-            : const [
-                BoxShadow(
-                  color: Color(0x1400523C),
-                  blurRadius: 12,
-                  offset: Offset(0, 4),
-                ),
-              ],
-      ),
-      child: Material(
-        color: _cardSurface,
-        borderRadius: BorderRadius.circular(16),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
+    return _HistorySwipeToDelete(
+      key: ValueKey('swipe-history-transaction-${tx.id}'),
+      onDelete: () => _deleteTransactionWithUndo(tx),
+      child: Container(
+        key: Key('transaction-history-card-${tx.id}'),
+        decoration: BoxDecoration(
+          color: _cardSurface,
           borderRadius: BorderRadius.circular(16),
-          onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => EditTransactionScreen(transaction: tx),
+          border: Border.all(
+            color: _isDark ? _darkBorder : const Color(0xFFD6E7E0),
+          ),
+          boxShadow: _isDark
+              ? null
+              : const [
+                  BoxShadow(
+                    color: Color(0x1800523C),
+                    blurRadius: 4,
+                    offset: Offset(0, 2),
+                  ),
+                  BoxShadow(
+                    color: Color(0x2400523C),
+                    blurRadius: 18,
+                    offset: Offset(0, 7),
+                  ),
+                ],
+        ),
+        child: Material(
+          color: _cardSurface,
+          borderRadius: BorderRadius.circular(16),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => EditTransactionScreen(transaction: tx),
+                ),
+              );
+            },
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: Responsive.w(context, 12),
+                vertical: Responsive.h(context, 12),
               ),
-            );
-          },
-          child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: Responsive.w(context, 12),
-              vertical: Responsive.h(context, 12),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: Responsive.w(context, 40),
-                  height: Responsive.w(context, 40),
-                  decoration: BoxDecoration(
-                    color: cat.color.withValues(alpha: .13),
-                    shape: BoxShape.circle,
+              child: Row(
+                children: [
+                  Container(
+                    width: Responsive.w(context, 40),
+                    height: Responsive.w(context, 40),
+                    decoration: BoxDecoration(
+                      color: cat.color.withValues(alpha: .13),
+                      shape: BoxShape.circle,
+                    ),
+                    child: cat.buildIcon(size: Responsive.w(context, 20)),
                   ),
-                  child: cat.buildIcon(size: Responsive.w(context, 20)),
-                ),
-                SizedBox(width: Responsive.w(context, 12)),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        tx.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontFamily: _bodyFont,
-                          fontSize: Responsive.sp(context, 13),
-                          fontWeight: FontWeight.w700,
-                          color: _primaryText,
-                        ),
-                      ),
-                      SizedBox(height: Responsive.h(context, 3)),
-                      Text(
-                        '${_timeLabel(tx.date)} - $method',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontFamily: _bodyFont,
-                          fontSize: Responsive.sp(context, 10),
-                          fontWeight: FontWeight.w600,
-                          color: _secondaryText,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                SizedBox(width: Responsive.w(context, 10)),
-                SizedBox(
-                  width: Responsive.w(context, 112),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerRight,
-                        child: Text(
-                          _formatSignedMoney(tx.amount),
+                  SizedBox(width: Responsive.w(context, 12)),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          tx.name,
                           maxLines: 1,
-                          softWrap: false,
-                          textAlign: TextAlign.right,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            fontFamily: _headlineFont,
-                            fontSize: Responsive.sp(context, 14),
-                            fontWeight: FontWeight.w800,
-                            color: isIncome
-                                ? (_isDark ? _darkAccent : _incomeColor)
-                                : (_isDark ? _darkExpense : _expenseColor),
+                            fontFamily: _bodyFont,
+                            fontSize: Responsive.sp(context, 16),
+                            fontWeight: FontWeight.w700,
+                            color: _primaryText,
                           ),
                         ),
-                      ),
-                      SizedBox(height: Responsive.h(context, 4)),
-                      Text(
-                        AppStrings.categoryName(cat.label),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.right,
-                        style: TextStyle(
-                          fontFamily: _bodyFont,
-                          fontSize: Responsive.sp(context, 11),
-                          fontWeight: FontWeight.w400,
-                          color: _secondaryText,
+                        SizedBox(height: Responsive.h(context, 3)),
+                        Text(
+                          '${_timeLabel(tx.date)} - $method',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: _bodyFont,
+                            fontSize: Responsive.sp(context, 13),
+                            fontWeight: FontWeight.w600,
+                            color: _secondaryText,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                  SizedBox(width: Responsive.w(context, 10)),
+                  SizedBox(
+                    width: Responsive.w(context, 112),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerRight,
+                          child: Text(
+                            _formatSignedMoney(tx.amount),
+                            maxLines: 1,
+                            softWrap: false,
+                            textAlign: TextAlign.right,
+                            style: TextStyle(
+                              fontFamily: _headlineFont,
+                              fontSize: Responsive.sp(context, 16),
+                              fontWeight: FontWeight.w800,
+                              color: isIncome
+                                  ? (_isDark ? _darkAccent : _incomeColor)
+                                  : (_isDark ? _darkExpense : _expenseColor),
+                            ),
+                          ),
+                        ),
+                        SizedBox(height: Responsive.h(context, 4)),
+                        Text(
+                          AppStrings.categoryName(cat.label),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.right,
+                          style: TextStyle(
+                            fontFamily: _bodyFont,
+                            fontSize: Responsive.sp(context, 13),
+                            fontWeight: FontWeight.w600,
+                            color: _secondaryText,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _deleteTransactionWithUndo(TransactionModel transaction) async {
+    try {
+      await ref.read(transactionServiceProvider).delete(transaction.id);
+      if (!mounted) return;
+      _showDeletedSnackBar(transaction);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              AppStrings.choose(
+                'Unable to delete transaction: $error',
+                'Không thể xóa giao dịch: $error',
+              ),
+            ),
+          ),
+        );
+      }
+      rethrow;
+    }
+  }
+
+  void _showDeletedSnackBar(TransactionModel transaction) {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger
+      ..removeCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          key: const Key('history-transaction-deleted-snackbar'),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: _isDark ? _darkCard : const Color(0xFFE7EBE9),
+          elevation: 8,
+          margin: EdgeInsets.fromLTRB(
+            Responsive.w(context, 12),
+            0,
+            Responsive.w(context, 12),
+            Responsive.h(context, 10),
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          duration: const Duration(seconds: 5),
+          content: Row(
+            children: [
+              Container(
+                width: Responsive.w(context, 28),
+                height: Responsive.w(context, 28),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFFE4E0),
+                  shape: BoxShape.circle,
+                ),
+                child: FinFlowTrashIcon(
+                  size: Responsive.w(context, 16),
+                  color: const Color(0xFFBA1A1A),
+                ),
+              ),
+              SizedBox(width: Responsive.w(context, 10)),
+              Expanded(
+                child: Text(
+                  AppStrings.choose('Transaction deleted', 'Đã xóa giao dịch'),
+                  style: TextStyle(
+                    fontFamily: _bodyFont,
+                    fontSize: Responsive.sp(context, 13.5),
+                    fontWeight: FontWeight.w600,
+                    color: _isDark ? _darkTextPrimary : const Color(0xFF263B34),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          action: SnackBarAction(
+            key: const Key('history-undo-delete-transaction-button'),
+            label: AppStrings.choose('Undo', 'Hoàn tác'),
+            textColor: _isDark ? _darkAccent : const Color(0xFF006C53),
+            onPressed: () => _restoreDeletedTransaction(transaction),
+          ),
+        ),
+      );
+  }
+
+  Future<void> _restoreDeletedTransaction(TransactionModel transaction) async {
+    try {
+      await ref.read(transactionServiceProvider).add(transaction);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Text(
+            AppStrings.choose('Transaction restored', 'Đã khôi phục giao dịch'),
+          ),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            AppStrings.choose(
+              'Unable to restore transaction: $error',
+              'Không thể khôi phục giao dịch: $error',
+            ),
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _pickDateRange() async {
@@ -1680,10 +1814,182 @@ class _AdvancedFilters {
   final _HistorySort sort;
 }
 
+class _HistorySwipeToDelete extends StatefulWidget {
+  const _HistorySwipeToDelete({
+    required super.key,
+    required this.child,
+    required this.onDelete,
+  });
+
+  final Widget child;
+  final Future<void> Function() onDelete;
+
+  @override
+  State<_HistorySwipeToDelete> createState() => _HistorySwipeToDeleteState();
+}
+
+class _HistorySwipeToDeleteState extends State<_HistorySwipeToDelete>
+    with TickerProviderStateMixin {
+  static const _actionExtent = 64.0;
+  static const _cornerOverlap = 22.0;
+  late final AnimationController _slideController;
+  late final AnimationController _removeController;
+  bool _isDeleting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _slideController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 210),
+    );
+    _removeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 250),
+      value: 1,
+    );
+  }
+
+  @override
+  void dispose() {
+    _slideController.dispose();
+    _removeController.dispose();
+    super.dispose();
+  }
+
+  void _handleDragUpdate(DragUpdateDetails details) {
+    if (_isDeleting) return;
+    _slideController.value =
+        (_slideController.value - (details.primaryDelta ?? 0) / _actionExtent)
+            .clamp(0, 1);
+  }
+
+  void _handleDragEnd(DragEndDetails details) {
+    if (_isDeleting) return;
+    final velocity = details.primaryVelocity ?? 0;
+    final shouldOpen =
+        velocity < -240 || (velocity <= 240 && _slideController.value >= .4);
+    _slideController.animateTo(shouldOpen ? 1 : 0, curve: Curves.easeOutCubic);
+  }
+
+  Future<void> _delete() async {
+    if (_isDeleting) return;
+    setState(() => _isDeleting = true);
+    await _removeController.animateTo(0, curve: Curves.easeInOutCubic);
+    try {
+      await widget.onDelete();
+    } catch (_) {
+      if (!mounted) return;
+      await _removeController.animateTo(1, curve: Curves.easeOutCubic);
+      await _slideController.animateBack(0, curve: Curves.easeOutCubic);
+      if (mounted) setState(() => _isDeleting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizeTransition(
+      sizeFactor: CurvedAnimation(
+        parent: _removeController,
+        curve: Curves.easeInOutCubic,
+      ),
+      alignment: Alignment.topCenter,
+      child: FadeTransition(
+        opacity: _removeController,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Positioned.fill(
+              child: AnimatedBuilder(
+                animation: _slideController,
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: SizedBox(
+                    width: _actionExtent + _cornerOverlap,
+                    child: Material(
+                      color: const Color(0xFFBA1A1A),
+                      borderRadius: const BorderRadius.horizontal(
+                        right: Radius.circular(16),
+                      ),
+                      child: InkWell(
+                        key: const Key(
+                          'history-swipe-delete-transaction-button',
+                        ),
+                        onTap: _isDeleting ? null : _delete,
+                        borderRadius: const BorderRadius.horizontal(
+                          right: Radius.circular(16),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: _cornerOverlap),
+                          child: Semantics(
+                            button: true,
+                            label: AppStrings.choose(
+                              'Delete transaction',
+                              'Xóa giao dịch',
+                            ),
+                            child: Center(
+                              child: _isDeleting
+                                  ? const SizedBox.square(
+                                      dimension: 19,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const FinFlowTrashIcon(
+                                      color: Colors.white,
+                                      size: 26,
+                                    ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                builder: (context, child) => Align(
+                  alignment: Alignment.centerRight,
+                  child: ClipRect(
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      widthFactor: _slideController.value,
+                      child: IgnorePointer(
+                        ignoring: _slideController.value < .9,
+                        child: child,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            AnimatedBuilder(
+              animation: _slideController,
+              child: widget.child,
+              builder: (context, child) => Transform.translate(
+                offset: Offset(-_actionExtent * _slideController.value, 0),
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onHorizontalDragUpdate: _handleDragUpdate,
+                  onHorizontalDragEnd: _handleDragEnd,
+                  child: child,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _TransactionAdvancedFilterDialog extends StatefulWidget {
-  const _TransactionAdvancedFilterDialog({required this.initial});
+  const _TransactionAdvancedFilterDialog({
+    required this.initial,
+    required this.typeFilter,
+  });
 
   final _AdvancedFilters initial;
+  final _HistoryFilter typeFilter;
 
   @override
   State<_TransactionAdvancedFilterDialog> createState() =>
@@ -1723,6 +2029,13 @@ class _TransactionAdvancedFilterDialogState
   int? get _maximum => _parseAmount(_maximumController.text);
   bool get _invalidRange =>
       _minimum != null && _maximum != null && _minimum! > _maximum!;
+
+  List<TransactionCategory> get _availableCategories =>
+      switch (widget.typeFilter) {
+        _HistoryFilter.income => TransactionCategory.incomes,
+        _HistoryFilter.expense => TransactionCategory.expenses,
+        _HistoryFilter.all => TransactionCategory.all,
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -1810,7 +2123,7 @@ class _TransactionAdvancedFilterDialogState
                     Wrap(
                       spacing: Responsive.w(context, 7),
                       runSpacing: Responsive.h(context, 6),
-                      children: TransactionCategory.all.map((category) {
+                      children: _availableCategories.map((category) {
                         final selected = _categories.contains(category.key);
                         return FilterChip(
                           selected: selected,

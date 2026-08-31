@@ -57,4 +57,30 @@ void main() {
     expect(AppLanguage.instance.locale, AppLocale.vietnamese);
     expect(find.byKey(const Key('home-language-dialog')), findsNothing);
   });
+
+  testWidgets('Settings rows use readable title and description sizes', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: const ProviderScope(child: SettingsScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final title = tester.widget<Text>(find.text('Notification Preferences'));
+    final subtitle = tester.widget<Text>(
+      find.text('Budgets, recurring and community'),
+    );
+
+    expect(title.style?.fontSize, greaterThanOrEqualTo(15));
+    expect(subtitle.style?.fontSize, greaterThanOrEqualTo(12.3));
+    expect(tester.takeException(), isNull);
+  });
 }

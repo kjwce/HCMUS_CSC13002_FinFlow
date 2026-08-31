@@ -145,10 +145,11 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
           Expanded(
             child: Text(
               AppStrings.scanReceipt,
-              textAlign: TextAlign.center,
+              textAlign: TextAlign.left,
               style: TextStyle(
                 color: _darkText,
-                fontSize: Responsive.sp(context, 20),
+                fontFamily: 'Manrope',
+                fontSize: Responsive.sp(context, 22),
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -1238,11 +1239,11 @@ class _ScannedItemEditorState extends State<_ScannedItemEditor> {
             key: const Key('scan_edit_category'),
             initialValue: _category,
             decoration: InputDecoration(labelText: AppStrings.category),
-            items: TransactionCategory.all
+            items: TransactionCategory.expenses
                 .map(
                   (category) => DropdownMenuItem(
                     value: category.key,
-                    child: Text(AppStrings.categoryName(category.key)),
+                    child: Text(AppStrings.categoryName(category.label)),
                   ),
                 )
                 .toList(growable: false),

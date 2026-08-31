@@ -62,7 +62,7 @@ class _QuickAddCardState extends State<QuickAddCard>
   static const _emerald = Color(0xFF006C53);
   static const _brightMint = Color(0xFF00CFA3);
   static const _ink = Color(0xFF09221B);
-  static const _muted = Color(0xFF5D6E67);
+  static const _muted = Color(0xFF52655E);
   static List<String> get _examples => AppStrings.isVietnamese
       ? const [
           'Ví dụ: “Cà phê với bạn 45 nghìn”',
@@ -94,7 +94,7 @@ class _QuickAddCardState extends State<QuickAddCard>
   Color get _inputSurface => _isDark ? _darkInputSurface : Colors.white;
   Color get _primaryText => _isDark ? _darkText : _ink;
   Color get _secondaryText => _isDark ? _darkSecondaryText : _muted;
-  Color get _mutedText => _isDark ? _darkMutedText : const Color(0xFF88958F);
+  Color get _mutedText => _isDark ? _darkMutedText : const Color(0xFF52655E);
   Color get _border => _isDark ? _darkBorder : const Color(0xFFDCE7E2);
   Color get _accent => _isDark ? _darkAccent : _brightMint;
 

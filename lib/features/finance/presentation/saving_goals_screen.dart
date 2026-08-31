@@ -6,8 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/shell/finflow_app.dart';
 import '../../../core/i18n/app_language.dart';
+import '../../../core/utils/responsive.dart';
+import '../models/goal_category.dart';
 import '../models/goal_model.dart';
-import '../models/transaction_category.dart';
 import '../providers/goal_provider.dart';
 import '../providers/transaction_provider.dart';
 import '../services/goal_service.dart';
@@ -87,14 +88,16 @@ class _SavingGoalsScreenState extends ConsumerState<SavingGoalsScreen> {
         ),
         title: Text(
           AppStrings.choose('Savings Goals', 'Mục tiêu tiết kiệm'),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(
             fontFamily: 'Manrope',
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
+            fontSize: Responsive.sp(context, 22),
+            fontWeight: FontWeight.w700,
             color: isDark ? _goalsDarkText : goalPrimary,
           ),
         ),
-        centerTitle: true,
+        centerTitle: false,
         actions: [
           IconButton(
             tooltip: AppStrings.choose(
@@ -433,7 +436,7 @@ class _GoalListCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final category = TransactionCategory.resolve(goal.category);
+    final category = GoalCategory.fromKey(goal.category);
     final card = DecoratedBox(
       decoration: BoxDecoration(
         color: isDark ? _goalsDarkSurface : Colors.white,

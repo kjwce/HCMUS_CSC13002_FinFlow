@@ -5,8 +5,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../app/shell/finflow_app.dart';
 import '../../../core/i18n/app_language.dart';
+import '../../../core/widgets/finflow_action_icon.dart';
+import '../models/goal_category.dart';
 import '../models/goal_model.dart';
-import '../models/transaction_category.dart';
 import '../providers/goal_provider.dart';
 import '../providers/transaction_provider.dart';
 import '../services/goal_service.dart';
@@ -32,12 +33,13 @@ class _GoalFormScreenState extends ConsumerState<GoalFormScreen> {
   static const _darkInput = Color(0xFF0A241F);
   static const _darkSurface = Color(0xFF112622);
   static const _darkAccent = Color(0xFF38D6AC);
+  static const _inputHeight = 58.0;
 
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _targetController = TextEditingController();
   final _initialController = TextEditingController(text: '0');
-  String _category = 'Food';
+  String _category = 'Emergency Fund';
   DateTime? _targetDate;
   GoalFundingMethod _fundingMethod = GoalFundingMethod.manual;
   double _autoPercent = 10;
@@ -65,7 +67,7 @@ class _GoalFormScreenState extends ConsumerState<GoalFormScreen> {
     if (goal != null) {
       _nameController.text = goal.name;
       _targetController.text = formatVnd(goal.targetAmount);
-      _category = goal.category;
+      _category = GoalCategory.canonicalKey(goal.category);
       _targetDate = goal.targetDate;
       _fundingMethod = goal.fundingMethod;
       _autoPercent = goal.autoAllocationPercent;
@@ -130,12 +132,13 @@ class _GoalFormScreenState extends ConsumerState<GoalFormScreen> {
               : AppStrings.choose('Create New Goal', 'Tạo mục tiêu mới'),
           style: TextStyle(
             fontFamily: 'Manrope',
-            fontSize: 20,
+            fontSize: 22,
             fontWeight: FontWeight.w600,
-            color: _useDarkGoalTheme ? _darkText : goalDark,
+            color: _useDarkGoalTheme ? _darkText : goalPrimary,
           ),
         ),
-        centerTitle: true,
+        centerTitle: false,
+        titleSpacing: 0,
       ),
       body: Form(
         key: _formKey,
@@ -214,85 +217,17 @@ class _GoalFormScreenState extends ConsumerState<GoalFormScreen> {
       Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: _GoalSectionTitle(
-                  AppStrings.choose('Basic Information', 'Thông tin cơ bản'),
-                  dark: _useDarkGoalTheme,
-                ),
-              ),
-              TextButton(
-                onPressed: _showCategoryPicker,
-                child: Text(
-                  AppStrings.choose(
-                    'View all\ncategories',
-                    'Xem tất cả\ndanh mục',
-                  ),
-                  textAlign: TextAlign.end,
-                  style: TextStyle(
-                    color: _useDarkGoalTheme ? _darkAccent : goalPrimary,
-                  ),
-                ),
-              ),
-            ],
+          _GoalSectionTitle(
+            AppStrings.choose('Basic Information', 'Thông tin cơ bản'),
+            dark: _useDarkGoalTheme,
           ),
           const SizedBox(height: 12),
-          InkWell(
-            onTap: _showCategoryPicker,
-            borderRadius: BorderRadius.circular(14),
-            child: Container(
-              height: 68,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(14),
-                color: _useDarkGoalTheme ? _darkInput : null,
-                border: Border.all(
-                  color: _useDarkGoalTheme ? _darkBorder : goalOutline,
-                  width: 1.5,
-                ),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: category.color.withValues(alpha: .12),
-                      shape: BoxShape.circle,
-                    ),
-                    child: category.buildIcon(size: 19),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(AppStrings.category, style: _fieldCaptionStyle),
-                        Text(
-                          AppStrings.categoryName(category.label),
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: _useDarkGoalTheme ? _darkText : goalDark,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Icon(
-                    Icons.expand_more_rounded,
-                    color: _useDarkGoalTheme ? _darkSecondary : goalMuted,
-                  ),
-                ],
-              ),
-            ),
-          ),
+          _buildCategoryPicker(category),
           const SizedBox(height: 16),
           _fieldLabel(AppStrings.choose('Goal Name', 'Tên mục tiêu')),
           const SizedBox(height: 8),
           TextFormField(
+            key: const Key('goal-name-field'),
             controller: _nameController,
             decoration: _fieldDecoration(
               AppStrings.choose(
@@ -308,6 +243,7 @@ class _GoalFormScreenState extends ConsumerState<GoalFormScreen> {
           _fieldLabel(AppStrings.choose('Target Amount', 'Số tiền mục tiêu')),
           const SizedBox(height: 8),
           TextFormField(
+            key: const Key('goal-target-amount-field'),
             controller: _targetController,
             keyboardType: TextInputType.number,
             inputFormatters: [
@@ -361,6 +297,7 @@ class _GoalFormScreenState extends ConsumerState<GoalFormScreen> {
             onTap: _pickDate,
             borderRadius: BorderRadius.circular(14),
             child: InputDecorator(
+              key: const Key('goal-target-date-field'),
               decoration: _fieldDecoration(
                 '',
                 suffixIcon: const Icon(Icons.calendar_today_outlined, size: 20),
@@ -416,6 +353,7 @@ class _GoalFormScreenState extends ConsumerState<GoalFormScreen> {
         ),
         const SizedBox(height: 16),
         TextFormField(
+          key: const Key('goal-initial-allocation-field'),
           controller: _initialController,
           keyboardType: TextInputType.number,
           inputFormatters: [
@@ -424,16 +362,11 @@ class _GoalFormScreenState extends ConsumerState<GoalFormScreen> {
           ],
           style: TextStyle(
             fontFamily: 'Manrope',
-            fontSize: 36,
+            fontSize: 24,
             fontWeight: FontWeight.w700,
             color: _useDarkGoalTheme ? _darkText : goalPrimary,
           ),
-          decoration: _fieldDecoration('0', suffixText: 'VND').copyWith(
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 20,
-              vertical: 22,
-            ),
-          ),
+          decoration: _fieldDecoration('0', suffixText: 'VND'),
           validator: (value) {
             final amount = _parseAmount(value);
             if (amount < 0) {
@@ -906,7 +839,7 @@ class _GoalFormScreenState extends ConsumerState<GoalFormScreen> {
       TextButton.icon(
         onPressed: _delete,
         style: TextButton.styleFrom(foregroundColor: goalError),
-        icon: const Icon(Icons.delete_outline_rounded, size: 20),
+        icon: const FinFlowTrashIcon(color: goalError, size: 20),
         label: Text(AppStrings.choose('Delete Goal', 'Xóa mục tiêu')),
       ),
     ],
@@ -963,11 +896,13 @@ class _GoalFormScreenState extends ConsumerState<GoalFormScreen> {
     hintText: hint,
     suffixText: suffixText,
     suffixIcon: suffixIcon,
+    constraints: const BoxConstraints(minHeight: _inputHeight),
+    isDense: true,
     filled: true,
     fillColor: _useDarkGoalTheme ? _darkInput : const Color(0xFFF3F3F6),
     hintStyle: TextStyle(color: _useDarkGoalTheme ? _darkSecondary : null),
     suffixStyle: TextStyle(color: _useDarkGoalTheme ? _darkSecondary : null),
-    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 17),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
     border: OutlineInputBorder(
       borderRadius: BorderRadius.circular(14),
       borderSide: _useDarkGoalTheme
@@ -1190,115 +1125,94 @@ class _GoalFormScreenState extends ConsumerState<GoalFormScreen> {
   void _setAutoPercent(double value, double maximum) =>
       setState(() => _autoPercent = value.clamp(0, maximum).toDouble());
 
-  TransactionCategory _goalCategory(String key) => _goalCategories.firstWhere(
+  GoalCategory _goalCategory(String key) => _goalCategories.firstWhere(
     (category) => category.key == key || category.label == key,
-    orElse: () => TransactionCategory.all.first,
+    orElse: () => GoalCategory.all.last,
   );
 
-  List<TransactionCategory> get _goalCategories => <TransactionCategory>[
-    ...TransactionCategory.all,
-    ...CustomCategoryStore.instance.items.map(
-      (item) => TransactionCategory(
-        key: item.name,
-        label: item.name,
-        icon: item.iconData,
-        color: item.color,
-      ),
-    ),
-  ];
+  List<GoalCategory> get _goalCategories => GoalCategory.all;
 
-  Future<void> _showCategoryPicker() async {
+  Widget _buildCategoryPicker(GoalCategory selectedCategory) {
     final dark = _useDarkGoalTheme;
-    final selected = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: dark ? _darkSurface : null,
+    return LayoutBuilder(
+      builder: (context, constraints) => PopupMenuButton<String>(
+        key: const Key('goal-category-field'),
+        tooltip: AppStrings.category,
+        initialValue: _category,
+        position: PopupMenuPosition.under,
+        color: dark ? _darkSurface : Colors.white,
         surfaceTintColor: Colors.transparent,
+        elevation: 8,
+        constraints: BoxConstraints(
+          minWidth: constraints.maxWidth,
+          maxWidth: constraints.maxWidth,
+          maxHeight: 310,
+        ),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-          side: dark ? const BorderSide(color: _darkBorder) : BorderSide.none,
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(color: dark ? _darkBorder : const Color(0xFFDCE9E4)),
         ),
-        title: Text(
-          AppStrings.choose('Choose Category', 'Chọn danh mục'),
-          style: TextStyle(
-            fontFamily: 'Manrope',
-            fontWeight: FontWeight.w700,
-            color: dark ? _darkText : goalDark,
-          ),
-        ),
-        contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-        content: SizedBox(
-          width: 420,
-          height: MediaQuery.sizeOf(context).height.clamp(320, 500).toDouble(),
-          child: GridView.builder(
-            itemCount: _goalCategories.length,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              childAspectRatio: 1.15,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
-            ),
-            itemBuilder: (context, index) {
-              final item = _goalCategories[index];
-              final active = item.key == _category;
-              return InkWell(
-                onTap: () => Navigator.pop(context, item.key),
-                borderRadius: BorderRadius.circular(14),
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: active
-                        ? item.color.withValues(alpha: dark ? .20 : .14)
-                        : dark
-                        ? _darkInput
-                        : const Color(0xFFF9F9FC),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: active
-                          ? item.color
-                          : dark
-                          ? _darkBorder
-                          : goalOutline.withValues(alpha: .25),
+        onSelected: (value) => setState(() => _category = value),
+        itemBuilder: (context) => [
+          for (final item in _goalCategories)
+            PopupMenuItem<String>(
+              value: item.key,
+              height: 48,
+              child: Row(
+                children: [
+                  SizedBox(width: 26, child: item.buildIcon(size: 20)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      AppStrings.categoryName(item.label),
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: dark ? _darkText : goalDark,
+                      ),
                     ),
                   ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      item.buildIcon(size: 20),
-                      const SizedBox(height: 6),
-                      Text(
-                        AppStrings.categoryName(item.label),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: active
-                              ? FontWeight.w700
-                              : FontWeight.w500,
-                          color: dark
-                              ? (active ? _darkText : _darkSecondary)
-                              : goalDark,
-                        ),
-                      ),
-                    ],
+                  if (item.key == _category)
+                    Icon(
+                      Icons.check_rounded,
+                      size: 19,
+                      color: dark ? _darkAccent : goalPrimary,
+                    ),
+                ],
+              ),
+            ),
+        ],
+        child: Container(
+          height: _inputHeight,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            color: dark ? _darkInput : const Color(0xFFF3F3F6),
+            border: Border.all(color: dark ? _darkBorder : goalOutline),
+          ),
+          child: Row(
+            children: [
+              SizedBox(width: 28, child: selectedCategory.buildIcon(size: 19)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  AppStrings.categoryName(selectedCategory.label),
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: dark ? _darkText : goalDark,
                   ),
                 ),
-              );
-            },
+              ),
+              Icon(
+                Icons.expand_more_rounded,
+                color: dark ? _darkSecondary : goalMuted,
+              ),
+            ],
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              AppStrings.cancel,
-              style: TextStyle(color: dark ? _darkAccent : goalPrimary),
-            ),
-          ),
-        ],
       ),
     );
-    if (selected != null && mounted) setState(() => _category = selected);
   }
 
   Future<void> _pickPriority() async {

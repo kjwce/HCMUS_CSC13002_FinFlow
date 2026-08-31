@@ -50,21 +50,24 @@ class TransactionModel {
   }
 
   static DateTime _parseStoredDate(Map<String, dynamic> json) {
-    final rawDate = DateTime.parse(json['date'] as String);
-    final createdAtRaw = json['created_at'];
-    if (createdAtRaw is String) {
-      final createdAt = DateTime.tryParse(createdAtRaw);
-      if (createdAt != null) {
-        final instantDelta = rawDate
-            .toUtc()
-            .difference(createdAt.toUtc())
-            .abs();
-        if (instantDelta <= const Duration(minutes: 5)) {
-          return rawDate.toLocal();
-        }
-      }
-    }
-    return rawDate;
+    final stored = DateTime.parse(json['date'] as String);
+
+    // Transaction dates are deliberately written as floating local time by
+    // [floatingLocalIso]. Supabase's TIMESTAMPTZ column may append `Z` when it
+    // returns that value, but converting that instant again would shift the
+    // user-entered wall clock into another calendar day (for example 17:38 in
+    // Vietnam becoming 00:38 tomorrow). Rebuild a local DateTime from the
+    // stored components so daily filters use the date the user selected.
+    return DateTime(
+      stored.year,
+      stored.month,
+      stored.day,
+      stored.hour,
+      stored.minute,
+      stored.second,
+      stored.millisecond,
+      stored.microsecond,
+    );
   }
 
   static DateTime? _parseCreatedAt(dynamic value) {
@@ -91,6 +94,28 @@ class TransactionModel {
     TransactionModel? latest;
     for (final transaction in transactions) {
       if (latest == null || transaction.recordedAt.isAfter(latest.recordedAt)) {
+        latest = transaction;
+      }
+    }
+    return latest;
+  }
+
+  /// Most recent transaction by its real transaction date, ignoring entries
+  /// dated in the future. This is the correct semantic for "Latest" and
+  /// "Recent transactions" surfaces; [latestRecorded] remains available for
+  /// audit flows that care about when a record was entered into FinFlow.
+  static TransactionModel? latestOccurred(
+    Iterable<TransactionModel> transactions, {
+    DateTime? asOf,
+  }) {
+    final cutoff = asOf ?? DateTime.now();
+    TransactionModel? latest;
+    for (final transaction in transactions) {
+      if (transaction.date.isAfter(cutoff)) continue;
+      if (latest == null ||
+          transaction.date.isAfter(latest.date) ||
+          (transaction.date.isAtSameMomentAs(latest.date) &&
+              transaction.recordedAt.isAfter(latest.recordedAt))) {
         latest = transaction;
       }
     }

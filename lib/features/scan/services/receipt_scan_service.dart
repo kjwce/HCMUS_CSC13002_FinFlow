@@ -43,7 +43,7 @@ class ReceiptScanService {
 
   Future<ScanResultModel> parseFile(
     XFile file, {
-    List<TransactionCategory> categories = TransactionCategory.all,
+    List<TransactionCategory> categories = TransactionCategory.expenses,
   }) async {
     final bytes = await file.readAsBytes();
     return parseBytes(
@@ -56,7 +56,7 @@ class ReceiptScanService {
   Future<ScanResultModel> parseBytes(
     Uint8List bytes, {
     required String mimeType,
-    List<TransactionCategory> categories = TransactionCategory.all,
+    List<TransactionCategory> categories = TransactionCategory.expenses,
   }) async {
     if (bytes.isEmpty) {
       throw ReceiptScanException(

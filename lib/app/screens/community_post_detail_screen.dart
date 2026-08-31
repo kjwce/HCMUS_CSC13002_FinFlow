@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -7,6 +9,9 @@ import '../../core/utils/responsive.dart';
 import '../../features/auth/services/auth_service.dart';
 import '../../features/community/models/community_comment_model.dart';
 import '../../features/community/models/community_post_model.dart';
+import '../../features/community/models/community_report_model.dart';
+import '../../features/community/presentation/community_composer_screen.dart';
+import '../../features/community/presentation/widgets/community_report_dialog.dart';
 import '../../features/community/presentation/widgets/post_card.dart';
 import '../../features/community/providers/community_provider.dart';
 import '../../features/community/services/community_service.dart';
@@ -80,8 +85,22 @@ class _CommunityPostDetailScreenState
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final service = _communityService;
       service.subscribeToComments(widget.postId);
-      await service.fetchPosts();
-      await service.fetchComments(widget.postId);
+
+      if (service.hasCachedCommentsFor(widget.postId)) {
+        if (mounted) setState(() => _loaded = true);
+        unawaited(service.fetchComments(widget.postId));
+        return;
+      }
+
+      final postIsCached = service.posts.any(
+        (post) => post.id == widget.postId,
+      );
+      if (!postIsCached) {
+        await service.fetchPosts();
+      }
+      if (!service.hasCachedCommentsFor(widget.postId)) {
+        await service.fetchComments(widget.postId);
+      }
       if (mounted) setState(() => _loaded = true);
     });
   }
@@ -133,6 +152,91 @@ class _CommunityPostDetailScreenState
     } finally {
       if (mounted) setState(() {});
     }
+  }
+
+  Future<void> _editPost(CommunityPostModel post) async {
+    final edited = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => CommunityComposerScreen(editPost: post),
+        fullscreenDialog: true,
+      ),
+    );
+    if (edited == true && mounted) setState(() {});
+  }
+
+  Future<void> _deletePost(CommunityPostModel post) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(AppStrings.choose('Delete post', 'Xóa bài viết')),
+        content: Text(
+          AppStrings.choose(
+            'Are you sure you want to delete this post?',
+            'Bạn có chắc muốn xóa bài viết này không?',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(AppStrings.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(
+              AppStrings.choose('Delete', 'Xóa'),
+              style: TextStyle(color: context.finFlowColors.negativeAmount),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await _communityService.deletePost(post.id);
+      if (mounted) Navigator.of(context).pop();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            AppStrings.choose(
+              'Could not delete: $error',
+              'Không thể xóa: $error',
+            ),
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _reportPost(CommunityPostModel post) {
+    return showCommunityReportDialog(
+      context: context,
+      target: CommunityReportTarget.post,
+      authorName: post.displayName,
+      authorAvatarUrl: post.isAnonymous ? null : post.authorAvatarUrl,
+      content: post.content,
+      onSubmit: (reason, details) => _communityService.reportPost(
+        postId: post.id,
+        reason: reason,
+        description: details,
+      ),
+    );
+  }
+
+  Future<void> _reportComment(CommunityCommentModel comment) {
+    return showCommunityReportDialog(
+      context: context,
+      target: CommunityReportTarget.comment,
+      authorName: comment.displayName,
+      authorAvatarUrl: comment.isAnonymous ? null : comment.authorAvatarUrl,
+      content: comment.content,
+      onSubmit: (reason, details) => _communityService.reportComment(
+        commentId: comment.id,
+        reason: reason,
+        description: details,
+      ),
+    );
   }
 
   Future<void> _submitComment() async {
@@ -296,44 +400,55 @@ class _CommunityPostDetailScreenState
                             ),
                     )
                   : ListView(
-                      padding: EdgeInsets.all(Responsive.w(context, 16)),
+                      padding: EdgeInsets.symmetric(
+                        vertical: Responsive.h(context, 16),
+                      ),
                       children: [
                         // ── Post Card (full content) ──
                         CommunityPostCard(
                           post: post,
                           maxLines: null,
+                          currentUserId: AuthService.instance.currentUser?.id,
                           onTap: () {},
                           onLikeTap: () => _toggleLike(post),
                           onSaveTap: () => _toggleSave(post),
+                          onEditTap: () => _editPost(post),
+                          onDeleteTap: () => _deletePost(post),
+                          onReportTap: () => _reportPost(post),
                         ),
 
                         SizedBox(height: Responsive.h(context, 20)),
 
                         // ── Comments Section ──
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              AppStrings.choose('COMMENTS', 'BÌNH LUẬN'),
-                              style: TextStyle(
-                                fontFamily: 'Manrope',
-                                fontWeight: FontWeight.w700,
-                                fontSize: Responsive.sp(context, 16),
-                                color: _primaryText,
+                        Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: Responsive.w(context, 16),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                AppStrings.choose('COMMENTS', 'BÌNH LUẬN'),
+                                style: TextStyle(
+                                  fontFamily: 'Manrope',
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: Responsive.sp(context, 16),
+                                  color: _primaryText,
+                                ),
                               ),
-                            ),
-                            Text(
-                              AppStrings.choose(
-                                '${allComments.length} comment${allComments.length == 1 ? '' : 's'}',
-                                '${allComments.length} bình luận',
+                              Text(
+                                AppStrings.choose(
+                                  '${allComments.length} comment${allComments.length == 1 ? '' : 's'}',
+                                  '${allComments.length} bình luận',
+                                ),
+                                style: TextStyle(
+                                  fontFamily: 'Hanken Grotesk',
+                                  fontSize: Responsive.sp(context, 13),
+                                  color: _secondaryText,
+                                ),
                               ),
-                              style: TextStyle(
-                                fontFamily: 'Hanken Grotesk',
-                                fontSize: Responsive.sp(context, 13),
-                                color: _secondaryText,
-                              ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
 
                         SizedBox(height: Responsive.h(context, 14)),
@@ -366,47 +481,54 @@ class _CommunityPostDetailScreenState
                             final displayDepth = threadComment.depth > 4
                                 ? 4
                                 : threadComment.depth;
-                            return Container(
-                              margin: EdgeInsets.only(
-                                left: Responsive.w(context, displayDepth * 14),
+                            return Padding(
+                              padding: EdgeInsets.fromLTRB(
+                                Responsive.w(context, 16 + (displayDepth * 14)),
+                                0,
+                                Responsive.w(context, 16),
+                                0,
                               ),
-                              padding: threadComment.depth == 0
-                                  ? EdgeInsets.zero
-                                  : EdgeInsets.only(
-                                      left: Responsive.w(context, 8),
-                                    ),
-                              decoration: threadComment.depth == 0
-                                  ? null
-                                  : BoxDecoration(
-                                      border: Border(
-                                        left: BorderSide(
-                                          color: _border,
-                                          width: 1.5,
+                              child: Container(
+                                padding: threadComment.depth == 0
+                                    ? EdgeInsets.zero
+                                    : EdgeInsets.only(
+                                        left: Responsive.w(context, 8),
+                                      ),
+                                decoration: threadComment.depth == 0
+                                    ? null
+                                    : BoxDecoration(
+                                        border: Border(
+                                          left: BorderSide(
+                                            color: _border,
+                                            width: 1.5,
+                                          ),
                                         ),
                                       ),
-                                    ),
-                              child: _CommentTile(
-                                comment: comment,
-                                currentUserId:
-                                    AuthService.instance.currentUser?.id,
-                                directReplyCount:
-                                    threadComment.directReplyCount,
-                                repliesExpanded: _expandedCommentIds.contains(
-                                  comment.id,
+                                child: _CommentTile(
+                                  comment: comment,
+                                  currentUserId:
+                                      AuthService.instance.currentUser?.id,
+                                  directReplyCount:
+                                      threadComment.directReplyCount,
+                                  repliesExpanded: _expandedCommentIds.contains(
+                                    comment.id,
+                                  ),
+                                  onLike: () => _toggleCommentLike(comment),
+                                  onReply: () => _beginReply(comment),
+                                  onToggleReplies:
+                                      threadComment.directReplyCount == 0
+                                      ? null
+                                      : () => setState(() {
+                                          if (!_expandedCommentIds.remove(
+                                            comment.id,
+                                          )) {
+                                            _expandedCommentIds.add(comment.id);
+                                          }
+                                        }),
+                                  onDelete: () =>
+                                      _confirmDeleteComment(comment),
+                                  onReport: () => _reportComment(comment),
                                 ),
-                                onLike: () => _toggleCommentLike(comment),
-                                onReply: () => _beginReply(comment),
-                                onToggleReplies:
-                                    threadComment.directReplyCount == 0
-                                    ? null
-                                    : () => setState(() {
-                                        if (!_expandedCommentIds.remove(
-                                          comment.id,
-                                        )) {
-                                          _expandedCommentIds.add(comment.id);
-                                        }
-                                      }),
-                                onDelete: () => _confirmDeleteComment(comment),
                               ),
                             );
                           }),
@@ -481,16 +603,15 @@ class _CommunityPostDetailScreenState
           Expanded(
             child: Text(
               AppStrings.choose('Post', 'Bài viết'),
-              textAlign: TextAlign.center,
+              textAlign: TextAlign.left,
               style: TextStyle(
                 fontFamily: 'Manrope',
-                fontWeight: FontWeight.w600,
-                fontSize: Responsive.sp(context, 18),
-                color: _isDark ? _darkText : _headerText,
+                fontWeight: FontWeight.w700,
+                fontSize: Responsive.sp(context, 22),
+                color: _isDark ? _darkText : AppColors.deepEmerald,
               ),
             ),
           ),
-          SizedBox(width: Responsive.w(context, 36)),
         ],
       ),
     );
@@ -728,6 +849,7 @@ class _CommentTile extends StatelessWidget {
     this.currentUserId,
     this.onToggleReplies,
     this.onDelete,
+    this.onReport,
   });
 
   final CommunityCommentModel comment;
@@ -738,6 +860,7 @@ class _CommentTile extends StatelessWidget {
   final String? currentUserId;
   final VoidCallback? onToggleReplies;
   final VoidCallback? onDelete;
+  final VoidCallback? onReport;
 
   static const _white = Color(0xFFFFFFFF);
   static const _darkSurface = Color(0xFF16352E);
@@ -853,16 +976,69 @@ class _CommentTile extends StatelessWidget {
                               : colors.secondaryText,
                         ),
                       ),
-                      if (isOwner)
-                        IconButton(
-                          onPressed: onDelete,
+                      if (currentUserId != null)
+                        PopupMenuButton<String>(
                           tooltip: AppStrings.choose(
                             'Comment options',
                             'Tùy chọn bình luận',
                           ),
-                          visualDensity: VisualDensity.compact,
+                          position: PopupMenuPosition.under,
+                          color: isDark ? _darkSurface : colors.surface,
+                          surfaceTintColor: Colors.transparent,
+                          constraints: BoxConstraints(
+                            minWidth: Responsive.w(context, 166),
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(
+                              color: isDark ? _darkBorder : colors.divider,
+                            ),
+                          ),
+                          onSelected: (value) {
+                            if (value == 'delete') onDelete?.call();
+                            if (value == 'report') onReport?.call();
+                          },
+                          itemBuilder: (_) => [
+                            PopupMenuItem(
+                              value: isOwner ? 'delete' : 'report',
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    isOwner
+                                        ? Icons.delete_outline_rounded
+                                        : Icons.outlined_flag_rounded,
+                                    size: Responsive.w(context, 18),
+                                    color: const Color(0xFFE86B5D),
+                                  ),
+                                  SizedBox(width: Responsive.w(context, 10)),
+                                  Text(
+                                    isOwner
+                                        ? AppStrings.choose(
+                                            'Delete comment',
+                                            'Xóa bình luận',
+                                          )
+                                        : AppStrings.choose(
+                                            'Report comment',
+                                            'Báo cáo bình luận',
+                                          ),
+                                    style: TextStyle(
+                                      fontFamily: 'Hanken Grotesk',
+                                      fontSize: Responsive.sp(context, 13),
+                                      fontWeight: FontWeight.w600,
+                                      color: isOwner
+                                          ? const Color(0xFFE86B5D)
+                                          : (isDark
+                                                ? _darkText
+                                                : colors.primaryText),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                          padding: EdgeInsets.zero,
                           icon: Icon(
-                            Icons.more_horiz,
+                            Icons.more_horiz_rounded,
                             size: Responsive.w(context, 16),
                             color: isDark
                                 ? _darkMutedText

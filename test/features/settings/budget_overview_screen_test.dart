@@ -17,9 +17,21 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    final pageTitle = tester.widget<Text>(find.text('Budgets'));
+    expect(pageTitle.style?.fontFamily, 'Manrope');
+    expect(pageTitle.style?.fontWeight, FontWeight.w700);
+    expect(pageTitle.style?.fontSize, closeTo(22 * 390 / 393, 0.01));
+    expect(tester.getTopLeft(find.text('Budgets')).dx, lessThan(90));
     expect(find.byKey(const Key('budget-overview-card-day')), findsOneWidget);
     expect(find.byKey(const Key('budget-overview-card-week')), findsOneWidget);
     expect(find.byKey(const Key('budget-overview-card-month')), findsOneWidget);
+    final dailyCard = tester.widget<Container>(
+      find.byKey(const Key('budget-overview-card-day')),
+    );
+    final dailyDecoration = dailyCard.decoration! as BoxDecoration;
+    expect(dailyDecoration.border, isA<Border>());
+    expect(dailyDecoration.boxShadow, hasLength(2));
+    expect(dailyDecoration.boxShadow!.last.blurRadius, 18);
     await tester.tap(find.byKey(const Key('budget-overview-card-day')));
     await tester.pumpAndSettle();
 

@@ -56,4 +56,49 @@ void main() {
 
     expect(dates, [DateTime(2026, 8, 17)]);
   });
+
+  test('daily schedule projects every occurrence in a seven-day range', () {
+    final dates = schedule(
+      frequency: RecurringFrequency.daily,
+      nextOccurrence: DateTime(2026, 8, 17),
+    ).occurrencesBetween(DateTime(2026, 8, 17), DateTime(2026, 8, 24));
+
+    expect(dates.map((date) => date.day), [17, 18, 19, 20, 21, 22, 23]);
+  });
+
+  test('seven-day projection works across a month boundary', () {
+    final dates = schedule(
+      frequency: RecurringFrequency.daily,
+      nextOccurrence: DateTime(2026, 8, 29),
+    ).occurrencesBetween(DateTime(2026, 8, 29), DateTime(2026, 9, 5));
+
+    expect(dates, List.generate(7, (index) => DateTime(2026, 8, 29 + index)));
+  });
+
+  test('stale daily occurrence advances to the current calendar day', () {
+    final next = schedule(
+      frequency: RecurringFrequency.daily,
+      nextOccurrence: DateTime(2026, 8, 19, 9, 30),
+    ).nextOccurrenceOnOrAfter(DateTime(2026, 8, 29, 18));
+
+    expect(next, DateTime(2026, 8, 29, 9, 30));
+  });
+
+  test('stale weekly occurrence advances to the next valid weekday', () {
+    final next = schedule(
+      frequency: RecurringFrequency.weekly,
+      nextOccurrence: DateTime(2026, 8, 19, 8),
+    ).nextOccurrenceOnOrAfter(DateTime(2026, 8, 29));
+
+    expect(next, DateTime(2026, 9, 2, 8));
+  });
+
+  test('stale monthly occurrence advances to the next valid month', () {
+    final next = schedule(
+      frequency: RecurringFrequency.monthly,
+      nextOccurrence: DateTime(2026, 8, 19),
+    ).nextOccurrenceOnOrAfter(DateTime(2026, 8, 29));
+
+    expect(next, DateTime(2026, 9, 19));
+  });
 }

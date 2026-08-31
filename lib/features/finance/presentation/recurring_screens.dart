@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/shell/finflow_app.dart';
 import '../../../core/i18n/app_language.dart';
+import '../../../core/utils/responsive.dart';
+import '../../../core/widgets/finflow_action_icon.dart';
 import '../../auth/services/auth_service.dart';
 import '../models/recurring_model.dart';
 import '../models/transaction_category.dart';
@@ -20,12 +22,20 @@ const _primary = Color(0xFF006C53);
 const _primaryDark = Color(0xFF00513E);
 const _mint = Color(0xFF00C49A);
 const _ink = Color(0xFF05201B);
-const _muted = Color(0xFF60736F);
+const _muted = Color(0xFF52655E);
 const _outline = Color(0xFFBEC9C3);
 const _coral = Color(0xFFEF6262);
 const _amber = Color(0xFFFFBF00);
-const _darkPage = Color(0xFF001712);
-const _darkCard = Color(0xFF07241E);
+const _darkPage = Color(0xFF081C18);
+const _darkCard = Color(0xFF112622);
+const _darkInput = Color(0xFF0A241F);
+const _darkBorder = Color(0xFF29483F);
+const _darkText = Color(0xFFF4FBF8);
+const _darkSecondaryText = Color(0xFFA9C1B9);
+const _darkMutedText = Color(0xFF8FA89F);
+const _darkPositive = Color(0xFF38D6AC);
+const _darkNegative = Color(0xFFFF6B70);
+const _darkWarning = Color(0xFFFFD166);
 const _headlineFont = 'Manrope';
 const _bodyFont = 'Hanken Grotesk';
 
@@ -84,6 +94,8 @@ class _RecurringControlCenterScreenState
     return Scaffold(
       backgroundColor: dark ? _darkPage : _pageMint,
       appBar: _RecurringAppBar(
+        context: context,
+        dark: dark,
         title: AppStrings.choose('Recurring', 'Định kỳ'),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
@@ -230,7 +242,10 @@ double _calendarPopoverOverflow(DateTime month, DateTime selectedDate) {
   final dayCount = DateTime(month.year, month.month + 1, 0).day;
   final rows = ((first.weekday - 1 + dayCount) / 7).ceil();
   final row = (first.weekday - 1 + selectedDate.day - 1) ~/ 7;
-  final opensBelow = row < rows - 2;
+  // Keep the popover above dates in the last three calendar rows. This gives
+  // mid-to-late month dates (for example Aug 17-19) the same placement as the
+  // final rows and prevents the card from covering the dates below it.
+  final opensBelow = row < rows - 3;
   if (!opensBelow) return 0;
 
   const cellHeight = 40.0;
@@ -290,7 +305,11 @@ class _UpcomingCarousel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final upcoming = [...schedules]
-      ..sort((a, b) => a.nextOccurrence.compareTo(b.nextOccurrence));
+      ..sort(
+        (a, b) => a
+            .nextOccurrenceOnOrAfter(DateTime.now())
+            .compareTo(b.nextOccurrenceOnOrAfter(DateTime.now())),
+      );
     return Column(
       key: const Key('recurring-upcoming-section'),
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -311,7 +330,7 @@ class _UpcomingCarousel extends StatelessWidget {
                   '${upcoming.length} scheduled',
                   '${upcoming.length} lịch',
                 ),
-                style: _body(context, 11, muted: true),
+                style: _body(context, 12, muted: true),
               ),
             ],
           ),
@@ -361,18 +380,19 @@ class _UpcomingScheduleCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final category = TransactionCategory.resolve(schedule.category);
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final positive = dark ? _darkPositive : _primary;
     final expense = schedule.amount < 0;
     final review = schedule.postingMode == RecurringPostingMode.review;
-    final accent = expense ? _coral : _primary;
-    final dark = Theme.of(context).brightness == Brightness.dark;
+    final accent = expense ? (dark ? _darkNegative : _coral) : positive;
     return Material(
       key: Key('recurring-upcoming-${schedule.id}'),
       color: dark ? _darkCard : Colors.white,
-      elevation: dark ? 0 : 1,
-      shadowColor: _primary.withValues(alpha: .1),
+      elevation: dark ? 0 : 4,
+      shadowColor: _primary.withValues(alpha: .22),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(18),
-        side: BorderSide(color: dark ? const Color(0xFF21473D) : _surfaceMint),
+        side: BorderSide(color: dark ? _darkBorder : const Color(0xFFD5E9E1)),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -431,7 +451,7 @@ class _UpcomingScheduleCard extends StatelessWidget {
                           '${AppStrings.categoryName(schedule.category)} · ${_frequencyLabel(schedule.frequency)}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: _body(context, 12, muted: true),
+                          style: _body(context, 13, muted: true),
                         ),
                       ],
                     ),
@@ -443,10 +463,12 @@ class _UpcomingScheduleCard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      _hubDueLabel(schedule.nextOccurrence),
+                      _hubDueLabel(
+                        schedule.nextOccurrenceOnOrAfter(DateTime.now()),
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: _body(context, 12, muted: true),
+                      style: _body(context, 13, muted: true),
                     ),
                   ),
                   _UpcomingStatusChip(schedule: schedule, review: review),
@@ -481,7 +503,7 @@ class _UpcomingStatusChip extends StatelessWidget {
             : AppStrings.choose('Auto-post', 'Tự động ghi'),
         style: _body(
           context,
-          10,
+          11,
         ).copyWith(color: color, fontWeight: FontWeight.w700),
       ),
     );
@@ -503,7 +525,7 @@ class _UpcomingEmptyCard extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     width: double.infinity,
     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-    decoration: _cardDecoration(context, radius: 18),
+    decoration: _hubElevatedCardDecoration(context, radius: 18),
     child: Row(
       children: [
         const CircleAvatar(
@@ -567,92 +589,120 @@ class _MonthlyHubCalendar extends StatelessWidget {
     final selectedItems = byDay[_calendarKey(selectedDate)] ?? const [];
 
     return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: _cardDecoration(context, radius: 24),
+      key: const Key('recurring-calendar-card'),
+      decoration: _hubElevatedCardDecoration(context, radius: 24),
+      clipBehavior: Clip.antiAlias,
       child: Column(
         children: [
-          Row(
-            children: [
-              IconButton(
-                key: const Key('recurring-previous-month'),
-                onPressed: onPreviousMonth,
-                visualDensity: VisualDensity.compact,
-                icon: const Icon(Icons.chevron_left_rounded, size: 21),
-              ),
-              Expanded(
-                child: Text(
-                  _monthYearLabel(visibleMonth),
-                  textAlign: TextAlign.center,
-                  style: _headline(context, 18),
+          Container(
+            key: const Key('recurring-calendar-header'),
+            height: 58,
+            color: _primaryDark,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(
+              children: [
+                IconButton(
+                  key: const Key('recurring-previous-month'),
+                  onPressed: onPreviousMonth,
+                  tooltip: AppStrings.choose('Previous month', 'Tháng trước'),
+                  icon: const Icon(
+                    Icons.chevron_left_rounded,
+                    size: 24,
+                    color: Colors.white,
+                  ),
                 ),
-              ),
-              IconButton(
-                key: const Key('recurring-next-month'),
-                onPressed: onNextMonth,
-                visualDensity: VisualDensity.compact,
-                icon: const Icon(Icons.chevron_right_rounded, size: 21),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          const _MonthlyWeekdayHeader(),
-          const SizedBox(height: 8),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              const cellHeight = 40.0;
-              final gridHeight = rows * cellHeight;
-              final selectedIndex = days.indexWhere(
-                (date) => _sameCalendarDay(date, selectedDate),
-              );
-              return SizedBox(
-                height: gridHeight,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    GridView.builder(
-                      padding: EdgeInsets.zero,
-                      physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 7,
-                            mainAxisExtent: cellHeight,
-                          ),
-                      itemCount: days.length,
-                      itemBuilder: (context, index) {
-                        final date = days[index];
-                        final items = byDay[_calendarKey(date)] ?? const [];
-                        final transactionColor = items.isEmpty
-                            ? null
-                            : TransactionCategory.resolve(
-                                items.first.schedule.category,
-                              ).color;
-                        return _MonthlyDateCell(
-                          date: date,
-                          inVisibleMonth:
-                              date.month == visibleMonth.month &&
-                              date.year == visibleMonth.year,
-                          selected: _sameCalendarDay(date, selectedDate),
-                          hasTransactions: items.isNotEmpty,
-                          transactionColor: transactionColor,
-                          transactionCount: items.length,
-                          onTap: () => onDateSelected(date, items.isNotEmpty),
-                        );
-                      },
+                Expanded(
+                  child: Text(
+                    _monthYearLabel(visibleMonth),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: _headlineFont,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
                     ),
-                    if (showPopover &&
-                        selectedItems.isNotEmpty &&
-                        selectedIndex >= 0)
-                      _positionedPopover(
-                        context,
-                        constraints.maxWidth,
-                        rows,
-                        selectedIndex,
-                        selectedItems,
-                      ),
-                  ],
+                  ),
                 ),
-              );
-            },
+                IconButton(
+                  key: const Key('recurring-next-month'),
+                  onPressed: onNextMonth,
+                  tooltip: AppStrings.choose('Next month', 'Tháng sau'),
+                  icon: const Icon(
+                    Icons.chevron_right_rounded,
+                    size: 24,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
+            child: Column(
+              children: [
+                const _MonthlyWeekdayHeader(),
+                const SizedBox(height: 8),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    const cellHeight = 40.0;
+                    final gridHeight = rows * cellHeight;
+                    final selectedIndex = days.indexWhere(
+                      (date) => _sameCalendarDay(date, selectedDate),
+                    );
+                    return SizedBox(
+                      height: gridHeight,
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          GridView.builder(
+                            padding: EdgeInsets.zero,
+                            physics: const NeverScrollableScrollPhysics(),
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 7,
+                                  mainAxisExtent: cellHeight,
+                                ),
+                            itemCount: days.length,
+                            itemBuilder: (context, index) {
+                              final date = days[index];
+                              final items =
+                                  byDay[_calendarKey(date)] ?? const [];
+                              final transactionColor = items.isEmpty
+                                  ? null
+                                  : TransactionCategory.resolve(
+                                      items.first.schedule.category,
+                                    ).color;
+                              return _MonthlyDateCell(
+                                date: date,
+                                inVisibleMonth:
+                                    date.month == visibleMonth.month &&
+                                    date.year == visibleMonth.year,
+                                selected: _sameCalendarDay(date, selectedDate),
+                                hasTransactions: items.isNotEmpty,
+                                transactionColor: transactionColor,
+                                transactionCount: items.length,
+                                onTap: () =>
+                                    onDateSelected(date, items.isNotEmpty),
+                              );
+                            },
+                          ),
+                          if (showPopover &&
+                              selectedItems.isNotEmpty &&
+                              selectedIndex >= 0)
+                            _positionedPopover(
+                              context,
+                              constraints.maxWidth,
+                              rows,
+                              selectedIndex,
+                              selectedItems,
+                            ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -674,7 +724,7 @@ class _MonthlyHubCalendar extends StatelessWidget {
     final popoverWidth = math.min(180.0, width * .62);
     final preferredLeft = (column + .5) * cellWidth - popoverWidth / 2;
     final left = preferredLeft.clamp(0.0, width - popoverWidth);
-    final opensBelow = row < rows - 2;
+    final opensBelow = row < rows - 3;
     final top = opensBelow
         ? (row + 1) * cellHeight - 2
         : row * cellHeight - popoverHeight + 3;
@@ -714,7 +764,7 @@ class _MonthlyWeekdayHeader extends StatelessWidget {
               textAlign: TextAlign.center,
               style: _body(
                 context,
-                10,
+                11,
                 muted: true,
               ).copyWith(fontWeight: FontWeight.w700, letterSpacing: .15),
             ),
@@ -747,88 +797,124 @@ class _MonthlyDateCell extends StatelessWidget {
   Widget build(BuildContext context) {
     final now = DateTime.now();
     final today = _sameCalendarDay(now, date);
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final selectedColor = dark ? _darkPositive : _primary;
     final circleColor = hasTransactions
         ? transactionColor ?? _primary
         : selected
-        ? _surfaceMint
+        ? (dark ? const Color(0xFF174B3F) : _surfaceMint)
         : Colors.transparent;
     final textColor = hasTransactions
         ? Colors.white
+        : selected
+        ? selectedColor
         : today
-        ? _coral
+        ? (dark ? const Color(0xFFFF8A8E) : _coral)
         : inVisibleMonth
-        ? (Theme.of(context).brightness == Brightness.dark
-              ? const Color(0xFFF4FBF8)
-              : _ink)
+        ? (dark ? const Color(0xFFF4FBF8) : _ink)
         : _muted.withValues(alpha: .3);
     return InkResponse(
       key: Key('recurring-date-${_calendarKey(date)}'),
       onTap: onTap,
       radius: 20,
       child: Center(
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Container(
-              key: Key('recurring-date-marker-${_calendarKey(date)}'),
-              width: 32,
-              height: 32,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: circleColor,
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: today
-                      ? _coral
-                      : selected && hasTransactions
-                      ? (transactionColor ?? _mint).withValues(alpha: .45)
-                      : Colors.transparent,
-                  width: selected && hasTransactions ? 2 : 1.2,
-                ),
-                boxShadow: selected && hasTransactions
-                    ? const [
-                        BoxShadow(
-                          color: Color(0x26006C53),
-                          blurRadius: 6,
-                          offset: Offset(0, 2),
-                        ),
-                      ]
-                    : null,
-              ),
-              child: Text(
-                '${date.day}',
-                style: TextStyle(
-                  fontFamily: _bodyFont,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: textColor,
-                ),
-              ),
-            ),
-            if (transactionCount > 1)
-              Positioned(
-                right: -3,
-                top: -3,
-                child: Container(
-                  width: 12,
-                  height: 12,
-                  alignment: Alignment.center,
-                  decoration: const BoxDecoration(
-                    color: _coral,
+        child: SizedBox(
+          width: 38,
+          height: 38,
+          child: Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.center,
+            children: [
+              if (today)
+                Container(
+                  key: Key('recurring-date-today-ring-${_calendarKey(date)}'),
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: _coral.withValues(alpha: dark ? .14 : .09),
                     shape: BoxShape.circle,
+                    border: Border.all(color: _coral, width: 1.8),
+                    boxShadow: [
+                      BoxShadow(
+                        color: _coral.withValues(alpha: .22),
+                        blurRadius: 7,
+                        spreadRadius: 1,
+                      ),
+                    ],
                   ),
-                  child: Text(
-                    '$transactionCount',
-                    style: const TextStyle(
-                      fontFamily: _bodyFont,
-                      fontSize: 6.5,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
+                ),
+              if (selected)
+                Container(
+                  key: Key(
+                    'recurring-date-selected-ring-${_calendarKey(date)}',
+                  ),
+                  width: today ? 33 : 38,
+                  height: today ? 33 : 38,
+                  decoration: BoxDecoration(
+                    color: selectedColor.withValues(alpha: dark ? .16 : .10),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: selectedColor, width: 2.2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: selectedColor.withValues(alpha: .22),
+                        blurRadius: 7,
+                        spreadRadius: .5,
+                      ),
+                    ],
+                  ),
+                ),
+              Container(
+                key: Key('recurring-date-marker-${_calendarKey(date)}'),
+                width: selected || today ? 28 : 32,
+                height: selected || today ? 28 : 32,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: circleColor,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: hasTransactions && (selected || today)
+                        ? Colors.white.withValues(alpha: .9)
+                        : Colors.transparent,
+                    width: hasTransactions && (selected || today) ? 1.4 : 0,
+                  ),
+                ),
+                child: Text(
+                  '${date.day}',
+                  style: TextStyle(
+                    fontFamily: _bodyFont,
+                    fontSize: 14,
+                    fontWeight: selected || today
+                        ? FontWeight.w800
+                        : FontWeight.w700,
+                    color: textColor,
+                  ),
+                ),
+              ),
+              if (transactionCount > 1)
+                Positioned(
+                  right: -2,
+                  top: -2,
+                  child: Container(
+                    width: 12,
+                    height: 12,
+                    alignment: Alignment.center,
+                    decoration: const BoxDecoration(
+                      color: _coral,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      '$transactionCount',
+                      style: const TextStyle(
+                        fontFamily: _bodyFont,
+                        fontSize: 6.5,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -863,14 +949,17 @@ class _CalendarPopover extends StatelessWidget {
           top: pointerOnTop ? 5 : 0,
           bottom: pointerOnTop ? 0 : 5,
           child: Material(
+            key: const Key('recurring-popover-surface'),
             color: Theme.of(context).brightness == Brightness.dark
                 ? _darkCard
-                : Colors.white,
+                : _surfaceMint,
             elevation: 10,
             shadowColor: _primary.withValues(alpha: .24),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
-              side: BorderSide(color: _surfaceMint.withValues(alpha: .9)),
+              side: Theme.of(context).brightness == Brightness.dark
+                  ? const BorderSide(color: _darkBorder)
+                  : BorderSide.none,
             ),
             child: InkWell(
               onTap: onTap,
@@ -902,7 +991,7 @@ class _CalendarPopover extends StatelessWidget {
                             schedule.name,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: _headline(context, 14),
+                            style: _headline(context, 15),
                           ),
                         ),
                         if (items.length > 1)
@@ -921,7 +1010,7 @@ class _CalendarPopover extends StatelessWidget {
                       maxLines: 1,
                       style: _headline(
                         context,
-                        16,
+                        17,
                       ).copyWith(color: amountColor),
                     ),
                     const SizedBox(height: 5),
@@ -929,7 +1018,7 @@ class _CalendarPopover extends StatelessWidget {
                       '${AppStrings.categoryName(schedule.category)} · ${_frequencyLabel(schedule.frequency)}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: _body(context, 12, muted: true),
+                      style: _body(context, 13, muted: true),
                     ),
                     const Spacer(),
                     Wrap(
@@ -958,23 +1047,55 @@ class _CalendarPopover extends StatelessWidget {
           ),
         ),
         Positioned(
-          left: pointerX - 5,
+          key: const Key('recurring-popover-pointer'),
+          left: pointerX - 7,
           top: pointerOnTop ? 0 : null,
           bottom: pointerOnTop ? null : 0,
-          child: Transform.rotate(
-            angle: math.pi / 4,
-            child: Container(
-              width: 10,
-              height: 10,
-              color: Theme.of(context).brightness == Brightness.dark
+          child: CustomPaint(
+            size: const Size(14, 9),
+            painter: _PopoverPointerPainter(
+              pointsUp: pointerOnTop,
+              fillColor: Theme.of(context).brightness == Brightness.dark
                   ? _darkCard
-                  : Colors.white,
+                  : _surfaceMint,
             ),
           ),
         ),
       ],
     );
   }
+}
+
+class _PopoverPointerPainter extends CustomPainter {
+  const _PopoverPointerPainter({
+    required this.pointsUp,
+    required this.fillColor,
+  });
+
+  final bool pointsUp;
+  final Color fillColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = Path();
+    if (pointsUp) {
+      path
+        ..moveTo(size.width / 2, 0)
+        ..lineTo(size.width, size.height)
+        ..lineTo(0, size.height);
+    } else {
+      path
+        ..moveTo(0, 0)
+        ..lineTo(size.width, 0)
+        ..lineTo(size.width / 2, size.height);
+    }
+    path.close();
+    canvas.drawPath(path, Paint()..color = fillColor);
+  }
+
+  @override
+  bool shouldRepaint(covariant _PopoverPointerPainter oldDelegate) =>
+      pointsUp != oldDelegate.pointsUp || fillColor != oldDelegate.fillColor;
 }
 
 class _MiniPopoverChip extends StatelessWidget {
@@ -986,7 +1107,7 @@ class _MiniPopoverChip extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
     decoration: BoxDecoration(
-      color: color.withValues(alpha: .12),
+      color: color.withValues(alpha: .16),
       borderRadius: BorderRadius.circular(6),
     ),
     child: Text(
@@ -994,7 +1115,7 @@ class _MiniPopoverChip extends StatelessWidget {
       style: _body(
         context,
         10,
-      ).copyWith(color: color, fontWeight: FontWeight.w700),
+      ).copyWith(color: color, fontWeight: FontWeight.w800),
     ),
   );
 }
@@ -1032,7 +1153,9 @@ class _MonthlyOccurrenceList extends StatelessWidget {
               schedule: selected[index].schedule,
               showReviewAction: _sameCalendarDay(
                 selected[index].date,
-                selected[index].schedule.nextOccurrence,
+                selected[index].schedule.nextOccurrenceOnOrAfter(
+                  DateTime.now(),
+                ),
               ),
               showChevron: false,
               occurrenceLabel: _hubDueLabel(selected[index].date),
@@ -1193,7 +1316,7 @@ class _HubFilterDialogState extends State<_HubFilterDialog> {
                   border: Border(
                     top: BorderSide(
                       color: dark
-                          ? const Color(0xFF21473D)
+                          ? _darkBorder
                           : _outline.withValues(alpha: .3),
                     ),
                   ),
@@ -1333,7 +1456,7 @@ class _HubSegment extends StatelessWidget {
       height: 44,
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: dark ? const Color(0xFF123129) : const Color(0xFFDDF5ED),
+        color: dark ? _darkInput : const Color(0xFFDDF5ED),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -1894,7 +2017,7 @@ class _HubScheduleCard extends StatelessWidget {
       color: dark ? _darkCard : Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: dark ? const Color(0xFF21473D) : _surfaceMint),
+        side: BorderSide(color: dark ? _darkBorder : _surfaceMint),
       ),
       elevation: dark ? 0 : 1,
       shadowColor: _primary.withValues(alpha: .08),
@@ -2200,11 +2323,10 @@ class _ForecastCard extends StatelessWidget {
     final end = start.add(const Duration(days: 29));
 
     return Container(
-      decoration: _cardDecoration(context, radius: 22).copyWith(
-        border: Border.all(
-          color: dark ? const Color(0xFF21473D) : _surfaceMint,
-        ),
-      ),
+      decoration: _cardDecoration(
+        context,
+        radius: 22,
+      ).copyWith(border: Border.all(color: dark ? _darkBorder : _surfaceMint)),
       clipBehavior: Clip.antiAlias,
       child: Column(
         children: [
@@ -2531,7 +2653,7 @@ class _ViewSegment extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: dark ? const Color(0xFF132F28) : const Color(0xFFDDF5ED),
+        color: dark ? _darkInput : const Color(0xFFDDF5ED),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -2843,7 +2965,17 @@ class _Tag extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final resolved = color ?? _muted;
+    final source = color ?? _muted;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final resolved = !dark
+        ? source
+        : source == _primary
+        ? _darkPositive
+        : source == _coral
+        ? _darkNegative
+        : source == _amber
+        ? _darkWarning
+        : _darkSecondaryText;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
@@ -2935,9 +3067,14 @@ class _NewRecurringScreenState extends ConsumerState<NewRecurringScreen> {
     _amountController = TextEditingController(
       text: schedule == null ? '' : _digits(schedule.amount.abs()),
     );
-    _category = schedule?.category ?? 'Other';
     _frequency = schedule?.frequency ?? RecurringFrequency.monthly;
     _isIncome = schedule != null && schedule.amount > 0;
+    _category = schedule == null
+        ? 'Bills'
+        : TransactionCategory.normalizedKey(
+            schedule.category,
+            isIncome: _isIncome,
+          );
     _nextDate =
         schedule?.nextOccurrence ?? DateTime.now().add(const Duration(days: 1));
     _postingMode = schedule?.postingMode ?? RecurringPostingMode.review;
@@ -3018,7 +3155,9 @@ class _NewRecurringScreenState extends ConsumerState<NewRecurringScreen> {
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final amountAccent = _isIncome ? _primary : const Color(0xFFD84D4D);
+    final amountAccent = dark
+        ? (_isIncome ? _darkPositive : _darkNegative)
+        : (_isIncome ? _primary : const Color(0xFFD84D4D));
     return Scaffold(
       backgroundColor: dark ? _darkPage : _pageMint,
       appBar: AppBar(
@@ -3026,6 +3165,12 @@ class _NewRecurringScreenState extends ConsumerState<NewRecurringScreen> {
         backgroundColor: dark ? _darkPage : _pageMint,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
+        shape: dark
+            ? const Border(bottom: BorderSide(color: _darkBorder))
+            : null,
+        iconTheme: IconThemeData(
+          color: dark ? _darkSecondaryText : _primaryDark,
+        ),
         leading: IconButton(
           onPressed: () => Navigator.of(context).pop(),
           tooltip: AppStrings.choose('Close', 'Đóng'),
@@ -3038,9 +3183,13 @@ class _NewRecurringScreenState extends ConsumerState<NewRecurringScreen> {
                   'Giao dịch định kỳ mới',
                 )
               : AppStrings.choose('Edit Schedule', 'Sửa lịch định kỳ'),
-          style: _headline(context, 15),
+          style: _headline(
+            context,
+            22,
+          ).copyWith(color: dark ? _darkText : _primary),
         ),
-        centerTitle: true,
+        centerTitle: false,
+        titleSpacing: 0,
       ),
       body: Form(
         key: _formKey,
@@ -3049,11 +3198,12 @@ class _NewRecurringScreenState extends ConsumerState<NewRecurringScreen> {
           padding: const EdgeInsets.fromLTRB(14, 8, 14, 28),
           children: [
             _FormSection(
+              key: const Key('recurring-form-transaction'),
               title: null,
               children: [
                 _IncomeExpenseSegment(
                   isIncome: _isIncome,
-                  onChanged: (value) => setState(() => _isIncome = value),
+                  onChanged: _setIncomeType,
                 ),
                 const SizedBox(height: 14),
                 _buildCategoryPicker(),
@@ -3062,10 +3212,7 @@ class _NewRecurringScreenState extends ConsumerState<NewRecurringScreen> {
                   fieldKey: const Key('recurring-name-field'),
                   controller: _nameController,
                   label: AppStrings.choose('Transaction Name', 'Tên giao dịch'),
-                  hint: AppStrings.choose(
-                    'e.g. Figma Pro Subscription',
-                    'Ví dụ: Tiền thuê nhà',
-                  ),
+                  hint: AppStrings.choose('e.g. Netflix', 'Ví dụ: Netflix'),
                   validator: (value) => value == null || value.trim().isEmpty
                       ? AppStrings.choose('Enter a name', 'Hãy nhập tên')
                       : null,
@@ -3101,6 +3248,7 @@ class _NewRecurringScreenState extends ConsumerState<NewRecurringScreen> {
             ),
             const SizedBox(height: 12),
             _FormSection(
+              key: const Key('recurring-form-repeat'),
               title: AppStrings.choose('Repeat Schedule', 'Lịch lặp lại'),
               children: [
                 _FrequencySegment(
@@ -3121,6 +3269,7 @@ class _NewRecurringScreenState extends ConsumerState<NewRecurringScreen> {
             ),
             const SizedBox(height: 12),
             _FormSection(
+              key: const Key('recurring-form-automation'),
               title: AppStrings.choose('Automation', 'Tự động hóa'),
               children: [
                 _FieldLabel(AppStrings.choose('Posting Mode', 'Chế độ ghi')),
@@ -3197,19 +3346,32 @@ class _NewRecurringScreenState extends ConsumerState<NewRecurringScreen> {
     return _AnchoredPickerField<String>(
       fieldKey: const Key('recurring-category-field'),
       label: AppStrings.choose('Category', 'Danh mục'),
-      value: AppStrings.categoryName(_category),
+      value: AppStrings.categoryName(selected.label),
       leading: selected.buildIcon(size: 18),
       selectedValue: _category,
       options: [
-        for (final category in TransactionCategory.all)
+        for (final category in TransactionCategory.forType(isIncome: _isIncome))
           _PickerOption(
             value: category.key,
-            label: AppStrings.categoryName(category.key),
+            label: AppStrings.categoryName(category.label),
             leading: category.buildIcon(size: 20),
           ),
       ],
       onSelected: (value) => setState(() => _category = value),
     );
+  }
+
+  void _setIncomeType(bool isIncome) {
+    final selected = TransactionCategory.resolve(_category);
+    setState(() {
+      _isIncome = isIncome;
+      final requiredType = isIncome
+          ? TransactionCategoryType.income
+          : TransactionCategoryType.expense;
+      if (selected.type != requiredType) {
+        _category = isIncome ? 'Salary' : 'Bills';
+      }
+    });
   }
 
   Widget _buildWalletPicker() {
@@ -3308,10 +3470,10 @@ class _RecurringScheduleDetailsScreenState
   @override
   void initState() {
     super.initState();
-    Future.microtask(() {
-      if (ref.read(recurringServiceProvider).schedules.isEmpty) {
-        ref.read(recurringServiceProvider).fetch();
-      }
+    Future.microtask(() async {
+      final service = ref.read(recurringServiceProvider);
+      if (service.schedules.isEmpty) await service.fetch();
+      await service.fetchOccurrenceHistory(widget.scheduleId);
     });
   }
 
@@ -3319,14 +3481,16 @@ class _RecurringScheduleDetailsScreenState
   Widget build(BuildContext context) {
     ref.watch(recurringServiceRevisionProvider);
     final service = ref.read(recurringServiceProvider);
-    final schedule = service.schedules
+    final storedSchedule = service.schedules
         .where((item) => item.id == widget.scheduleId)
         .firstOrNull;
     final dark = Theme.of(context).brightness == Brightness.dark;
-    if (schedule == null) {
+    if (storedSchedule == null) {
       return Scaffold(
         backgroundColor: dark ? _darkPage : _pageMint,
         appBar: _RecurringAppBar(
+          context: context,
+          dark: dark,
           title: AppStrings.choose('Schedule Details', 'Chi tiết lịch'),
         ),
         body: Center(
@@ -3339,8 +3503,11 @@ class _RecurringScheduleDetailsScreenState
         ),
       );
     }
+    final schedule = storedSchedule.copyWith(
+      nextOccurrence: storedSchedule.nextOccurrenceOnOrAfter(DateTime.now()),
+    );
 
-    final history =
+    final transactionHistory =
         TransactionService.instance.currentUserTransactions
             .where(
               (transaction) =>
@@ -3348,35 +3515,143 @@ class _RecurringScheduleDetailsScreenState
             )
             .toList(growable: false)
           ..sort((a, b) => b.date.compareTo(a.date));
+    final storedHistory = service.occurrenceHistoryFor(schedule.id);
+    final history = storedHistory.isNotEmpty
+        ? storedHistory
+        : transactionHistory
+              .map(
+                (transaction) => RecurringOccurrenceRecord(
+                  id: transaction.id,
+                  scheduleId: schedule.id,
+                  occurrenceAt: transaction.date,
+                  status: RecurringOccurrenceStatus.completed,
+                  amount: transaction.amount,
+                ),
+              )
+              .toList(growable: false);
+    final completed = history
+        .where((item) => item.status == RecurringOccurrenceStatus.completed)
+        .length;
+    final skipped = history
+        .where((item) => item.status == RecurringOccurrenceStatus.skipped)
+        .length;
+    final failed = history
+        .where((item) => item.status == RecurringOccurrenceStatus.failed)
+        .length;
 
     return Scaffold(
       backgroundColor: dark ? _darkPage : _pageMint,
       appBar: _RecurringAppBar(
+        context: context,
+        dark: dark,
         title: AppStrings.choose('Schedule Details', 'Chi tiết lịch'),
         trailing: PopupMenuButton<String>(
-          icon: const Icon(Icons.more_vert_rounded),
+          key: const Key('recurring-details-options-menu'),
+          tooltip: AppStrings.choose('Schedule options', 'Tùy chọn lịch'),
+          position: PopupMenuPosition.under,
+          offset: const Offset(0, 6),
+          elevation: 14,
+          color: dark ? _darkCard : Colors.white,
+          surfaceTintColor: Colors.transparent,
+          shadowColor: const Color(0x33001F17),
+          constraints: const BoxConstraints(minWidth: 224, maxWidth: 260),
+          padding: EdgeInsets.zero,
+          menuPadding: const EdgeInsets.symmetric(vertical: 5),
+          clipBehavior: Clip.antiAlias,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(
+              color: dark ? _darkBorder : const Color(0xFFDCE7E2),
+            ),
+          ),
           onSelected: (value) => _handleMenu(value, schedule),
           itemBuilder: (_) => [
             PopupMenuItem(
               value: 'edit',
-              child: Text(AppStrings.choose('Edit', 'Chỉnh sửa')),
-            ),
-            PopupMenuItem(
-              value: 'toggle',
-              child: Text(
-                schedule.isActive
-                    ? AppStrings.choose('Pause', 'Tạm dừng')
-                    : AppStrings.choose('Resume', 'Tiếp tục'),
+              height: 56,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: _RecurringMenuItem(
+                icon: FinFlowPencilIcon(
+                  size: 18,
+                  color: dark ? _darkPositive : _primary,
+                ),
+                iconColor: dark ? _darkPositive : _primary,
+                label: AppStrings.choose('Edit schedule', 'Chỉnh sửa lịch'),
               ),
             ),
+            const PopupMenuDivider(height: 1),
+            PopupMenuItem(
+              value: 'toggle',
+              height: 56,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: _RecurringMenuItem(
+                icon: schedule.isActive
+                    ? FinFlowPauseIcon(
+                        size: 18,
+                        color: dark ? _darkWarning : const Color(0xFF9A6A00),
+                      )
+                    : FinFlowPlayIcon(
+                        size: 18,
+                        color: dark ? _darkPositive : _primary,
+                      ),
+                iconColor: schedule.isActive
+                    ? (dark ? _darkWarning : const Color(0xFF9A6A00))
+                    : (dark ? _darkPositive : _primary),
+                label: schedule.isActive
+                    ? AppStrings.choose('Pause schedule', 'Tạm dừng lịch')
+                    : AppStrings.choose('Resume schedule', 'Tiếp tục lịch'),
+              ),
+            ),
+            if (schedule.isActive) const PopupMenuDivider(height: 1),
+            if (schedule.isActive)
+              PopupMenuItem(
+                value: 'skip',
+                height: 56,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: _RecurringMenuItem(
+                  icon: FinFlowSkipIcon(
+                    size: 18,
+                    color: dark ? _darkPositive : const Color(0xFF00785D),
+                  ),
+                  iconColor: dark ? _darkPositive : const Color(0xFF00785D),
+                  label: AppStrings.choose(
+                    'Skip next occurrence',
+                    'Bỏ qua kỳ tiếp theo',
+                  ),
+                ),
+              ),
+            const PopupMenuDivider(height: 1),
             PopupMenuItem(
               value: 'delete',
-              child: Text(
-                AppStrings.choose('Delete', 'Xóa'),
-                style: const TextStyle(color: _coral),
+              height: 56,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: _RecurringMenuItem(
+                icon: FinFlowTrashIcon(
+                  size: 18,
+                  color: dark ? _darkNegative : const Color(0xFFBA1A1A),
+                ),
+                iconColor: dark ? _darkNegative : const Color(0xFFBA1A1A),
+                label: AppStrings.choose('Delete schedule', 'Xóa lịch'),
+                destructive: true,
               ),
             ),
           ],
+          child: Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: dark
+                  ? _darkBorder.withValues(alpha: .72)
+                  : const Color(0xFFF3F6F5),
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: Icon(
+              Icons.more_horiz_rounded,
+              size: 21,
+              color: dark ? _darkSecondaryText : _muted,
+            ),
+          ),
         ),
       ),
       body: ListView(
@@ -3385,10 +3660,12 @@ class _RecurringScheduleDetailsScreenState
           _ScheduleOverviewCard(schedule: schedule),
           const SizedBox(height: 14),
           Container(
+            key: const Key('recurring-details-reminder-banner'),
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: dark ? const Color(0xFF103329) : _surfaceMint,
+              color: dark ? const Color(0xFF0D3028) : _surfaceMint,
               borderRadius: BorderRadius.circular(12),
+              border: dark ? Border.all(color: const Color(0xFF245A4C)) : null,
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -3401,7 +3678,11 @@ class _RecurringScheduleDetailsScreenState
                       'Next payment is scheduled for ${_fullDate(schedule.nextOccurrence)}. FinFlow will remind you ${schedule.reminderDays == 0 ? 'on the due date' : '${schedule.reminderDays} day${schedule.reminderDays == 1 ? '' : 's'} before'}.',
                       'Kỳ tiếp theo vào ${_fullDate(schedule.nextOccurrence)}. FinFlow sẽ nhắc ${schedule.reminderDays == 0 ? 'đúng ngày' : 'trước ${schedule.reminderDays} ngày'}.',
                     ),
-                    style: _body(context, 12),
+                    style: _body(context, 15).copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: _detailSecondaryColor(context),
+                      height: 1.35,
+                    ),
                   ),
                 ),
               ],
@@ -3423,17 +3704,20 @@ class _RecurringScheduleDetailsScreenState
               icon: const Icon(Icons.fact_check_outlined),
               label: Text(
                 AppStrings.choose('Review occurrence', 'Xem lại kỳ này'),
-                style: const TextStyle(fontWeight: FontWeight.w700),
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
           ),
           const SizedBox(height: 26),
           Text(
             AppStrings.choose('Health & History', 'Trạng thái & lịch sử'),
-            style: _headline(context, 19),
+            style: _headline(context, 20),
           ),
           const SizedBox(height: 12),
-          _HealthCard(completed: history.length),
+          _HealthCard(completed: completed, skipped: skipped, failed: failed),
           const SizedBox(height: 18),
           if (history.isEmpty)
             Container(
@@ -3445,7 +3729,10 @@ class _RecurringScheduleDetailsScreenState
                   'Chưa có kỳ nào được ghi nhận.',
                 ),
                 textAlign: TextAlign.center,
-                style: _body(context, 13, muted: true),
+                style: _body(context, 14.5, muted: true).copyWith(
+                  color: _detailSecondaryColor(context),
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             )
           else
@@ -3453,7 +3740,7 @@ class _RecurringScheduleDetailsScreenState
           const SizedBox(height: 28),
           Text(
             AppStrings.choose('Schedule Rules', 'Quy tắc lịch'),
-            style: _headline(context, 19),
+            style: _headline(context, 20),
           ),
           const SizedBox(height: 12),
           _RulesCard(schedule: schedule),
@@ -3471,6 +3758,8 @@ class _RecurringScheduleDetailsScreenState
       );
     } else if (value == 'toggle') {
       await ref.read(recurringServiceProvider).toggle(schedule);
+    } else if (value == 'skip') {
+      await _skipOccurrence(schedule);
     } else if (value == 'delete') {
       final confirmed = await showDialog<bool>(
         context: context,
@@ -3501,6 +3790,78 @@ class _RecurringScheduleDetailsScreenState
       }
     }
   }
+
+  Future<void> _skipOccurrence(RecurringSchedule schedule) async {
+    final occurrence = schedule.nextOccurrenceOnOrAfter(DateTime.now());
+    final confirmed = await _confirmSkipOccurrence(context, schedule);
+    if (!confirmed || !mounted) return;
+    await ref.read(recurringServiceProvider).skipOccurrence(schedule);
+    if (!mounted) return;
+    final next = ref
+        .read(recurringServiceProvider)
+        .findById(schedule.id)
+        ?.nextOccurrence;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          AppStrings.choose(
+            '${_monthDay(occurrence)} skipped.${next == null ? '' : ' Next occurrence: ${_monthDay(next)}.'}',
+            'Đã bỏ qua ${_monthDay(occurrence)}.${next == null ? '' : ' Kỳ tiếp theo: ${_monthDay(next)}.'}',
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RecurringMenuItem extends StatelessWidget {
+  const _RecurringMenuItem({
+    required this.icon,
+    required this.iconColor,
+    required this.label,
+    this.destructive = false,
+  });
+
+  final Widget icon;
+  final Color iconColor;
+  final String label;
+  final bool destructive;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = destructive
+        ? (dark ? _darkNegative : const Color(0xFFBA1A1A))
+        : (dark ? _darkText : _ink);
+    return Row(
+      children: [
+        Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: iconColor.withValues(alpha: dark ? .16 : .11),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          alignment: Alignment.center,
+          child: icon,
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: _bodyFont,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: textColor,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _ScheduleOverviewCard extends StatelessWidget {
@@ -3510,7 +3871,10 @@ class _ScheduleOverviewCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final category = TransactionCategory.resolve(schedule.category);
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final positive = dark ? _darkPositive : _primary;
     return Container(
+      key: const Key('recurring-details-overview-card'),
       padding: const EdgeInsets.all(18),
       decoration: _cardDecoration(context, radius: 18),
       child: Column(
@@ -3544,7 +3908,10 @@ class _ScheduleOverviewCard extends StatelessWidget {
                               'Recurring income',
                               'Thu nhập định kỳ',
                             ),
-                      style: _body(context, 11, muted: true),
+                      style: _body(context, 14.5, muted: true).copyWith(
+                        color: _detailSecondaryColor(context),
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ],
                 ),
@@ -3553,7 +3920,7 @@ class _ScheduleOverviewCard extends StatelessWidget {
                 label: schedule.isActive
                     ? AppStrings.choose('Active', 'Hoạt động')
                     : AppStrings.choose('Paused', 'Tạm dừng'),
-                color: schedule.isActive ? _primary : _muted,
+                color: schedule.isActive ? positive : _muted,
               ),
             ],
           ),
@@ -3565,11 +3932,11 @@ class _ScheduleOverviewCard extends StatelessWidget {
                     'KHOẢN ${schedule.amount < 0 ? 'CHI' : 'THU'} HÀNG THÁNG',
                   )
                 : AppStrings.choose('RECURRING AMOUNT', 'SỐ TIỀN ĐỊNH KỲ'),
-            style: _body(
-              context,
-              10,
-              muted: true,
-            ).copyWith(fontWeight: FontWeight.w700, letterSpacing: .6),
+            style: _body(context, 13.5, muted: true).copyWith(
+              color: _detailSecondaryColor(context),
+              fontWeight: FontWeight.w800,
+              letterSpacing: .6,
+            ),
           ),
           const SizedBox(height: 3),
           Text(_money(schedule.amount.abs()), style: _headline(context, 28)),
@@ -3578,7 +3945,10 @@ class _ScheduleOverviewCard extends StatelessWidget {
               'Next payment ${_fullDate(schedule.nextOccurrence)}',
               'Kỳ tiếp theo ${_fullDate(schedule.nextOccurrence)}',
             ),
-            style: _body(context, 11, muted: true),
+            style: _body(context, 14.5, muted: true).copyWith(
+              color: _detailSecondaryColor(context),
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const SizedBox(height: 16),
           const Divider(height: 1),
@@ -3592,7 +3962,7 @@ class _ScheduleOverviewCard extends StatelessWidget {
             icon: Icons.calendar_month_outlined,
             label: AppStrings.choose('Next payment', 'Kỳ tiếp theo'),
             value: _fullDate(schedule.nextOccurrence),
-            valueColor: _primary,
+            valueColor: positive,
           ),
           _DetailRow(
             icon: Icons.account_balance_wallet_outlined,
@@ -3616,44 +3986,53 @@ class _ScheduleOverviewCard extends StatelessWidget {
 }
 
 class _HealthCard extends StatelessWidget {
-  const _HealthCard({required this.completed});
+  const _HealthCard({
+    required this.completed,
+    required this.skipped,
+    required this.failed,
+  });
   final int completed;
+  final int skipped;
+  final int failed;
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(vertical: 15),
-    decoration: _cardDecoration(context),
-    child: Row(
-      children: [
-        Expanded(
-          child: _HealthMetric(
-            icon: Icons.check_circle_outline_rounded,
-            value: completed,
-            label: AppStrings.choose('Completed', 'Hoàn tất'),
-            color: _primary,
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 15),
+      decoration: _cardDecoration(context),
+      child: Row(
+        children: [
+          Expanded(
+            child: _HealthMetric(
+              icon: Icons.check_circle_outline_rounded,
+              value: completed,
+              label: AppStrings.choose('Completed', 'Hoàn tất'),
+              color: dark ? _darkPositive : _primary,
+            ),
           ),
-        ),
-        const SizedBox(height: 38, child: VerticalDivider(width: 1)),
-        Expanded(
-          child: _HealthMetric(
-            icon: Icons.skip_next_rounded,
-            value: 0,
-            label: AppStrings.choose('Skipped', 'Bỏ qua'),
-            color: Color(0xFFB77900),
+          const SizedBox(height: 38, child: VerticalDivider(width: 1)),
+          Expanded(
+            child: _HealthMetric(
+              icon: Icons.skip_next_rounded,
+              value: skipped,
+              label: AppStrings.choose('Skipped', 'Bỏ qua'),
+              color: dark ? _darkWarning : const Color(0xFFB77900),
+            ),
           ),
-        ),
-        const SizedBox(height: 38, child: VerticalDivider(width: 1)),
-        Expanded(
-          child: _HealthMetric(
-            icon: Icons.error_outline_rounded,
-            value: 0,
-            label: AppStrings.choose('Failed', 'Thất bại'),
-            color: _coral,
+          const SizedBox(height: 38, child: VerticalDivider(width: 1)),
+          Expanded(
+            child: _HealthMetric(
+              icon: Icons.error_outline_rounded,
+              value: failed,
+              label: AppStrings.choose('Failed', 'Thất bại'),
+              color: dark ? _darkNegative : _coral,
+            ),
           ),
-        ),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
+  }
 }
 
 class _HealthMetric extends StatelessWidget {
@@ -3674,20 +4053,26 @@ class _HealthMetric extends StatelessWidget {
       Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 17, color: color),
+          Icon(icon, size: 18, color: color),
           const SizedBox(width: 4),
-          Text('$value', style: _headline(context, 16).copyWith(color: color)),
+          Text('$value', style: _headline(context, 17).copyWith(color: color)),
         ],
       ),
       const SizedBox(height: 3),
-      Text(label, style: _body(context, 10, muted: true)),
+      Text(
+        label,
+        style: _body(context, 13.5, muted: true).copyWith(
+          color: _detailSecondaryColor(context),
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     ],
   );
 }
 
 class _HistoryTimeline extends StatelessWidget {
   const _HistoryTimeline({required this.history});
-  final List<dynamic> history;
+  final List<RecurringOccurrenceRecord> history;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -3703,8 +4088,8 @@ class _HistoryTimeline extends StatelessWidget {
                   Container(
                     width: 11,
                     height: 11,
-                    decoration: const BoxDecoration(
-                      color: _primary,
+                    decoration: BoxDecoration(
+                      color: _historyStatusColor(context, history[i].status),
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -3712,7 +4097,9 @@ class _HistoryTimeline extends StatelessWidget {
                     Container(
                       width: 2,
                       height: 64,
-                      color: _outline.withValues(alpha: .45),
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? _darkBorder
+                          : _outline.withValues(alpha: .45),
                     ),
                 ],
               ),
@@ -3726,17 +4113,26 @@ class _HistoryTimeline extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      _monthDay(history[i].date),
-                      style: _headline(context, 13),
+                      _monthDay(history[i].occurrenceAt),
+                      style: _headline(context, 16),
                     ),
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        const _Tag(label: 'Confirmed', color: _primary),
+                        _Tag(
+                          label: _historyStatusLabel(history[i].status),
+                          color: _historyStatusColor(
+                            context,
+                            history[i].status,
+                          ),
+                        ),
                         const SizedBox(width: 8),
                         Text(
                           _money(history[i].amount.abs()),
-                          style: _body(context, 11, muted: true),
+                          style: _body(context, 14, muted: true).copyWith(
+                            color: _detailSecondaryColor(context),
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ],
                     ),
@@ -3793,6 +4189,92 @@ class _RulesCard extends StatelessWidget {
   );
 }
 
+String _historyStatusLabel(
+  RecurringOccurrenceStatus status,
+) => switch (status) {
+  RecurringOccurrenceStatus.completed => AppStrings.choose(
+    'Completed',
+    'Hoàn tất',
+  ),
+  RecurringOccurrenceStatus.skipped => AppStrings.choose('Skipped', 'Bỏ qua'),
+  RecurringOccurrenceStatus.failed => AppStrings.choose('Failed', 'Thất bại'),
+  RecurringOccurrenceStatus.pending => AppStrings.choose('Pending', 'Đang chờ'),
+};
+
+Color _historyStatusColor(
+  BuildContext context,
+  RecurringOccurrenceStatus status,
+) {
+  final dark = Theme.of(context).brightness == Brightness.dark;
+  return switch (status) {
+    RecurringOccurrenceStatus.completed => dark ? _darkPositive : _primary,
+    RecurringOccurrenceStatus.skipped =>
+      dark ? _darkWarning : const Color(0xFFB77900),
+    RecurringOccurrenceStatus.failed => dark ? _darkNegative : _coral,
+    RecurringOccurrenceStatus.pending => dark ? _darkSecondaryText : _muted,
+  };
+}
+
+Future<bool> _confirmSkipOccurrence(
+  BuildContext context,
+  RecurringSchedule schedule,
+) async {
+  final occurrence = schedule.nextOccurrenceOnOrAfter(DateTime.now());
+  final next = schedule.occurrenceAfter(occurrence);
+  return await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          icon: Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: _amber.withValues(alpha: .16),
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: const Icon(
+              Icons.skip_next_rounded,
+              color: Color(0xFF9A6A00),
+              size: 27,
+            ),
+          ),
+          title: Text(
+            AppStrings.choose(
+              'Skip the ${_monthDay(occurrence)} occurrence?',
+              'Bỏ qua kỳ ngày ${_monthDay(occurrence)}?',
+            ),
+            style: _headline(dialogContext, 20),
+          ),
+          content: Text(
+            AppStrings.choose(
+              'No transaction will be created. The next occurrence will be ${_monthDay(next)}.',
+              'Sẽ không tạo giao dịch. Kỳ tiếp theo sẽ là ${_monthDay(next)}.',
+            ),
+            style: _body(dialogContext, 15).copyWith(height: 1.4),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(AppStrings.choose('Cancel', 'Hủy')),
+            ),
+            FilledButton.icon(
+              key: const Key('confirm-skip-recurring-occurrence'),
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              style: FilledButton.styleFrom(
+                backgroundColor: _primary,
+                foregroundColor: Colors.white,
+              ),
+              icon: const Icon(Icons.skip_next_rounded),
+              label: Text(
+                AppStrings.choose('Skip occurrence', 'Bỏ qua kỳ này'),
+              ),
+            ),
+          ],
+        ),
+      ) ??
+      false;
+}
+
 class ReviewOccurrenceSheet {
   static Future<void> show(BuildContext context, RecurringSchedule schedule) =>
       showModalBottomSheet<void>(
@@ -3840,11 +4322,52 @@ class _ReviewOccurrenceSheetState
     if (unsigned == null || unsigned <= 0) return;
     setState(() => _saving = true);
     try {
-      final amount = widget.schedule.amount < 0 ? -unsigned : unsigned;
+      final effectiveSchedule = widget.schedule.copyWith(
+        nextOccurrence: widget.schedule.nextOccurrenceOnOrAfter(DateTime.now()),
+      );
+      final amount = effectiveSchedule.amount < 0 ? -unsigned : unsigned;
       await ref
           .read(recurringServiceProvider)
-          .recordOccurrence(widget.schedule, amount: amount);
+          .recordOccurrence(effectiveSchedule, amount: amount);
       if (mounted) Navigator.of(context).pop();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _skip() async {
+    if (_saving) return;
+    final schedule = widget.schedule.copyWith(
+      nextOccurrence: widget.schedule.nextOccurrenceOnOrAfter(DateTime.now()),
+    );
+    final confirmed = await _confirmSkipOccurrence(context, schedule);
+    if (!confirmed || !mounted) return;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    setState(() => _saving = true);
+    try {
+      await ref.read(recurringServiceProvider).skipOccurrence(schedule);
+      final next = ref
+          .read(recurringServiceProvider)
+          .findById(schedule.id)
+          ?.nextOccurrence;
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      messenger?.showSnackBar(
+        SnackBar(
+          content: Text(
+            AppStrings.choose(
+              '${_monthDay(schedule.nextOccurrence)} skipped.${next == null ? '' : ' Next occurrence: ${_monthDay(next)}.'}',
+              'Đã bỏ qua ${_monthDay(schedule.nextOccurrence)}.${next == null ? '' : ' Kỳ tiếp theo: ${_monthDay(next)}.'}',
+            ),
+          ),
+        ),
+      );
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -3858,7 +4381,9 @@ class _ReviewOccurrenceSheetState
 
   @override
   Widget build(BuildContext context) {
-    final schedule = widget.schedule;
+    final schedule = widget.schedule.copyWith(
+      nextOccurrence: widget.schedule.nextOccurrenceOnOrAfter(DateTime.now()),
+    );
     final dark = Theme.of(context).brightness == Brightness.dark;
     final category = TransactionCategory.resolve(schedule.category);
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
@@ -3921,21 +4446,24 @@ class _ReviewOccurrenceSheetState
                       ),
                       child: Text(
                         AppStrings.choose('PAYMENT DUE', 'ĐẾN HẠN'),
-                        style: _body(context, 9).copyWith(
+                        style: _body(context, 10.5).copyWith(
                           color: const Color(0xFF9A6A00),
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w800,
                           letterSpacing: .5,
                         ),
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Text(schedule.name, style: _headline(context, 18)),
+                    Text(schedule.name, style: _headline(context, 20)),
                     Text(
                       AppStrings.choose(
                         'Recurring payment for ${_monthName(schedule.nextOccurrence.month)}',
                         'Thanh toán định kỳ tháng ${schedule.nextOccurrence.month}',
                       ),
-                      style: _body(context, 11, muted: true),
+                      style: _body(context, 13.5, muted: true).copyWith(
+                        color: _detailSecondaryColor(context),
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     const SizedBox(height: 12),
                     Container(
@@ -3943,7 +4471,7 @@ class _ReviewOccurrenceSheetState
                       padding: const EdgeInsets.fromLTRB(18, 14, 14, 14),
                       decoration: _cardDecoration(context).copyWith(
                         border: Border.all(
-                          color: dark ? const Color(0xFF21473D) : _surfaceMint,
+                          color: dark ? _darkBorder : _surfaceMint,
                         ),
                       ),
                       child: Stack(
@@ -3974,7 +4502,13 @@ class _ReviewOccurrenceSheetState
                                               'Amount to receive',
                                               'Số tiền thu',
                                             ),
-                                      style: _body(context, 12, muted: true),
+                                      style: _body(context, 14, muted: true)
+                                          .copyWith(
+                                            color: _detailSecondaryColor(
+                                              context,
+                                            ),
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                     ),
                                   ),
                                   _Tag(
@@ -4026,7 +4560,13 @@ class _ReviewOccurrenceSheetState
                                       ),
                                       TextSpan(
                                         text: ' VND',
-                                        style: _body(context, 13, muted: true),
+                                        style: _body(context, 14.5, muted: true)
+                                            .copyWith(
+                                              color: _detailSecondaryColor(
+                                                context,
+                                              ),
+                                              fontWeight: FontWeight.w600,
+                                            ),
                                       ),
                                     ],
                                   ),
@@ -4037,7 +4577,11 @@ class _ReviewOccurrenceSheetState
                                   'Default amount from your recurring schedule',
                                   'Số tiền mặc định từ lịch định kỳ',
                                 ),
-                                style: _body(context, 10, muted: true),
+                                style: _body(context, 12.5, muted: true)
+                                    .copyWith(
+                                      color: _detailSecondaryColor(context),
+                                      fontWeight: FontWeight.w600,
+                                    ),
                               ),
                             ],
                           ),
@@ -4078,13 +4622,21 @@ class _ReviewOccurrenceSheetState
                             children: [
                               Expanded(
                                 child: _SheetMeta(
-                                  icon: Icons.category_outlined,
+                                  leading:
+                                      TransactionCategory.resolve(
+                                        schedule.category,
+                                      ).buildIcon(
+                                        size: 19,
+                                        color: _detailSecondaryColor(context),
+                                      ),
                                   label: AppStrings.choose(
                                     'CATEGORY',
                                     'DANH MỤC',
                                   ),
                                   value: AppStrings.categoryName(
-                                    schedule.category,
+                                    TransactionCategory.resolve(
+                                      schedule.category,
+                                    ).label,
                                   ),
                                 ),
                               ),
@@ -4103,10 +4655,10 @@ class _ReviewOccurrenceSheetState
                           const SizedBox(height: 10),
                           Row(
                             children: [
-                              const Icon(
+                              Icon(
                                 Icons.security_outlined,
-                                size: 16,
-                                color: _muted,
+                                size: 18,
+                                color: _detailSecondaryColor(context),
                               ),
                               const SizedBox(width: 7),
                               Text(
@@ -4114,7 +4666,11 @@ class _ReviewOccurrenceSheetState
                                   'Review required',
                                   'Yêu cầu xác nhận',
                                 ),
-                                style: _body(context, 11, muted: true),
+                                style: _body(context, 13.5, muted: true)
+                                    .copyWith(
+                                      color: _detailSecondaryColor(context),
+                                      fontWeight: FontWeight.w600,
+                                    ),
                               ),
                             ],
                           ),
@@ -4125,110 +4681,139 @@ class _ReviewOccurrenceSheetState
                 ),
               ),
             ),
-            Container(
-              padding: const EdgeInsets.fromLTRB(16, 11, 16, 14),
-              decoration: BoxDecoration(
-                color: dark ? _darkCard : Colors.white,
-                border: Border(
-                  top: BorderSide(
-                    color: dark ? const Color(0xFF21473D) : _surfaceMint,
+            SafeArea(
+              top: false,
+              minimum: const EdgeInsets.only(bottom: 8),
+              child: Container(
+                key: const Key('recurring-review-safe-actions'),
+                padding: const EdgeInsets.fromLTRB(16, 11, 16, 12),
+                decoration: BoxDecoration(
+                  color: dark ? _darkCard : Colors.white,
+                  border: Border(
+                    top: BorderSide(color: dark ? _darkBorder : _surfaceMint),
                   ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: _primary.withValues(alpha: .06),
+                      blurRadius: 16,
+                      offset: const Offset(0, -4),
+                    ),
+                  ],
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: _primary.withValues(alpha: .06),
-                    blurRadius: 16,
-                    offset: const Offset(0, -4),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.info_outline_rounded,
-                        size: 15,
-                        color: _muted,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        AppStrings.choose(
-                          'Creates one ${schedule.amount < 0 ? 'expense' : 'income'} transaction',
-                          'Tạo một giao dịch ${schedule.amount < 0 ? 'chi' : 'thu'}',
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.info_outline_rounded,
+                          size: 17,
+                          color: _detailSecondaryColor(context),
                         ),
-                        style: _body(context, 11, muted: true),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: FilledButton.icon(
-                      onPressed: _saving ? null : _confirm,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: _primary,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            AppStrings.choose(
+                              'Creates one ${schedule.amount < 0 ? 'expense' : 'income'} transaction',
+                              'Tạo một giao dịch ${schedule.amount < 0 ? 'chi' : 'thu'}',
+                            ),
+                            textAlign: TextAlign.center,
+                            style: _body(context, 13, muted: true).copyWith(
+                              color: _detailSecondaryColor(context),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
-                      ),
-                      icon: _saving
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Icon(Icons.check_circle_outline_rounded),
-                      label: Text(
-                        AppStrings.choose('Confirm & Save', 'Xác nhận & lưu'),
-                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: FilledButton.icon(
+                        onPressed: _saving ? null : _confirm,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: _primary,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        icon: _saving
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(Icons.check_circle_outline_rounded),
+                        label: Text(
+                          AppStrings.choose('Confirm & Save', 'Xác nhận & lưu'),
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () =>
-                              setState(() => _editingAmount = !_editingAmount),
-                          style: _sheetOutlineStyle(),
-                          child: Text(
-                            _editingAmount
-                                ? AppStrings.choose('Done', 'Xong')
-                                : AppStrings.choose(
-                                    'Edit Amount',
-                                    'Sửa số tiền',
-                                  ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => setState(
+                              () => _editingAmount = !_editingAmount,
+                            ),
+                            style: _sheetOutlineStyle(),
+                            child: Text(
+                              _editingAmount
+                                  ? AppStrings.choose('Done', 'Xong')
+                                  : AppStrings.choose(
+                                      'Edit Amount',
+                                      'Sửa số tiền',
+                                    ),
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () async {
-                            Navigator.of(context).pop();
-                            await Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) =>
-                                    NewRecurringScreen(schedule: schedule),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton(
+                            key: const Key('skip-recurring-occurrence'),
+                            onPressed: _saving ? null : _skip,
+                            style: _sheetOutlineStyle().copyWith(
+                              foregroundColor: WidgetStatePropertyAll(
+                                dark ? _darkWarning : const Color(0xFF8A5D00),
                               ),
-                            );
-                          },
-                          style: _sheetOutlineStyle(),
-                          child: Text(
-                            AppStrings.choose('More Options', 'Tùy chọn khác'),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                FinFlowSkipIcon(
+                                  size: 19,
+                                  color: dark
+                                      ? _darkWarning
+                                      : const Color(0xFF8A5D00),
+                                ),
+                                const SizedBox(width: 6),
+                                Flexible(
+                                  child: Text(
+                                    AppStrings.choose(
+                                      'Skip occurrence',
+                                      'Bỏ qua kỳ này',
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -4240,11 +4825,13 @@ class _ReviewOccurrenceSheetState
 
 class _SheetMeta extends StatelessWidget {
   const _SheetMeta({
-    required this.icon,
+    this.icon,
+    this.leading,
     required this.label,
     required this.value,
-  });
-  final IconData icon;
+  }) : assert(icon != null || leading != null);
+  final IconData? icon;
+  final Widget? leading;
   final String label;
   final String value;
 
@@ -4252,7 +4839,7 @@ class _SheetMeta extends StatelessWidget {
   Widget build(BuildContext context) => Row(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Icon(icon, size: 17, color: _muted),
+      leading ?? Icon(icon, size: 19, color: _detailSecondaryColor(context)),
       const SizedBox(width: 8),
       Expanded(
         child: Column(
@@ -4260,18 +4847,18 @@ class _SheetMeta extends StatelessWidget {
           children: [
             Text(
               label,
-              style: _body(
-                context,
-                9,
-                muted: true,
-              ).copyWith(fontWeight: FontWeight.w700, letterSpacing: .5),
+              style: _body(context, 11.5, muted: true).copyWith(
+                color: _detailSecondaryColor(context),
+                fontWeight: FontWeight.w800,
+                letterSpacing: .45,
+              ),
             ),
             const SizedBox(height: 2),
             Text(
               value,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: _body(context, 11).copyWith(fontWeight: FontWeight.w600),
+              style: _body(context, 14).copyWith(fontWeight: FontWeight.w700),
             ),
           ],
         ),
@@ -4281,29 +4868,46 @@ class _SheetMeta extends StatelessWidget {
 }
 
 class _RecurringAppBar extends AppBar {
-  _RecurringAppBar({required String title, Widget? trailing})
-    : super(
-        backgroundColor: Colors.transparent,
-        surfaceTintColor: Colors.transparent,
-        elevation: 0,
-        toolbarHeight: 48,
-        centerTitle: true,
-        title: Text(
-          title,
-          style: const TextStyle(
-            fontFamily: _headlineFont,
-            fontSize: 17,
-            fontWeight: FontWeight.w700,
-            color: _primaryDark,
-          ),
-        ),
-        leading: const BackButton(color: _primaryDark),
-        actions: trailing == null ? null : [trailing, const SizedBox(width: 4)],
-      );
+  _RecurringAppBar({
+    required BuildContext context,
+    required bool dark,
+    required String title,
+    Widget? trailing,
+  }) : super(
+         backgroundColor: dark ? _darkPage : Colors.transparent,
+         surfaceTintColor: Colors.transparent,
+         elevation: 0,
+         shape: dark
+             ? const Border(bottom: BorderSide(color: _darkBorder))
+             : null,
+         toolbarHeight: 64,
+         centerTitle: false,
+         title: Text(
+           title,
+           maxLines: 1,
+           overflow: TextOverflow.ellipsis,
+           style: TextStyle(
+             fontFamily: _headlineFont,
+             fontSize: Responsive.sp(context, 22),
+             fontWeight: FontWeight.w700,
+             color: dark ? _darkText : _primaryDark,
+           ),
+         ),
+         leading: BackButton(color: dark ? _darkSecondaryText : _primaryDark),
+         iconTheme: IconThemeData(
+           color: dark ? _darkSecondaryText : _primaryDark,
+         ),
+         actionsIconTheme: IconThemeData(
+           color: dark ? _darkSecondaryText : _primaryDark,
+         ),
+         actions: trailing == null
+             ? null
+             : [trailing, const SizedBox(width: 4)],
+       );
 }
 
 class _FormSection extends StatelessWidget {
-  const _FormSection({required this.title, required this.children});
+  const _FormSection({super.key, required this.title, required this.children});
   final String? title;
   final List<Widget> children;
 
@@ -4316,7 +4920,7 @@ class _FormSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (title != null) ...[
-          Text(title!, style: _headline(context, 15)),
+          Text(title!, style: _headline(context, 18)),
           const SizedBox(height: 12),
         ],
         ...children,
@@ -4332,7 +4936,13 @@ class _FieldLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Text(
     value,
-    style: _body(context, 10).copyWith(fontWeight: FontWeight.w700),
+    style: _body(context, 12.5).copyWith(
+      color: Theme.of(context).brightness == Brightness.dark
+          ? _darkSecondaryText
+          : _ink,
+      fontWeight: FontWeight.w800,
+      letterSpacing: .45,
+    ),
   );
 }
 
@@ -4382,17 +4992,17 @@ class _TextFieldCard extends StatelessWidget {
                   color: accentColor ?? _ink,
                   fontFeatures: const [FontFeature.tabularFigures()],
                 )
-              : _body(context, 13).copyWith(fontWeight: FontWeight.w500),
+              : _body(context, 14).copyWith(fontWeight: FontWeight.w600),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: _body(context, 12, muted: true),
+            hintStyle: _body(context, 14, muted: true),
             suffixText: suffix,
-            suffixStyle: _body(context, 11).copyWith(
-              color: dark ? const Color(0xFFCBE9DF) : _ink,
+            suffixStyle: _body(context, 13).copyWith(
+              color: dark ? _darkText : _ink,
               fontWeight: FontWeight.w700,
             ),
             filled: true,
-            fillColor: dark ? const Color(0xFF123129) : const Color(0xFFF3F3F5),
+            fillColor: dark ? _darkInput : const Color(0xFFF3F3F5),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 14,
               vertical: 14,
@@ -4403,7 +5013,9 @@ class _TextFieldCard extends StatelessWidget {
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
+              borderSide: dark
+                  ? const BorderSide(color: _darkBorder)
+                  : BorderSide.none,
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
@@ -4451,7 +5063,13 @@ class _PickerCard extends StatelessWidget {
       const SizedBox(height: 7),
       _PickerSurface(
         onTap: onTap,
-        leading: Icon(icon, size: 19, color: _muted),
+        leading: Icon(
+          icon,
+          size: 19,
+          color: Theme.of(context).brightness == Brightness.dark
+              ? _darkSecondaryText
+              : _muted,
+        ),
         value: value,
       ),
     ],
@@ -4472,8 +5090,11 @@ class _PickerSurface extends StatelessWidget {
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
     return Material(
-      color: dark ? const Color(0xFF123129) : const Color(0xFFF3F3F5),
-      borderRadius: BorderRadius.circular(12),
+      color: dark ? _darkInput : const Color(0xFFF3F3F5),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: dark ? const BorderSide(color: _darkBorder) : BorderSide.none,
+      ),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
@@ -4492,15 +5113,15 @@ class _PickerSurface extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: _body(
                       context,
-                      13,
+                      14,
                     ).copyWith(fontWeight: FontWeight.w600),
                   ),
                 ),
                 const SizedBox(width: 8),
-                const Icon(
+                Icon(
                   Icons.keyboard_arrow_down_rounded,
                   size: 19,
-                  color: _muted,
+                  color: dark ? _darkSecondaryText : _muted,
                 ),
               ],
             ),
@@ -4562,7 +5183,7 @@ class _AnchoredPickerField<T> extends StatelessWidget {
             borderRadius: BorderRadius.circular(14),
             side: BorderSide(
               color: Theme.of(context).brightness == Brightness.dark
-                  ? const Color(0xFF21473D)
+                  ? _darkBorder
                   : const Color(0xFFDCE9E4),
             ),
           ),
@@ -4590,7 +5211,7 @@ class _AnchoredPickerField<T> extends StatelessWidget {
                         option.label,
                         style: _body(
                           context,
-                          13,
+                          14,
                         ).copyWith(fontWeight: FontWeight.w600),
                       ),
                     ),
@@ -4624,7 +5245,7 @@ class _IncomeExpenseSegment extends StatelessWidget {
     padding: const EdgeInsets.all(4),
     decoration: BoxDecoration(
       color: Theme.of(context).brightness == Brightness.dark
-          ? const Color(0xFF132F28)
+          ? _darkInput
           : const Color(0xFFDDF3EC),
       borderRadius: BorderRadius.circular(12),
     ),
@@ -4665,8 +5286,12 @@ class _IncomeExpenseSegment extends StatelessWidget {
         alignment: Alignment.center,
         child: Text(
           label,
-          style: _body(context, 12).copyWith(
-            color: isIncome == value ? Colors.white : _muted,
+          style: _body(context, 14).copyWith(
+            color: isIncome == value
+                ? Colors.white
+                : Theme.of(context).brightness == Brightness.dark
+                ? _darkSecondaryText
+                : _muted,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -4685,7 +5310,7 @@ class _FrequencySegment extends StatelessWidget {
     padding: const EdgeInsets.all(4),
     decoration: BoxDecoration(
       color: Theme.of(context).brightness == Brightness.dark
-          ? const Color(0xFF132F28)
+          ? _darkInput
           : const Color(0xFFEEF1F0),
       borderRadius: BorderRadius.circular(12),
     ),
@@ -4706,8 +5331,12 @@ class _FrequencySegment extends StatelessWidget {
                 alignment: Alignment.center,
                 child: Text(
                   _frequencyLabel(frequency),
-                  style: _body(context, 11).copyWith(
-                    color: selected == frequency ? Colors.white : _muted,
+                  style: _body(context, 13).copyWith(
+                    color: selected == frequency
+                        ? Colors.white
+                        : Theme.of(context).brightness == Brightness.dark
+                        ? _darkSecondaryText
+                        : _muted,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -4732,61 +5361,79 @@ class _PostingModeCard extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => InkWell(
-    borderRadius: BorderRadius.circular(12),
-    onTap: onTap,
-    child: AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
-      constraints: const BoxConstraints(minHeight: 78),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 11),
-      decoration: BoxDecoration(
-        color: Theme.of(context).brightness == Brightness.dark
-            ? _darkCard
-            : selected
-            ? const Color(0xFFEAF8F3)
-            : Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: selected ? _primary : const Color(0xFFE0E7E3),
-          width: selected ? 1.5 : 1,
-        ),
-      ),
-      child: Stack(
-        children: [
-          Align(
-            alignment: Alignment.center,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, color: selected ? _primary : _muted, size: 20),
-                const SizedBox(height: 7),
-                Text(
-                  title,
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: _body(context, 9.5).copyWith(
-                    color: selected ? _primary : null,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final selectedColor = dark ? _darkPositive : _primary;
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        constraints: const BoxConstraints(minHeight: 78),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 11),
+        decoration: BoxDecoration(
+          color: dark
+              ? selected
+                    ? const Color(0xFF0D3028)
+                    : _darkInput
+              : selected
+              ? const Color(0xFFEAF8F3)
+              : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected
+                ? selectedColor
+                : dark
+                ? _darkBorder
+                : const Color(0xFFE0E7E3),
+            width: selected ? 1.5 : 1,
           ),
-          if (selected)
-            const Positioned(
-              right: 0,
-              top: 0,
-              child: Icon(
-                Icons.check_circle_rounded,
-                color: _primary,
-                size: 16,
+        ),
+        child: Stack(
+          children: [
+            Align(
+              alignment: Alignment.center,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    icon,
+                    color: selected
+                        ? selectedColor
+                        : dark
+                        ? _darkSecondaryText
+                        : _muted,
+                    size: 20,
+                  ),
+                  const SizedBox(height: 7),
+                  Text(
+                    title,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: _body(context, 12).copyWith(
+                      color: selected ? selectedColor : null,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
               ),
             ),
-        ],
+            if (selected)
+              Positioned(
+                right: 0,
+                top: 0,
+                child: Icon(
+                  Icons.check_circle_rounded,
+                  color: selectedColor,
+                  size: 16,
+                ),
+              ),
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _DetailRow extends StatelessWidget {
@@ -4803,20 +5450,34 @@ class _DetailRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 8),
+    padding: const EdgeInsets.symmetric(vertical: 9),
     child: Row(
       children: [
-        Icon(icon, size: 18, color: _muted),
+        Icon(
+          icon,
+          size: 19,
+          color: Theme.of(context).brightness == Brightness.dark
+              ? _darkSecondaryText
+              : _muted,
+        ),
         const SizedBox(width: 10),
-        Expanded(child: Text(label, style: _body(context, 12, muted: true))),
+        Expanded(
+          child: Text(
+            label,
+            style: _body(context, 15, muted: true).copyWith(
+              color: _detailSecondaryColor(context),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
         Flexible(
           child: Text(
             value,
             textAlign: TextAlign.right,
             style: _body(
               context,
-              12,
-            ).copyWith(color: valueColor, fontWeight: FontWeight.w600),
+              15,
+            ).copyWith(color: valueColor, fontWeight: FontWeight.w700),
           ),
         ),
       ],
@@ -4838,22 +5499,42 @@ class _RuleRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
     decoration: BoxDecoration(
       border: showDivider
-          ? Border(bottom: BorderSide(color: _outline.withValues(alpha: .35)))
+          ? Border(
+              bottom: BorderSide(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? _darkBorder
+                    : _outline.withValues(alpha: .35),
+              ),
+            )
           : null,
     ),
     child: Row(
       children: [
-        Icon(icon, size: 18, color: _muted),
+        Icon(
+          icon,
+          size: 19,
+          color: Theme.of(context).brightness == Brightness.dark
+              ? _darkSecondaryText
+              : _muted,
+        ),
         const SizedBox(width: 10),
-        Expanded(child: Text(label, style: _body(context, 12, muted: true))),
+        Expanded(
+          child: Text(
+            label,
+            style: _body(context, 15, muted: true).copyWith(
+              color: _detailSecondaryColor(context),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
         Flexible(
           child: Text(
             value,
             textAlign: TextAlign.right,
-            style: _body(context, 12).copyWith(fontWeight: FontWeight.w600),
+            style: _body(context, 15).copyWith(fontWeight: FontWeight.w700),
           ),
         ),
       ],
@@ -4890,9 +5571,7 @@ BoxDecoration _cardDecoration(BuildContext context, {double radius = 16}) {
   return BoxDecoration(
     color: dark ? _darkCard : Colors.white,
     borderRadius: BorderRadius.circular(radius),
-    border: Border.all(
-      color: dark ? const Color(0xFF21473D) : const Color(0xFFE3ECE8),
-    ),
+    border: Border.all(color: dark ? _darkBorder : const Color(0xFFE3ECE8)),
     boxShadow: dark
         ? null
         : [
@@ -4905,36 +5584,61 @@ BoxDecoration _cardDecoration(BuildContext context, {double radius = 16}) {
   );
 }
 
+BoxDecoration _hubElevatedCardDecoration(
+  BuildContext context, {
+  required double radius,
+}) {
+  final dark = Theme.of(context).brightness == Brightness.dark;
+  return BoxDecoration(
+    color: dark ? _darkCard : Colors.white,
+    borderRadius: BorderRadius.circular(radius),
+    border: Border.all(color: dark ? _darkBorder : const Color(0xFFD5E9E1)),
+    boxShadow: dark
+        ? null
+        : [
+            BoxShadow(
+              color: _primary.withValues(alpha: .13),
+              blurRadius: 24,
+              offset: const Offset(0, 8),
+            ),
+          ],
+  );
+}
+
 TextStyle _headline(BuildContext context, double size) => TextStyle(
   fontFamily: _headlineFont,
   fontSize: size,
   fontWeight: FontWeight.w700,
-  color: Theme.of(context).brightness == Brightness.dark
-      ? const Color(0xFFCBE9DF)
-      : _ink,
+  color: Theme.of(context).brightness == Brightness.dark ? _darkText : _ink,
 );
 
 TextStyle _body(BuildContext context, double size, {bool muted = false}) =>
     TextStyle(
       fontFamily: _bodyFont,
       fontSize: size,
+      fontWeight: FontWeight.w500,
       color: muted
           ? (Theme.of(context).brightness == Brightness.dark
-                ? const Color(0xFFBEC9C3)
+                ? _darkMutedText
                 : _muted)
           : (Theme.of(context).brightness == Brightness.dark
-                ? const Color(0xFFCBE9DF)
+                ? _darkText
                 : _ink),
     );
+
+Color _detailSecondaryColor(BuildContext context) =>
+    Theme.of(context).brightness == Brightness.dark
+    ? _darkSecondaryText
+    : const Color(0xFF455B54);
 
 ButtonStyle _sheetOutlineStyle() => OutlinedButton.styleFrom(
   foregroundColor: _primary,
   side: const BorderSide(color: _outline),
-  minimumSize: const Size(0, 46),
+  minimumSize: const Size(0, 48),
   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
   textStyle: const TextStyle(
     fontFamily: _bodyFont,
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: FontWeight.w700,
   ),
 );
@@ -4977,7 +5681,9 @@ bool _sameCalendarDay(DateTime first, DateTime second) =>
 
 String _hubDueLabel(DateTime date) {
   final days = _daysUntil(date);
-  if (days <= 0) return AppStrings.choose('Today', 'Hôm nay');
+  if (days == 0) return AppStrings.choose('Today', 'Hôm nay');
+  if (days == -1) return AppStrings.choose('Yesterday', 'Hôm qua');
+  if (days < -1) return _monthDay(date);
   if (days == 1) return AppStrings.choose('Tomorrow', 'Ngày mai');
   if (days < 7) return AppStrings.choose('In $days days', 'Sau $days ngày');
   return _monthDay(date);
@@ -4985,7 +5691,9 @@ String _hubDueLabel(DateTime date) {
 
 String _hubDateGroupLabel(DateTime date) {
   final days = _daysUntil(date);
-  if (days <= 0) return AppStrings.choose('TODAY', 'HÔM NAY');
+  if (days == 0) return AppStrings.choose('TODAY', 'HÔM NAY');
+  if (days == -1) return AppStrings.choose('YESTERDAY', 'HÔM QUA');
+  if (days < -1) return _monthDay(date).toUpperCase();
   if (days == 1) return AppStrings.choose('TOMORROW', 'NGÀY MAI');
   return _monthDay(date).toUpperCase();
 }

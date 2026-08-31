@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:finflow/core/theme/app_colors.dart';
 import 'package:finflow/features/scan/models/scan_result_model.dart';
 import 'package:finflow/features/finance/presentation/add_transaction_sheet.dart';
 import 'package:flutter/material.dart';
@@ -78,6 +79,32 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('uses larger high-contrast typography on the mode picker', (
+    tester,
+  ) async {
+    await pumpAddScreen(tester);
+
+    final header = tester.widget<Text>(find.text('Add transaction'));
+    final prompt = tester.widget<Text>(
+      find.text('What did you spend money on today?'),
+    );
+    final section = tester.widget<Text>(find.text('CHOOSE INPUT METHOD'));
+    final habit = tester.widget<Text>(
+      find.text("You're building a healthy money habit. Keep it up!"),
+    );
+
+    expect(header.style?.fontSize, 22);
+    expect(header.style?.fontWeight, FontWeight.w700);
+    expect(prompt.style?.fontSize, 15);
+    expect(prompt.style?.fontWeight, FontWeight.w600);
+    expect(section.style?.fontSize, 12.5);
+    expect(section.style?.fontWeight, FontWeight.w800);
+    expect(section.style?.color, const Color(0xFF30463E));
+    expect(habit.style?.fontSize, 13);
+    expect(habit.style?.fontWeight, FontWeight.w700);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('selected method highlights before horizontal navigation', (
     tester,
   ) async {
@@ -107,6 +134,10 @@ void main() {
     await openManualMode(tester);
 
     expect(find.text('Manual Entry'), findsOneWidget);
+    final manualTitle = tester.widget<Text>(find.text('Manual Entry'));
+    expect(tester.getTopLeft(find.text('Manual Entry')).dx, lessThan(90));
+    expect(manualTitle.style?.color, AppColors.deepEmerald);
+    expect(manualTitle.style?.fontSize, closeTo(22, .1));
     await tester.tap(find.text('Expense'));
     await tester.pumpAndSettle();
 
@@ -122,20 +153,35 @@ void main() {
     expect(name.decoration?.border, isNotNull);
   });
 
-  testWidgets('category field opens the vertical selection modal', (
-    tester,
-  ) async {
-    await pumpAddScreen(tester);
-    await openManualMode(tester);
+  testWidgets(
+    'category field opens an anchored dropdown and applies directly',
+    (tester) async {
+      await pumpAddScreen(tester);
+      await openManualMode(tester);
 
-    await tester.tap(find.byKey(const Key('manual_category_field')));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('manual_category_field')));
+      await tester.pumpAndSettle();
 
-    expect(find.text('Select Category'), findsOneWidget);
-    expect(find.text('Food'), findsWidgets);
-    expect(find.text('Apply Selection'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
+      expect(find.byType(BottomSheet), findsNothing);
+      expect(find.text('Salary'), findsWidgets);
+      expect(find.text('Food'), findsNothing);
+      expect(find.text('Apply Selection'), findsNothing);
+      expect(
+        find.byKey(const Key('manual_category_option_Bonus')),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const Key('manual_category_option_Bonus')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Bonus'), findsOneWidget);
+      expect(
+        find.byKey(const Key('manual_category_option_Bonus')),
+        findsNothing,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('source field shows cash and transfer payment methods', (
     tester,
