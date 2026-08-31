@@ -5,6 +5,8 @@ import '../models/admin_report_model.dart';
 import '../services/admin_moderation_service.dart';
 import 'admin_strings.dart';
 
+enum _ReportFilter { all, open, resolved }
+
 class AdminReportsView extends StatefulWidget {
   const AdminReportsView({super.key, required this.service});
 
@@ -17,7 +19,7 @@ class AdminReportsView extends StatefulWidget {
 class _AdminReportsViewState extends State<AdminReportsView> {
   List<AdminReportedPostModel> _items = const [];
   bool _loading = true;
-  bool _showResolved = false;
+  _ReportFilter _filter = _ReportFilter.all;
   String _search = '';
   String? _error;
 
@@ -53,7 +55,8 @@ class _AdminReportsViewState extends State<AdminReportsView> {
       final resolved =
           item.post.status == ModerationStatus.removed ||
           item.pendingCount == 0;
-      if (_showResolved != resolved) return false;
+      if (_filter == _ReportFilter.open && resolved) return false;
+      if (_filter == _ReportFilter.resolved && !resolved) return false;
       if (query.isEmpty) return true;
       return item.post.content.toLowerCase().contains(query) ||
           item.post.displayAuthor.toLowerCase().contains(query) ||
@@ -66,6 +69,7 @@ class _AdminReportsViewState extends State<AdminReportsView> {
   }
 
   int get _openCount => _items.where((item) => item.pendingCount > 0).length;
+  int get _resolvedCount => _items.length - _openCount;
 
   Future<void> _removePost(AdminReportedPostModel item) async {
     final controller = TextEditingController();
@@ -126,6 +130,13 @@ class _AdminReportsViewState extends State<AdminReportsView> {
     controller.dispose();
     if (reason == null || !mounted) return;
 
+    final index = _items.indexWhere(
+      (candidate) => candidate.post.id == item.post.id,
+    );
+    if (index >= 0) {
+      setState(() => _items = List.of(_items)..removeAt(index));
+    }
+
     try {
       await widget.service.removeReportedPost(
         postId: item.post.id,
@@ -142,9 +153,16 @@ class _AdminReportsViewState extends State<AdminReportsView> {
           ),
         ),
       );
-      await _load();
     } catch (error) {
       if (!mounted) return;
+      if (index >= 0 &&
+          !_items.any((candidate) => candidate.post.id == item.post.id)) {
+        setState(() {
+          final restored = List<AdminReportedPostModel>.of(_items);
+          restored.insert(index.clamp(0, restored.length), item);
+          _items = restored;
+        });
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -206,8 +224,20 @@ class _AdminReportsViewState extends State<AdminReportsView> {
             ],
           ),
           const SizedBox(height: 22),
-          Row(
+          Wrap(
+            spacing: 9,
+            runSpacing: 8,
             children: [
+              ChoiceChip(
+                label: Text(
+                  AdminStrings.t(
+                    'All (${_items.length})',
+                    'Tất cả (${_items.length})',
+                  ),
+                ),
+                selected: _filter == _ReportFilter.all,
+                onSelected: (_) => setState(() => _filter = _ReportFilter.all),
+              ),
               ChoiceChip(
                 label: Text(
                   AdminStrings.t(
@@ -215,14 +245,19 @@ class _AdminReportsViewState extends State<AdminReportsView> {
                     'Chờ xử lý ($_openCount)',
                   ),
                 ),
-                selected: !_showResolved,
-                onSelected: (_) => setState(() => _showResolved = false),
+                selected: _filter == _ReportFilter.open,
+                onSelected: (_) => setState(() => _filter = _ReportFilter.open),
               ),
-              const SizedBox(width: 9),
               ChoiceChip(
-                label: Text(AdminStrings.t('Resolved', 'Đã xử lý')),
-                selected: _showResolved,
-                onSelected: (_) => setState(() => _showResolved = true),
+                label: Text(
+                  AdminStrings.t(
+                    'Resolved ($_resolvedCount)',
+                    'Đã xử lý ($_resolvedCount)',
+                  ),
+                ),
+                selected: _filter == _ReportFilter.resolved,
+                onSelected: (_) =>
+                    setState(() => _filter = _ReportFilter.resolved),
               ),
             ],
           ),

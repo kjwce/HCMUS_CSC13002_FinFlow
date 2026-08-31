@@ -3,6 +3,7 @@ import 'package:finflow/core/theme/app_theme.dart';
 import 'package:finflow/core/theme/app_theme_manager.dart';
 import 'package:finflow/features/auth/presentation/sign_in_screen.dart';
 import 'package:finflow/features/auth/presentation/sign_up_screen.dart';
+import 'package:finflow/features/auth/presentation/new_password_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -58,6 +59,16 @@ void main() {
 
     expect(emailField.width, greaterThan(310));
     expect(accountLink.top - googleButton.bottom, lessThan(80));
+    expect(find.widgetWithText(ElevatedButton, 'Log In'), findsOneWidget);
+  });
+
+  testWidgets('reset password uses the same six-character minimum', (
+    tester,
+  ) async {
+    await pumpAuthScreen(tester, const NewPasswordScreen());
+
+    expect(find.text('At least 6 characters'), findsOneWidget);
+    expect(find.text('At least 8 characters'), findsNothing);
   });
 
   testWidgets('sign up remains full width and vertically balanced', (

@@ -309,20 +309,41 @@ class _ProfileMenuGroups extends ConsumerWidget {
         rootNavigator: true,
       ).pushNamed(AppRoutes.communityActivity),
     );
-    final help = _MenuItemData(
-      // Keep FinFlow's original Help asset instead of Stitch's question icon.
-      icon: SvgPicture.asset(
-        'assets/icons/icon_help.svg',
-        colorFilter: const ColorFilter.mode(Color(0xFFA33CAA), BlendMode.srcIn),
+    final budgetLimit = _MenuItemData(
+      icon: Icon(
+        Icons.account_balance_wallet_outlined,
+        size: Responsive.w(context, 23),
+        color: const Color(0xFF007C61),
       ),
-      bgColor: const Color(0xFFF5E8F8),
-      darkBgColor: const Color(0x338B5CF6),
-      label: AppStrings.choose('Help & Support', 'Trợ giúp và hỗ trợ'),
+      bgColor: const Color(0xFFE5F4EF),
+      darkBgColor: const Color(0x3322C55E),
+      label: AppStrings.budgetLimit,
       description: AppStrings.choose(
-        'FAQs & Chat with us',
-        'Câu hỏi thường gặp và trò chuyện hỗ trợ',
+        'Daily, weekly & monthly limits',
+        'Hạn mức ngày, tuần và tháng',
       ),
-      onTap: () {},
+      onTap: () => Navigator.of(
+        context,
+        rootNavigator: true,
+      ).pushNamed(AppRoutes.budgetLimits),
+    );
+    final moneySources = _MenuItemData(
+      icon: Icon(
+        Icons.payments_outlined,
+        size: Responsive.w(context, 23),
+        color: const Color(0xFF2878D0),
+      ),
+      bgColor: const Color(0xFFEAF2FF),
+      darkBgColor: const Color(0x333B82F6),
+      label: AppStrings.choose('Money Sources', 'Nguồn tiền'),
+      description: AppStrings.choose(
+        'Cash and transfer balances',
+        'Số dư tiền mặt và chuyển khoản',
+      ),
+      onTap: () => Navigator.of(
+        context,
+        rootNavigator: true,
+      ).pushNamed(AppRoutes.moneySources),
     );
     final logout = _MenuItemData(
       icon: SvgPicture.asset(
@@ -347,7 +368,7 @@ class _ProfileMenuGroups extends ConsumerWidget {
       children: [
         _MenuGroup(items: [editProfile, security, settings]),
         SizedBox(height: Responsive.h(context, 12)),
-        _MenuGroup(items: [community, help]),
+        _MenuGroup(items: [community, budgetLimit, moneySources]),
         SizedBox(height: Responsive.h(context, 12)),
         _MenuGroup(items: [logout], destructive: true),
       ],

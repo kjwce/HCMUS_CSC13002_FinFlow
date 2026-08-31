@@ -36,7 +36,7 @@ class _NewPasswordScreenState extends ConsumerState<NewPasswordScreen> {
     final confirm = _confirmController.text;
 
     final passwordIsValid =
-        password.length >= 8 &&
+        password.length >= 6 &&
         password.contains(RegExp('[A-Z]')) &&
         password.contains(RegExp(r'\d'));
     final passwordError = passwordIsValid
@@ -200,8 +200,8 @@ class _ResetRequirements extends StatelessWidget {
   Widget build(BuildContext context) {
     final items = [
       (
-        AppStrings.choose('At least 8 characters', 'Ít nhất 8 ký tự'),
-        password.length >= 8,
+        AppStrings.choose('At least 6 characters', 'Ít nhất 6 ký tự'),
+        password.length >= 6,
       ),
       (
         AppStrings.choose(

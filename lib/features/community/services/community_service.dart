@@ -105,6 +105,21 @@ class CommunityService extends ChangeNotifier {
             notifyListeners();
           },
         )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.delete,
+          schema: 'public',
+          table: 'community_posts',
+          callback: (payload) {
+            final postId = payload.oldRecord['id'] as String?;
+            if (postId == null) return;
+            final removed = _posts.any((post) => post.id == postId);
+            if (!removed) return;
+            _posts.removeWhere((post) => post.id == postId);
+            _commentsByPost.remove(postId);
+            _commentCacheReady.remove(postId);
+            notifyListeners();
+          },
+        )
         .subscribe();
 
     // Lắng nghe like thay đổi — chỉ update likesCount của post đó
@@ -416,14 +431,29 @@ class CommunityService extends ChangeNotifier {
     final userId = _userId;
     if (userId == null) throw Exception('Not authenticated');
 
-    await Supabase.instance.client
-        .from('community_posts')
-        .delete()
-        .eq('id', postId)
-        .eq('user_id', userId);
-    // Xoá khỏi danh sách local ngay lập tức
-    _posts.removeWhere((p) => p.id == postId);
-    notifyListeners();
+    final index = _posts.indexWhere((post) => post.id == postId);
+    final removedPost = index < 0 ? null : _posts.removeAt(index);
+    if (removedPost != null) notifyListeners();
+
+    try {
+      final deletedRows = await Supabase.instance.client
+          .from('community_posts')
+          .delete()
+          .eq('id', postId)
+          .eq('user_id', userId)
+          .select('id');
+      if ((deletedRows as List).isEmpty) {
+        throw StateError('Post could not be deleted');
+      }
+      _commentsByPost.remove(postId);
+      _commentCacheReady.remove(postId);
+    } catch (_) {
+      if (removedPost != null && !_posts.any((post) => post.id == postId)) {
+        _posts.insert(index.clamp(0, _posts.length), removedPost);
+        notifyListeners();
+      }
+      rethrow;
+    }
   }
 
   Future<CommunityReportSubmitResult> reportPost({

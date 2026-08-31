@@ -49,6 +49,9 @@ void main() {
     expect(appSettings.style?.fontSize, greaterThanOrEqualTo(15));
     expect(description.style?.fontSize, greaterThanOrEqualTo(12.5));
     expect(find.text('Community Activity'), findsOneWidget);
+    expect(find.text('Budget Limit'), findsOneWidget);
+    expect(find.text('Money Sources'), findsOneWidget);
+    expect(find.text('Help & Support'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }

@@ -197,3 +197,20 @@ REVOKE ALL ON FUNCTION public.set_community_user_muted(UUID, BOOLEAN, TEXT)
   FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.set_community_user_muted(UUID, BOOLEAN, TEXT)
   TO authenticated;
+
+-- Community clients rely on UPDATE events to hide posts immediately after an
+-- admin removes them, and DELETE events to remove author-deleted posts without
+-- requiring a manual refresh.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime'
+      AND schemaname = 'public'
+      AND tablename = 'community_posts'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.community_posts;
+  END IF;
+END
+$$;

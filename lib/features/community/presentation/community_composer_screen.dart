@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../app/shell/finflow_app.dart';
 import '../../../core/i18n/app_language.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/responsive.dart';
@@ -13,6 +14,7 @@ import '../models/community_post_model.dart';
 import '../providers/community_provider.dart';
 import '../utils/community_topics.dart';
 import '../utils/rich_text_formatter.dart';
+import 'widgets/post_submitted_dialog.dart';
 
 /// Full-screen "New post" composer — mirrors the Threads-style layout:
 /// close button, author row with a community/category picker, a large
@@ -221,9 +223,19 @@ class _CommunityComposerScreenState
         if (_selectedImages.isNotEmpty) {
           await service.addPostImages(postId: postId, images: _selectedImages);
         }
-        await service.fetchPosts();
       }
-      if (mounted) Navigator.of(context).pop(true);
+      if (!mounted) return;
+      if (_isEditing) {
+        Navigator.of(context).pop(true);
+        return;
+      }
+      final action = await showPostSubmittedDialog(context);
+      if (!mounted) return;
+      if (action == PostSubmittedAction.viewActivity) {
+        Navigator.of(context).pushReplacementNamed(AppRoutes.communityActivity);
+      } else {
+        Navigator.of(context).pop(true);
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

@@ -81,6 +81,9 @@ void main() {
 
     expect(title.style?.fontSize, greaterThanOrEqualTo(15));
     expect(subtitle.style?.fontSize, greaterThanOrEqualTo(12.3));
+    expect(find.text('FINANCIAL MANAGEMENT'), findsNothing);
+    expect(find.text('Budget Limit'), findsNothing);
+    expect(find.text('Money Sources'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }

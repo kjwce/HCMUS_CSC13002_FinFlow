@@ -226,7 +226,7 @@ class _BalanceCard extends StatelessWidget {
           TextField(
             controller: controller,
             keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            inputFormatters: const [_OpeningBalanceFormatter()],
             decoration: InputDecoration(
               labelText: AppStrings.choose('Opening balance', 'Số dư ban đầu'),
               hintText: '0',
@@ -241,6 +241,32 @@ class _BalanceCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _OpeningBalanceFormatter extends TextInputFormatter {
+  const _OpeningBalanceFormatter();
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final digits = newValue.text.replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) {
+      return const TextEditingValue(
+        selection: TextSelection.collapsed(offset: 0),
+      );
+    }
+    final normalized = digits.replaceFirst(RegExp(r'^0+(?=\d)'), '');
+    final formatted = normalized.replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+      (_) => ',',
+    );
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
     );
   }
 }

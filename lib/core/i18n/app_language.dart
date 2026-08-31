@@ -83,20 +83,20 @@ class AppStrings {
       _isEn ? 'Your personal finance assistant' : 'Trợ lý tài chính cá nhân';
 
   // -- Auth screens --
-  static String get signIn => _isEn ? 'Sign In' : 'Đăng nhập';
+  static String get signIn => _isEn ? 'Log In' : 'Đăng nhập';
   static String get signUp => _isEn ? 'Sign Up' : 'Đăng ký';
-  static String get signingIn => _isEn ? 'Signing In...' : 'Đang đăng nhập...';
+  static String get signingIn => _isEn ? 'Logging In...' : 'Đang đăng nhập...';
   static String get creating => _isEn ? 'Creating...' : 'Đang tạo...';
   static String get forgotPassword =>
       _isEn ? 'Forgot password?' : 'Quên mật khẩu?';
   static String get resetPassword =>
       _isEn ? 'Reset password' : 'Đặt lại mật khẩu';
   static String get backToSignIn =>
-      _isEn ? 'Back to Sign In' : 'Quay lại đăng nhập';
+      _isEn ? 'Back to Log In' : 'Quay lại đăng nhập';
   static String get newToFinflowSignUp =>
       _isEn ? 'New to FinFlow? Sign Up' : 'Chưa có tài khoản? Đăng ký';
   static String get alreadyHaveAccount =>
-      _isEn ? 'Already have an account? Sign In' : 'Đã có tài khoản? Đăng nhập';
+      _isEn ? 'Already have an account? Log In' : 'Đã có tài khoản? Đăng nhập';
   static String get email => _isEn ? 'Email' : 'Email';
   static String get password => _isEn ? 'Password' : 'Mật khẩu';
   static String get confirmPassword =>
@@ -117,7 +117,7 @@ class AppStrings {
       _isEn ? 'Passwords do not match' : 'Mật khẩu không khớp';
   static String get registrationFailed =>
       _isEn ? 'Registration failed' : 'Đăng ký thất bại';
-  static String get createAccount => _isEn ? 'Create account' : 'Tạo tài khoản';
+  static String get createAccount => _isEn ? 'Sign Up' : 'Đăng ký';
   static String get checkEmailConfirmation => _isEn
       ? 'Please check your email to confirm your account'
       : 'Vui lòng kiểm tra email để xác nhận tài khoản';
@@ -284,8 +284,9 @@ class AppStrings {
       : 'Mã OTP đã gửi đến email của bạn!';
   static String get otpVerified =>
       _isEn ? 'Email verified successfully!' : 'Xác thực email thành công!';
-  static String get invalidOtp =>
-      _isEn ? 'Invalid verification code' : 'Mã xác thực không đúng';
+  static String get invalidOtp => _isEn
+      ? 'The verification code is incorrect or has expired.'
+      : 'Mã xác thực không đúng hoặc đã hết hạn.';
 
   // -- New password screen --
   static String get newPassword => _isEn ? 'New Password' : 'Mật khẩu mới';

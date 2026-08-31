@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 import '../../../app/shell/finflow_app.dart';
@@ -9,9 +7,6 @@ import '../../../core/theme/app_theme_manager.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/home_header_controls.dart';
 import '../../../core/widgets/notification_bell.dart';
-import '../../finance/models/wallet_model.dart';
-import '../../finance/services/transaction_service.dart';
-import '../../finance/services/wallet_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -21,21 +16,6 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  @override
-  void initState() {
-    super.initState();
-    unawaited(_loadMoneySources());
-  }
-
-  Future<void> _loadMoneySources() async {
-    try {
-      await Future.wait([
-        WalletService.instance.fetchWallets(),
-        TransactionService.instance.fetchTransactions(),
-      ]);
-    } catch (_) {}
-  }
-
   Future<void> _chooseLanguage() => showFinFlowLanguageDialog(context);
 
   @override
@@ -44,15 +24,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       listenable: Listenable.merge([
         AppThemeManager.instance,
         AppLanguage.instance,
-        WalletService.instance,
-        TransactionService.instance,
       ]),
       builder: (context, _) {
         final colors = context.finFlowColors;
-        final wallets = WalletService.instance;
-        final transactions = TransactionService.instance;
-        final cash = _walletOfType(wallets, WalletType.cash);
-        final transfer = _walletOfType(wallets, WalletType.transfer);
 
         return Scaffold(
           backgroundColor: colors.pageBackground,
@@ -84,64 +58,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Responsive.h(context, 32),
             ),
             children: [
-              _SectionLabel(
-                AppStrings.choose('FINANCIAL MANAGEMENT', 'QUẢN LÝ TÀI CHÍNH'),
-              ),
-              SizedBox(height: Responsive.h(context, 8)),
-              _SettingsGroup(
-                children: [
-                  _SettingsRow(
-                    icon: Icons.account_balance_wallet_outlined,
-                    title: AppStrings.budgetLimit,
-                    subtitle: AppStrings.choose(
-                      'Daily, weekly & monthly limits',
-                      'Hạn mức ngày, tuần và tháng',
-                    ),
-                    onTap: () =>
-                        Navigator.of(context).pushNamed(AppRoutes.budgetLimits),
-                  ),
-                  _SettingsRow(
-                    key: const Key('money-sources-settings-row'),
-                    icon: Icons.payments_outlined,
-                    title: AppStrings.choose('Money Sources', 'Nguồn tiền'),
-                    subtitle: AppStrings.choose(
-                      'Cash and bank transfer balances',
-                      'Số dư tiền mặt và chuyển khoản',
-                    ),
-                    onTap: () =>
-                        Navigator.of(context).pushNamed(AppRoutes.moneySources),
-                    detail: Padding(
-                      padding: EdgeInsets.only(top: Responsive.h(context, 8)),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: _SourceSummary(
-                              label: AppStrings.choose('Cash', 'Tiền mặt'),
-                              amount: cash == null
-                                  ? 0
-                                  : transactions.balanceByWallet(cash.id),
-                              color: const Color(0xFF00A77D),
-                            ),
-                          ),
-                          Expanded(
-                            child: _SourceSummary(
-                              label: AppStrings.choose(
-                                'Transfer',
-                                'Chuyển khoản',
-                              ),
-                              amount: transfer == null
-                                  ? 0
-                                  : transactions.balanceByWallet(transfer.id),
-                              color: const Color(0xFF2878D0),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: Responsive.h(context, 28)),
               _SectionLabel(AppStrings.choose('PREFERENCES', 'TÙY CHỌN')),
               SizedBox(height: Responsive.h(context, 8)),
               _SettingsGroup(
@@ -192,24 +108,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       },
     );
   }
-}
-
-WalletModel? _walletOfType(WalletService service, WalletType type) {
-  for (final wallet in service.currentUserWallets) {
-    if (wallet.type == type) return wallet;
-  }
-  return null;
-}
-
-String _formatVnd(int amount) {
-  final sign = amount < 0 ? '-' : '';
-  final digits = amount.abs().toString();
-  final buffer = StringBuffer();
-  for (var i = 0; i < digits.length; i++) {
-    if (i > 0 && (digits.length - i) % 3 == 0) buffer.write(',');
-    buffer.write(digits[i]);
-  }
-  return '$sign${buffer.toString()} VND';
 }
 
 class _SectionLabel extends StatelessWidget {
@@ -279,7 +177,6 @@ class _SettingsRow extends StatelessWidget {
     this.onTap,
     this.switchValue,
     this.onSwitchChanged,
-    this.detail,
   });
 
   final IconData icon;
@@ -290,7 +187,6 @@ class _SettingsRow extends StatelessWidget {
   final VoidCallback? onTap;
   final bool? switchValue;
   final ValueChanged<bool>? onSwitchChanged;
-  final Widget? detail;
 
   @override
   Widget build(BuildContext context) {
@@ -341,7 +237,6 @@ class _SettingsRow extends StatelessWidget {
                       color: colors.secondaryText,
                     ),
                   ),
-                  ?detail,
                 ],
               ),
             ),
@@ -369,45 +264,4 @@ class _SettingsRow extends StatelessWidget {
       ),
     );
   }
-}
-
-class _SourceSummary extends StatelessWidget {
-  const _SourceSummary({
-    required this.label,
-    required this.amount,
-    required this.color,
-  });
-
-  final String label;
-  final int amount;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(
-        label,
-        style: TextStyle(
-          fontSize: Responsive.sp(context, 12),
-          color: context.finFlowColors.secondaryText,
-        ),
-      ),
-      const SizedBox(height: 2),
-      FittedBox(
-        fit: BoxFit.scaleDown,
-        alignment: Alignment.centerLeft,
-        child: Text(
-          _formatVnd(amount),
-          maxLines: 1,
-          style: TextStyle(
-            fontFamily: 'Manrope',
-            fontSize: Responsive.sp(context, 13.5),
-            fontWeight: FontWeight.w700,
-            color: color,
-          ),
-        ),
-      ),
-    ],
-  );
 }
