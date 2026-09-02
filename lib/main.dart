@@ -97,9 +97,12 @@ Future<void> _initRecurring() async {
   final reminders = RecurringReminderService.instance;
   final schedules = RecurringService.instance.schedules;
   final hasActiveSchedules = schedules.any((schedule) => schedule.isActive);
+  // Never open an OS permission screen during startup or immediately after
+  // sign-in. Missing permissions disable reminders silently; the user can
+  // explicitly enable them later from Notification Settings.
   if (reminders.isEnabled &&
       hasActiveSchedules &&
-      !await reminders.requestPermission()) {
+      !await reminders.hasRequiredPermissions()) {
     await reminders.setEnabled(false);
     return;
   }

@@ -36,7 +36,9 @@ class RecurringReminderService extends ChangeNotifier {
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
   bool _initialized = false;
-  bool _enabled = true;
+  // Reminders are opt-in. Permission prompts, especially Android's exact-alarm
+  // settings screen, must only be opened from an explicit user action.
+  bool _enabled = false;
   Future<void> Function(RecurringNotificationAction action)? _actionHandler;
 
   bool get isEnabled => _enabled;
@@ -70,7 +72,7 @@ class RecurringReminderService extends ChangeNotifier {
   Future<void> initialize() async {
     if (_initialized) return;
     final preferences = await SharedPreferences.getInstance();
-    _enabled = preferences.getBool(_notificationsPreferenceKey) ?? true;
+    _enabled = preferences.getBool(_notificationsPreferenceKey) ?? false;
 
     try {
       tz_data.initializeTimeZones();
@@ -202,6 +204,32 @@ class RecurringReminderService extends ChangeNotifier {
       return exactAlarmsGranted ?? true;
     } catch (error) {
       debugPrint('Could not request notification permission: $error');
+      return false;
+    }
+  }
+
+  /// Checks the permissions needed by recurring reminders without presenting
+  /// a prompt or navigating away from FinFlow.
+  ///
+  /// This is used during app/session initialization. Permission requests stay
+  /// in [requestPermission], which is called when the user explicitly enables
+  /// reminders from notification settings.
+  Future<bool> hasRequiredPermissions() async {
+    await initialize();
+    try {
+      final android = _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
+      if (android == null) return true;
+
+      final notificationsGranted =
+          await android.areNotificationsEnabled() ?? true;
+      final exactAlarmsGranted =
+          await android.canScheduleExactNotifications() ?? true;
+      return notificationsGranted && exactAlarmsGranted;
+    } catch (error) {
+      debugPrint('Could not check notification permission: $error');
       return false;
     }
   }
