@@ -23,6 +23,7 @@ type ChatRequest = {
   message: string;
   locale: Locale;
   timezone: string;
+  timezoneOffsetMinutes: number;
   currentDate: string;
   history: HistoryItem[];
   imagePath: string | null;
@@ -185,6 +186,7 @@ Deno.serve(async (request) => {
         client,
         userId,
         input.currentDate,
+        input.timezoneOffsetMinutes,
         locale,
       )
       : {};
@@ -235,6 +237,16 @@ function validateRequest(value: unknown, locale: Locale): ChatRequest {
     throw new FunctionError("INVALID_REQUEST", 400, locale);
   }
   const timezone = cleanString(value.timezone, 100) || "UTC";
+  const rawOffset = value.timezoneOffsetMinutes;
+  const timezoneOffsetMinutes = rawOffset === undefined
+    ? 0
+    : typeof rawOffset === "number" && Number.isInteger(rawOffset) &&
+        rawOffset >= -14 * 60 && rawOffset <= 14 * 60
+    ? rawOffset
+    : NaN;
+  if (!Number.isFinite(timezoneOffsetMinutes)) {
+    throw new FunctionError("INVALID_REQUEST", 400, locale);
+  }
   if (!Array.isArray(value.history) || value.history.length > MAX_HISTORY_ITEMS) {
     throw new FunctionError("INVALID_REQUEST", 400, locale);
   }
@@ -266,6 +278,7 @@ function validateRequest(value: unknown, locale: Locale): ChatRequest {
     message,
     locale,
     timezone,
+    timezoneOffsetMinutes,
     currentDate,
     history,
     imagePath,
@@ -344,6 +357,7 @@ async function loadFinanceContext(
   client: AppSupabaseClient,
   userId: string,
   currentDate: string,
+  timezoneOffsetMinutes: number,
   locale: Locale,
 ): Promise<Record<string, unknown>> {
   const [profileResult, transactionResult, walletResult, goalResult] =
@@ -367,17 +381,38 @@ async function loadFinanceContext(
 
   const transactions = (transactionResult.data ?? []) as Array<Record<string, unknown>>;
   const wallets = (walletResult.data ?? []) as Array<Record<string, unknown>>;
-  const today = new Date(`${currentDate}T12:00:00Z`);
-  const day = today.getUTCDay() || 7;
-  const weekStart = new Date(today);
-  weekStart.setUTCDate(today.getUTCDate() - day + 1);
-  weekStart.setUTCHours(0, 0, 0, 0);
-  const weekEnd = new Date(weekStart);
-  weekEnd.setUTCDate(weekStart.getUTCDate() + 7);
-  const previousWeekStart = new Date(weekStart);
-  previousWeekStart.setUTCDate(weekStart.getUTCDate() - 7);
-  const monthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
-  const monthEnd = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 1));
+  // Build calendar boundaries first, then convert local midnight to its UTC
+  // instant. For Vietnam (+420), local 00:00 is the previous day at 17:00Z.
+  const offsetMs = timezoneOffsetMinutes * 60_000;
+  const calendarDate = new Date(`${currentDate}T12:00:00Z`);
+  const localBoundary = (date: Date) =>
+    new Date(Date.UTC(
+      date.getUTCFullYear(),
+      date.getUTCMonth(),
+      date.getUTCDate(),
+    ) - offsetMs);
+  const day = calendarDate.getUTCDay() || 7;
+  const weekStartCalendar = new Date(calendarDate);
+  weekStartCalendar.setUTCDate(calendarDate.getUTCDate() - day + 1);
+  const weekEndCalendar = new Date(weekStartCalendar);
+  weekEndCalendar.setUTCDate(weekStartCalendar.getUTCDate() + 7);
+  const previousWeekStartCalendar = new Date(weekStartCalendar);
+  previousWeekStartCalendar.setUTCDate(weekStartCalendar.getUTCDate() - 7);
+  const monthStartCalendar = new Date(Date.UTC(
+    calendarDate.getUTCFullYear(),
+    calendarDate.getUTCMonth(),
+    1,
+  ));
+  const monthEndCalendar = new Date(Date.UTC(
+    calendarDate.getUTCFullYear(),
+    calendarDate.getUTCMonth() + 1,
+    1,
+  ));
+  const weekStart = localBoundary(weekStartCalendar);
+  const weekEnd = localBoundary(weekEndCalendar);
+  const previousWeekStart = localBoundary(previousWeekStartCalendar);
+  const monthStart = localBoundary(monthStartCalendar);
+  const monthEnd = localBoundary(monthEndCalendar);
 
   const summarize = (start: Date, end: Date) => {
     let income = 0;

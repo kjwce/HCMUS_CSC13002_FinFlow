@@ -32,42 +32,34 @@ class TransactionModel {
     'name': name,
     'category': category,
     'amount': amount,
-    'date': floatingLocalIso(date),
+    'date': databaseIso(date),
     if (walletId != null) 'wallet_id': walletId,
   };
 
-  static String floatingLocalIso(DateTime value) {
-    return DateTime(
-      value.year,
-      value.month,
-      value.day,
-      value.hour,
-      value.minute,
-      value.second,
-      value.millisecond,
-      value.microsecond,
-    ).toIso8601String();
-  }
+  /// PostgreSQL stores transaction dates as TIMESTAMPTZ, so send an absolute
+  /// UTC instant and convert it back to the device timezone when reading.
+  static String databaseIso(DateTime value) => value.toUtc().toIso8601String();
+
+  /// Returns [calendarDate] with the time-of-day from [timeSource]. Date
+  /// pickers return midnight, which must not silently replace the actual time.
+  static DateTime withCalendarDate(
+    DateTime calendarDate,
+    DateTime timeSource,
+  ) => DateTime(
+    calendarDate.year,
+    calendarDate.month,
+    calendarDate.day,
+    timeSource.hour,
+    timeSource.minute,
+    timeSource.second,
+    timeSource.millisecond,
+    timeSource.microsecond,
+  );
 
   static DateTime _parseStoredDate(Map<String, dynamic> json) {
     final stored = DateTime.parse(json['date'] as String);
 
-    // Transaction dates are deliberately written as floating local time by
-    // [floatingLocalIso]. Supabase's TIMESTAMPTZ column may append `Z` when it
-    // returns that value, but converting that instant again would shift the
-    // user-entered wall clock into another calendar day (for example 17:38 in
-    // Vietnam becoming 00:38 tomorrow). Rebuild a local DateTime from the
-    // stored components so daily filters use the date the user selected.
-    return DateTime(
-      stored.year,
-      stored.month,
-      stored.day,
-      stored.hour,
-      stored.minute,
-      stored.second,
-      stored.millisecond,
-      stored.microsecond,
-    );
+    return stored.toLocal();
   }
 
   static DateTime? _parseCreatedAt(dynamic value) {
@@ -83,6 +75,32 @@ class TransactionModel {
   final DateTime date;
   final String? walletId;
   final DateTime? createdAt;
+
+  TransactionModel copyWith({DateTime? date}) => TransactionModel(
+    id: id,
+    userId: userId,
+    name: name,
+    category: category,
+    amount: amount,
+    date: date ?? this.date,
+    walletId: walletId,
+    createdAt: createdAt,
+  );
+
+  /// The transaction form does not allow future dates. Old builds could still
+  /// persist one because of incorrect timezone handling, so use the record's
+  /// creation time as the safest repair value.
+  TransactionModel repairInvalidFutureDate(
+    DateTime now, {
+    Duration clockTolerance = const Duration(minutes: 5),
+  }) {
+    if (!date.isAfter(now.add(clockTolerance))) return this;
+    final recorded = createdAt;
+    final repairedDate = recorded != null && !recorded.isAfter(now)
+        ? recorded
+        : now;
+    return copyWith(date: repairedDate);
+  }
 
   /// When the record was actually entered into FinFlow. Older/local records
   /// may not have this field, so their transaction date is the safe fallback.

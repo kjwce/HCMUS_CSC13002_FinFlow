@@ -101,4 +101,21 @@ void main() {
 
     expect(next, DateTime(2026, 9, 19));
   });
+
+  test(
+    'recurring timestamp keeps the same local date and time on round-trip',
+    () {
+      final selected = DateTime(2026, 9, 3, 18, 25);
+
+      final stored = RecurringSchedule.databaseIso(selected);
+      final restored = DateTime.parse(stored).toLocal();
+
+      expect(stored.endsWith('Z'), isTrue);
+      expect(restored.year, selected.year);
+      expect(restored.month, selected.month);
+      expect(restored.day, selected.day);
+      expect(restored.hour, selected.hour);
+      expect(restored.minute, selected.minute);
+    },
+  );
 }

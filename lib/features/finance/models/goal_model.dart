@@ -36,7 +36,7 @@ class GoalModel {
       userId: json['user_id'] as String,
       name: json['name'] as String,
       targetAmount: (json['target_amount'] as num).toInt(),
-      createdAt: DateTime.parse(json['created_at'] as String),
+      createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
       category: json['category'] as String? ?? 'Other Goal',
       targetDate: _parseDate(json['target_date']),
       fundingMethod: json['funding_method'] == 'automatic'
@@ -86,7 +86,7 @@ class GoalModel {
         : 'keep_available',
     'redirect_goal_id': redirectGoalId,
     'image_url': imageUrl,
-    'created_at': createdAt.toIso8601String(),
+    'created_at': createdAt.toUtc().toIso8601String(),
   };
 
   GoalModel copyWith({
@@ -170,7 +170,7 @@ class GoalFundEntry {
     goalId: json['goal_id'] as String,
     amount: (json['amount'] as num).toInt(),
     entryType: json['entry_type'] as String,
-    createdAt: DateTime.parse(json['created_at'] as String),
+    createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
     note: json['note'] as String?,
     sourceTransactionId: json['source_transaction_id'] as String?,
   );

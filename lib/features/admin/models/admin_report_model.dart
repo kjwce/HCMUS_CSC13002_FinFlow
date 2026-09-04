@@ -23,7 +23,7 @@ class AdminReportModel {
       reason: json['reason'] as String? ?? 'Khác',
       description: json['description'] as String?,
       status: json['status'] as String? ?? 'pending',
-      createdAt: DateTime.parse(json['created_at'] as String),
+      createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
       reporterName: reporterName,
     );
   }

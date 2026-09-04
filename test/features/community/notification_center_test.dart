@@ -191,4 +191,52 @@ void main() {
     expect(find.text('Confirm recurring transaction'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('delete animates out quickly and Undo restores notification', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(430, 932);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    NotificationService.instance.debugReplaceNotifications([
+      item(
+        id: 'delete-1',
+        category: NotificationCategory.recurring,
+        type: 'recurring_review',
+        actionRequired: true,
+      ),
+    ]);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const NotificationScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final card = find.byKey(const Key('notification-delete-1'));
+    await tester.drag(card, const Offset(-110, 0));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('notification-delete-action')));
+    await tester.pump();
+
+    expect(NotificationService.instance.notifications, hasLength(1));
+    await tester.pump(const Duration(milliseconds: 250));
+
+    expect(NotificationService.instance.notifications, isEmpty);
+    expect(find.byKey(const Key('notification-deleted-snackbar')), findsOne);
+    expect(find.text('Undo'), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.byKey(const Key('notification-undo-delete-button')));
+    await tester.pumpAndSettle();
+
+    expect(NotificationService.instance.notifications, hasLength(1));
+    expect(find.byKey(const Key('notification-delete-1')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }

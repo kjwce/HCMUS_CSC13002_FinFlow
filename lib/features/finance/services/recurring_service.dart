@@ -122,7 +122,7 @@ class RecurringService extends ChangeNotifier {
       'category': schedule.category,
       'amount': schedule.amount,
       'frequency': schedule.frequency.name,
-      'next_occurrence': schedule.nextOccurrence.toIso8601String(),
+      'next_occurrence': RecurringSchedule.databaseIso(schedule.nextOccurrence),
       'is_active': schedule.isActive,
       'wallet_id': schedule.walletId,
       'posting_mode': schedule.postingMode.name,
@@ -164,6 +164,7 @@ class RecurringService extends ChangeNotifier {
     final effectiveSchedule = schedule.copyWith(
       nextOccurrence: effectiveOccurrence,
     );
+    final occurrenceIso = RecurringSchedule.databaseIso(effectiveOccurrence);
     final actualAmount = amount ?? schedule.amount;
     try {
       await TransactionService.instance.add(
@@ -189,14 +190,13 @@ class RecurringService extends ChangeNotifier {
         entityType: 'recurring_schedule',
         entityId: schedule.id,
         routeName: 'recurring_details',
-        dedupeKey:
-            'recurring:${schedule.id}:${effectiveOccurrence.toIso8601String()}:success',
+        dedupeKey: 'recurring:${schedule.id}:$occurrenceIso:success',
         payload: {
           'schedule_id': schedule.id,
           'name': schedule.name,
           'category': schedule.category,
           'amount': actualAmount,
-          'occurrence_at': effectiveOccurrence.toIso8601String(),
+          'occurrence_at': occurrenceIso,
         },
         body: '${schedule.name} · ${actualAmount.abs()} VND',
       );
@@ -213,14 +213,13 @@ class RecurringService extends ChangeNotifier {
         entityType: 'recurring_schedule',
         entityId: schedule.id,
         routeName: 'recurring_details',
-        dedupeKey:
-            'recurring:${schedule.id}:${effectiveOccurrence.toIso8601String()}:failed',
+        dedupeKey: 'recurring:${schedule.id}:$occurrenceIso:failed',
         payload: {
           'schedule_id': schedule.id,
           'name': schedule.name,
           'category': schedule.category,
           'amount': actualAmount,
-          'occurrence_at': effectiveOccurrence.toIso8601String(),
+          'occurrence_at': occurrenceIso,
         },
         body: '${schedule.name} · ${actualAmount.abs()} VND',
       );
@@ -238,6 +237,7 @@ class RecurringService extends ChangeNotifier {
     final effectiveSchedule = schedule.copyWith(
       nextOccurrence: effectiveOccurrence,
     );
+    final occurrenceIso = RecurringSchedule.databaseIso(effectiveOccurrence);
     await RecurringReminderService.instance.markOccurrenceSkipped(
       effectiveSchedule,
     );
@@ -249,14 +249,13 @@ class RecurringService extends ChangeNotifier {
       entityType: 'recurring_schedule',
       entityId: schedule.id,
       routeName: 'recurring_details',
-      dedupeKey:
-          'recurring:${schedule.id}:${effectiveOccurrence.toIso8601String()}:skipped',
+      dedupeKey: 'recurring:${schedule.id}:$occurrenceIso:skipped',
       payload: {
         'schedule_id': schedule.id,
         'name': schedule.name,
         'category': schedule.category,
         'amount': schedule.amount,
-        'occurrence_at': effectiveOccurrence.toIso8601String(),
+        'occurrence_at': occurrenceIso,
       },
       body: '${schedule.name} · ${schedule.amount.abs()} VND',
     );

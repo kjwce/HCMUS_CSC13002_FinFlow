@@ -492,6 +492,11 @@ void main() {
           .toList();
       expect(fields[0].controller?.text, isEmpty);
       expect(fields[1].controller?.text, isEmpty);
+      final now = DateTime.now();
+      final expectedToday =
+          '${now.month.toString().padLeft(2, '0')}/'
+          '${now.day.toString().padLeft(2, '0')}/${now.year}';
+      expect(find.text(expectedToday), findsOneWidget);
     });
   });
 }

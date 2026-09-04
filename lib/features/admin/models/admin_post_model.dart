@@ -36,7 +36,7 @@ class AdminPostModel {
       content: json['content'] as String? ?? '',
       category: json['category'] as String? ?? 'General',
       isAnonymous: json['is_anonymous'] as bool? ?? false,
-      createdAt: DateTime.parse(json['created_at'] as String),
+      createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
       status: ModerationStatus.values.firstWhere(
         (value) => value.name == json['moderation_status'],
         orElse: () => ModerationStatus.pending,
@@ -50,11 +50,11 @@ class AdminPostModel {
       rejectionReason: json['rejection_reason'] as String?,
       reviewedAt: json['reviewed_at'] == null
           ? null
-          : DateTime.parse(json['reviewed_at'] as String),
+          : DateTime.parse(json['reviewed_at'] as String).toLocal(),
       removalReason: json['removal_reason'] as String?,
       removedAt: json['removed_at'] == null
           ? null
-          : DateTime.parse(json['removed_at'] as String),
+          : DateTime.parse(json['removed_at'] as String).toLocal(),
       mediaUrls: mediaUrls,
     );
   }

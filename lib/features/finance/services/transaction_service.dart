@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -46,6 +48,7 @@ class TransactionService extends ChangeNotifier {
   RealtimeChannel? _transactionsChannel;
   String? _realtimeUserId;
   int _fetchEpoch = 0;
+  final Set<String> _futureDateRepairs = {};
 
   List<TransactionModel> get transactions => List.unmodifiable(_transactions);
 
@@ -627,10 +630,48 @@ class TransactionService extends ChangeNotifier {
         Supabase.instance.client.auth.currentUser?.id != userId) {
       return;
     }
-    _transactions = (res as List)
+    final fetched = (res as List)
         .map((t) => TransactionModel.fromJson(t as Map<String, dynamic>))
         .toList(growable: false);
+    final now = DateTime.now();
+    final repairs = <TransactionModel>[];
+    _transactions = fetched
+        .map((transaction) {
+          final repaired = transaction.repairInvalidFutureDate(now);
+          if (!identical(repaired, transaction) &&
+              _futureDateRepairs.add(transaction.id)) {
+            repairs.add(repaired);
+          }
+          return repaired;
+        })
+        .toList(growable: false);
     notifyListeners();
+    if (repairs.isNotEmpty) {
+      unawaited(_persistFutureDateRepairs(userId, repairs));
+    }
+  }
+
+  Future<void> _persistFutureDateRepairs(
+    String userId,
+    List<TransactionModel> repairs,
+  ) async {
+    try {
+      await Future.wait(
+        repairs.map(
+          (transaction) => Supabase.instance.client
+              .from('transactions')
+              .update({'date': TransactionModel.databaseIso(transaction.date)})
+              .eq('id', transaction.id)
+              .eq('user_id', userId),
+        ),
+      );
+    } catch (error) {
+      debugPrint('Unable to repair future transaction dates: $error');
+    } finally {
+      _futureDateRepairs.removeAll(
+        repairs.map((transaction) => transaction.id),
+      );
+    }
   }
 
   /// Keep every transaction-backed surface synchronized with changes made on
@@ -686,7 +727,7 @@ class TransactionService extends ChangeNotifier {
         'p_name': transaction.name,
         'p_category': transaction.category,
         'p_amount': transaction.amount,
-        'p_date': TransactionModel.floatingLocalIso(transaction.date),
+        'p_date': TransactionModel.databaseIso(transaction.date),
         'p_wallet_id': transaction.walletId,
         'p_is_imported': isImported,
         'p_withdrawals': goalWithdrawals.entries
@@ -716,7 +757,7 @@ class TransactionService extends ChangeNotifier {
         'p_name': transaction.name,
         'p_category': transaction.category,
         'p_amount': transaction.amount,
-        'p_date': TransactionModel.floatingLocalIso(transaction.date),
+        'p_date': TransactionModel.databaseIso(transaction.date),
         'p_wallet_id': transaction.walletId,
         'p_withdrawals': goalWithdrawals.entries
             .map((entry) => {'goal_id': entry.key, 'amount': entry.value})

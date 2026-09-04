@@ -327,6 +327,7 @@ class ChatService {
       'message': trimmed,
       'locale': locale,
       'timezone': DateTime.now().timeZoneName,
+      'timezoneOffsetMinutes': DateTime.now().timeZoneOffset.inMinutes,
       'currentDate': _localDate(DateTime.now()),
       'history': promptHistory
           .map((item) => item.toPromptJson())

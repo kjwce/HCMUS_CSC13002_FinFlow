@@ -110,7 +110,7 @@ class ChatModel {
       id: json['id'] as String,
       message: json['message'] as String,
       role: role == 'assistant' ? ChatRole.assistant : ChatRole.user,
-      createdAt: DateTime.parse(json['created_at'] as String),
+      createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
       insight: json['insight'] is Map
           ? ChatInsight.fromJson(
               Map<String, dynamic>.from(json['insight'] as Map),
@@ -133,7 +133,7 @@ class ChatModel {
     'id': id,
     'message': message,
     'role': role.name,
-    'created_at': createdAt.toIso8601String(),
+    'created_at': createdAt.toUtc().toIso8601String(),
     if (insight != null)
       'insight': {'title': insight!.title, 'detail': insight!.detail},
     if (chart != null) 'chart': chart!.toJson(),
@@ -176,8 +176,8 @@ class ChatConversation {
     return ChatConversation(
       id: json['id'] as String,
       title: json['title'] as String? ?? 'New conversation',
-      createdAt: DateTime.parse(json['created_at'] as String),
-      updatedAt: DateTime.parse(json['updated_at'] as String),
+      createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
+      updatedAt: DateTime.parse(json['updated_at'] as String).toLocal(),
     );
   }
 

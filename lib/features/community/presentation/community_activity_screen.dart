@@ -12,6 +12,7 @@ import '../providers/community_provider.dart';
 import 'community_composer_screen.dart';
 import 'widgets/community_report_dialog.dart';
 import 'widgets/post_card.dart';
+import 'widgets/post_removal_animation.dart';
 
 class CommunityActivityScreen extends ConsumerStatefulWidget {
   const CommunityActivityScreen({super.key});
@@ -24,6 +25,7 @@ class CommunityActivityScreen extends ConsumerStatefulWidget {
 class _CommunityActivityScreenState
     extends ConsumerState<CommunityActivityScreen> {
   var _selectedTab = 0;
+  final Set<String> _removingPostIds = <String>{};
 
   @override
   void initState() {
@@ -96,10 +98,14 @@ class _CommunityActivityScreenState
       ),
     );
     if (confirmed != true) return;
+    setState(() => _removingPostIds.add(post.id));
+    await Future<void>.delayed(PostRemovalAnimation.duration);
+    if (!mounted) return;
     try {
       await ref.read(communityServiceProvider).deletePost(post.id);
     } catch (_) {
       if (mounted) {
+        setState(() => _removingPostIds.remove(post.id));
         _showMessage(
           AppStrings.choose(
             'Could not delete this post.',
@@ -167,16 +173,20 @@ class _CommunityActivityScreenState
                             itemCount: posts.length,
                             itemBuilder: (_, index) {
                               final post = posts[index];
-                              return CommunityPostCard(
-                                post: post,
-                                currentUserId:
-                                    AuthService.instance.currentUser?.id,
-                                onTap: () => _openPost(post),
-                                onLikeTap: () => _toggleLike(post),
-                                onSaveTap: () => _toggleSave(post),
-                                onEditTap: () => _editPost(post),
-                                onDeleteTap: () => _deletePost(post),
-                                onReportTap: () => _reportPost(post),
+                              return PostRemovalAnimation(
+                                key: ValueKey('activity-post-${post.id}'),
+                                removing: _removingPostIds.contains(post.id),
+                                child: CommunityPostCard(
+                                  post: post,
+                                  currentUserId:
+                                      AuthService.instance.currentUser?.id,
+                                  onTap: () => _openPost(post),
+                                  onLikeTap: () => _toggleLike(post),
+                                  onSaveTap: () => _toggleSave(post),
+                                  onEditTap: () => _editPost(post),
+                                  onDeleteTap: () => _deletePost(post),
+                                  onReportTap: () => _reportPost(post),
+                                ),
                               );
                             },
                           ),

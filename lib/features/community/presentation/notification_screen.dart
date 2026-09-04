@@ -515,14 +515,130 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen> {
               onReadToggle: () => ref
                   .read(notificationServiceProvider)
                   .markAsRead(item.id, value: item.isRead ? false : true),
-              onArchive: () =>
-                  ref.read(notificationServiceProvider).archive(item.id),
+              onArchive: () => _archiveWithUndo(item),
             ),
           ),
         ),
         const SizedBox(height: 4),
       ],
     );
+  }
+
+  Future<void> _archiveWithUndo(NotificationModel notification) async {
+    final service = ref.read(notificationServiceProvider);
+    final archiveRequest = service.archive(notification);
+    if (!mounted) return;
+
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger
+      ..removeCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          key: const Key('notification-deleted-snackbar'),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: dark ? _darkCard : const Color(0xFFE7EBE9),
+          elevation: 8,
+          margin: EdgeInsets.fromLTRB(
+            Responsive.w(context, 12),
+            0,
+            Responsive.w(context, 12),
+            Responsive.h(context, 10),
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          duration: const Duration(seconds: 5),
+          content: Row(
+            children: [
+              Container(
+                width: Responsive.w(context, 28),
+                height: Responsive.w(context, 28),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFFE4E0),
+                  shape: BoxShape.circle,
+                ),
+                child: FinFlowTrashIcon(
+                  size: Responsive.w(context, 16),
+                  color: const Color(0xFFBA1A1A),
+                ),
+              ),
+              SizedBox(width: Responsive.w(context, 10)),
+              Expanded(
+                child: Text(
+                  AppStrings.choose('Notification deleted', 'Đã xóa thông báo'),
+                  style: TextStyle(
+                    fontFamily: 'Hanken Grotesk',
+                    fontSize: Responsive.sp(context, 13.5),
+                    fontWeight: FontWeight.w600,
+                    color: dark ? _darkText : const Color(0xFF263B34),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          action: SnackBarAction(
+            key: const Key('notification-undo-delete-button'),
+            label: AppStrings.choose('Undo', 'Hoàn tác'),
+            textColor: dark ? _darkAccent : const Color(0xFF006C53),
+            onPressed: () =>
+                _restoreNotification(notification, after: archiveRequest),
+          ),
+        ),
+      );
+
+    try {
+      await archiveRequest;
+    } catch (error) {
+      if (!mounted) return;
+      messenger
+        ..removeCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              AppStrings.choose(
+                'Unable to delete notification: $error',
+                'Không thể xóa thông báo: $error',
+              ),
+            ),
+          ),
+        );
+    }
+  }
+
+  Future<void> _restoreNotification(
+    NotificationModel notification, {
+    required Future<void> after,
+  }) async {
+    try {
+      await after;
+      await ref.read(notificationServiceProvider).restore(notification);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Text(
+            AppStrings.choose(
+              'Notification restored',
+              'Đã khôi phục thông báo',
+            ),
+          ),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            AppStrings.choose(
+              'Unable to restore notification: $error',
+              'Không thể khôi phục thông báo: $error',
+            ),
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _open(NotificationModel notification) async {
@@ -1141,13 +1257,44 @@ class _SwipeRevealDelete extends StatefulWidget {
   State<_SwipeRevealDelete> createState() => _SwipeRevealDeleteState();
 }
 
-class _SwipeRevealDeleteState extends State<_SwipeRevealDelete> {
+class _SwipeRevealDeleteState extends State<_SwipeRevealDelete>
+    with SingleTickerProviderStateMixin {
   static const _actionWidth = 78.0;
   static const _cornerOverlap = 22.0;
+  static const _deleteDuration = Duration(milliseconds: 220);
   double _offset = 0;
   bool _dragging = false;
+  bool _deleting = false;
+  late final AnimationController _deleteController;
+  late final Animation<Offset> _deleteSlide;
+  late final Animation<double> _deleteFade;
+
+  @override
+  void initState() {
+    super.initState();
+    _deleteController = AnimationController(
+      vsync: this,
+      duration: _deleteDuration,
+    );
+    final curved = CurvedAnimation(
+      parent: _deleteController,
+      curve: Curves.easeInCubic,
+    );
+    _deleteSlide = Tween<Offset>(
+      begin: Offset.zero,
+      end: const Offset(-1.08, 0),
+    ).animate(curved);
+    _deleteFade = Tween<double>(begin: 1, end: 0).animate(curved);
+  }
+
+  @override
+  void dispose() {
+    _deleteController.dispose();
+    super.dispose();
+  }
 
   void _dragUpdate(DragUpdateDetails details) {
+    if (_deleting) return;
     setState(() {
       _dragging = true;
       _offset = (_offset + details.delta.dx).clamp(-_actionWidth, 0);
@@ -1155,6 +1302,7 @@ class _SwipeRevealDeleteState extends State<_SwipeRevealDelete> {
   }
 
   void _dragEnd(DragEndDetails details) {
+    if (_deleting) return;
     final velocity = details.primaryVelocity ?? 0;
     final shouldOpen = velocity < -220 || _offset < -(_actionWidth * .42);
     setState(() {
@@ -1163,67 +1311,89 @@ class _SwipeRevealDeleteState extends State<_SwipeRevealDelete> {
     });
   }
 
-  void _delete() {
+  Future<void> _delete() async {
+    if (_deleting) return;
+    setState(() {
+      _deleting = true;
+      _dragging = false;
+    });
+    await _deleteController.forward();
+    if (!mounted) return;
     widget.onDelete();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Positioned.fill(
-          child: Align(
-            alignment: Alignment.centerRight,
-            child: Material(
-              color: const Color(0xFFC91D22),
-              borderRadius: const BorderRadius.horizontal(
-                right: Radius.circular(20),
-              ),
-              child: InkWell(
-                key: const Key('notification-delete-action'),
-                onTap: _delete,
-                borderRadius: const BorderRadius.horizontal(
-                  right: Radius.circular(20),
-                ),
-                child: SizedBox(
-                  width: _actionWidth + _cornerOverlap,
-                  height: double.infinity,
-                  child: Padding(
-                    padding: const EdgeInsets.only(left: _cornerOverlap),
-                    child: Center(
-                      child: Semantics(
-                        label: AppStrings.choose(
-                          'Delete notification',
-                          'Xóa thông báo',
+    return SizeTransition(
+      sizeFactor: ReverseAnimation(_deleteController),
+      alignment: Alignment.topCenter,
+      child: FadeTransition(
+        opacity: _deleteFade,
+        child: SlideTransition(
+          position: _deleteSlide,
+          child: IgnorePointer(
+            ignoring: _deleting,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Positioned.fill(
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: Material(
+                      color: const Color(0xFFC91D22),
+                      borderRadius: const BorderRadius.horizontal(
+                        right: Radius.circular(20),
+                      ),
+                      child: InkWell(
+                        key: const Key('notification-delete-action'),
+                        onTap: _delete,
+                        borderRadius: const BorderRadius.horizontal(
+                          right: Radius.circular(20),
                         ),
-                        button: true,
-                        child: const FinFlowTrashIcon(
-                          color: Colors.white,
-                          size: 27,
+                        child: SizedBox(
+                          width: _actionWidth + _cornerOverlap,
+                          height: double.infinity,
+                          child: Padding(
+                            padding: const EdgeInsets.only(
+                              left: _cornerOverlap,
+                            ),
+                            child: Center(
+                              child: Semantics(
+                                label: AppStrings.choose(
+                                  'Delete notification',
+                                  'Xóa thông báo',
+                                ),
+                                button: true,
+                                child: const FinFlowTrashIcon(
+                                  color: Colors.white,
+                                  size: 27,
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
+                GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onHorizontalDragUpdate: _dragUpdate,
+                  onHorizontalDragEnd: _dragEnd,
+                  child: AnimatedContainer(
+                    duration: _dragging
+                        ? Duration.zero
+                        : const Duration(milliseconds: 190),
+                    curve: Curves.easeOutCubic,
+                    transform: Matrix4.translationValues(_offset, 0, 0),
+                    child: widget.child,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
-        GestureDetector(
-          behavior: HitTestBehavior.translucent,
-          onHorizontalDragUpdate: _dragUpdate,
-          onHorizontalDragEnd: _dragEnd,
-          child: AnimatedContainer(
-            duration: _dragging
-                ? Duration.zero
-                : const Duration(milliseconds: 190),
-            curve: Curves.easeOutCubic,
-            transform: Matrix4.translationValues(_offset, 0, 0),
-            child: widget.child,
-          ),
-        ),
-      ],
+      ),
     );
   }
 }

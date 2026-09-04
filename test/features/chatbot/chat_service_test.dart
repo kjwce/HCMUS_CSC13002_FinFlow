@@ -68,6 +68,7 @@ void main() {
       expect(result.chart?.values, [2000000, 2500000]);
       expect(capturedBody?['message'], 'Chi tiêu tuần này?');
       expect(capturedBody?['currentDate'], matches(r'^\d{4}-\d{2}-\d{2}$'));
+      expect(capturedBody?['timezoneOffsetMinutes'], isA<int>());
     });
 
     test('sends at most the ten most recent history items', () async {

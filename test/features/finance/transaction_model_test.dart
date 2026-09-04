@@ -17,7 +17,7 @@ void main() {
     expect(transaction.recordedAt.toUtc(), DateTime.utc(2026, 8, 16, 3, 30));
   });
 
-  test('keeps a stored UTC marker as the entered local transaction time', () {
+  test('converts a stored UTC transaction instant to device local time', () {
     final transaction = TransactionModel.fromJson({
       'id': 'new-transaction',
       'user_id': 'user-1',
@@ -28,8 +28,69 @@ void main() {
       'created_at': '2026-08-17T10:38:00Z',
     });
 
-    expect(transaction.date, DateTime(2026, 8, 17, 17, 38));
+    expect(transaction.date, DateTime.utc(2026, 8, 17, 17, 38).toLocal());
     expect(transaction.date.isUtc, isFalse);
+  });
+
+  test('database timestamp round-trips without changing the instant', () {
+    final local = DateTime(2026, 9, 2, 15, 18, 42);
+    final encoded = TransactionModel.databaseIso(local);
+    final decoded = TransactionModel.fromJson({
+      'id': 'round-trip',
+      'user_id': 'user-1',
+      'name': 'Grab',
+      'category': 'Transport',
+      'amount': -150000,
+      'date': encoded,
+    });
+
+    expect(DateTime.parse(encoded).isUtc, isTrue);
+    expect(decoded.date, local);
+  });
+
+  test('changing the calendar date preserves the transaction time', () {
+    final result = TransactionModel.withCalendarDate(
+      DateTime(2026, 9, 2),
+      DateTime(2026, 8, 18, 15, 18, 42, 123),
+    );
+
+    expect(result, DateTime(2026, 9, 2, 15, 18, 42, 123));
+  });
+
+  test('repairs an invalid future transaction using its creation time', () {
+    final createdAt = DateTime(2026, 9, 2, 15, 18);
+    final transaction = TransactionModel(
+      id: 'future-grab',
+      userId: 'user-1',
+      name: 'Grab',
+      category: 'Transport',
+      amount: -150000,
+      date: DateTime(2026, 9, 18, 15, 18),
+      createdAt: createdAt,
+    );
+
+    final repaired = transaction.repairInvalidFutureDate(
+      DateTime(2026, 9, 2, 16),
+    );
+
+    expect(repaired.date, createdAt);
+    expect(repaired.id, transaction.id);
+  });
+
+  test('keeps a valid transaction date unchanged', () {
+    final transaction = TransactionModel(
+      id: 'valid',
+      userId: 'user-1',
+      name: 'Lunch',
+      category: 'Food',
+      amount: -50000,
+      date: DateTime(2026, 9, 2, 15, 18),
+    );
+
+    expect(
+      transaction.repairInvalidFutureDate(DateTime(2026, 9, 2, 16)),
+      same(transaction),
+    );
   });
 
   test('falls back to transaction date for legacy records', () {

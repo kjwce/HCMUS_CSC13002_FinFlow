@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/admin_post_model.dart';
 import '../services/admin_moderation_service.dart';
+import 'admin_brand.dart';
 import 'admin_members_view.dart';
 import 'admin_preferences_controls.dart';
 import 'admin_reports_view.dart';
@@ -337,24 +338,7 @@ class _AdminSidebar extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Row(
-            children: [
-              CircleAvatar(
-                radius: 19,
-                backgroundColor: Colors.white,
-                child: Icon(Icons.show_chart_rounded, color: Color(0xFF0B6B4F)),
-              ),
-              SizedBox(width: 11),
-              Text(
-                'FinFlow',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
+          const AdminBrand(light: true, iconSize: 42, showAdminBadge: false),
           const SizedBox(height: 42),
           _SidebarItem(
             icon: Icons.rate_review_rounded,
@@ -480,7 +464,11 @@ class _TopBar extends StatelessWidget {
       child: Row(
         children: [
           if (!desktop) ...[
-            const Icon(Icons.show_chart_rounded, color: Color(0xFF0B6B4F)),
+            const AdminBrand(
+              iconSize: 30,
+              showName: false,
+              showAdminBadge: false,
+            ),
             const SizedBox(width: 8),
             PopupMenuButton<AdminSection>(
               onSelected: onSectionChanged,

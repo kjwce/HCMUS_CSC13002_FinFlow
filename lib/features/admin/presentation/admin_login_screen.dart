@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../services/admin_moderation_service.dart';
+import 'admin_brand.dart';
 import 'admin_preferences_controls.dart';
 import 'admin_strings.dart';
 
@@ -131,7 +132,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            const _Logo(),
+                            const AdminBrand(),
                             const SizedBox(height: 42),
                             Text(
                               AdminStrings.t(
@@ -316,7 +317,7 @@ class _LoginBrandPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _Logo(light: true),
+          const AdminBrand(light: true),
           const Spacer(),
           const Icon(Icons.forum_outlined, color: Color(0xFFA8E6C8), size: 68),
           const SizedBox(height: 28),
@@ -354,60 +355,6 @@ class _LoginBrandPanel extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _Logo extends StatelessWidget {
-  const _Logo({this.light = false});
-  final bool light;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 38,
-          height: 38,
-          decoration: BoxDecoration(
-            color: light ? Colors.white : const Color(0xFF0B6B4F),
-            borderRadius: BorderRadius.circular(11),
-          ),
-          child: Icon(
-            Icons.show_chart_rounded,
-            color: light ? const Color(0xFF0B6B4F) : Colors.white,
-          ),
-        ),
-        const SizedBox(width: 11),
-        Text(
-          'FinFlow',
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.w800,
-            color: light
-                ? Colors.white
-                : Theme.of(context).colorScheme.onSurface,
-          ),
-        ),
-        const SizedBox(width: 9),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: light ? Colors.white12 : const Color(0xFFE4F2EC),
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: Text(
-            'ADMIN',
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1,
-              color: light ? Colors.white : const Color(0xFF0B6B4F),
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

@@ -691,7 +691,14 @@ class _EditTransactionScreenState extends ConsumerState<EditTransactionScreen> {
       firstDate: DateTime(2000),
       lastDate: today,
     );
-    if (picked != null && mounted) setState(() => _transactionDate = picked);
+    if (picked != null && mounted) {
+      setState(
+        () => _transactionDate = TransactionModel.withCalendarDate(
+          picked,
+          _transactionDate,
+        ),
+      );
+    }
   }
 
   Future<void> _save() async {

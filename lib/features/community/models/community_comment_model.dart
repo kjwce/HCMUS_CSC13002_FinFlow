@@ -22,7 +22,7 @@ class CommunityCommentModel {
       userId: json['user_id'] as String,
       content: json['content'] as String,
       isAnonymous: json['is_anonymous'] as bool? ?? false,
-      createdAt: DateTime.parse(json['created_at'] as String),
+      createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
       parentCommentId: json['parent_comment_id'] as String?,
       likesCount: json['likes_count'] as int? ?? 0,
     );
@@ -34,7 +34,7 @@ class CommunityCommentModel {
     'user_id': userId,
     'content': content,
     'is_anonymous': isAnonymous,
-    'created_at': createdAt.toIso8601String(),
+    'created_at': createdAt.toUtc().toIso8601String(),
     'parent_comment_id': parentCommentId,
     'likes_count': likesCount,
   };

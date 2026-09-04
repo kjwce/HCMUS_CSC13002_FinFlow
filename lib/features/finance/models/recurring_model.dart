@@ -86,6 +86,10 @@ class RecurringSchedule {
   final int reminderDays;
   final bool useLastDay;
 
+  /// PostgreSQL stores recurring timestamps as TIMESTAMPTZ. Send an explicit
+  /// UTC instant so a local time is not interpreted as UTC by the database.
+  static String databaseIso(DateTime value) => value.toUtc().toIso8601String();
+
   RecurringSchedule copyWith({
     String? name,
     String? category,

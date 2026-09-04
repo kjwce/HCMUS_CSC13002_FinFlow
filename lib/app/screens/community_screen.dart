@@ -12,6 +12,7 @@ import '../../features/community/models/community_report_model.dart';
 import '../../features/community/presentation/community_composer_screen.dart';
 import '../../features/community/presentation/widgets/community_report_dialog.dart';
 import '../../features/community/presentation/widgets/post_card.dart';
+import '../../features/community/presentation/widgets/post_removal_animation.dart';
 import '../../features/community/providers/community_provider.dart';
 import '../../features/community/services/community_service.dart';
 import '../../features/community/utils/community_topics.dart';
@@ -31,6 +32,7 @@ class CommunityScreen extends ConsumerStatefulWidget {
 class _CommunityScreenState extends ConsumerState<CommunityScreen> {
   String _selectedTopic = communityFeedTopics.first;
   bool _loaded = false;
+  final Set<String> _removingPostIds = <String>{};
   late final CommunityService _communityService;
 
   // ── Deeper Mint Theme Palette ──
@@ -138,10 +140,14 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
       ),
     );
     if (confirm == true && mounted) {
+      setState(() => _removingPostIds.add(post.id));
+      await Future<void>.delayed(PostRemovalAnimation.duration);
+      if (!mounted) return;
       try {
         await ref.read(communityServiceProvider).deletePost(post.id);
       } catch (e) {
         if (mounted) {
+          setState(() => _removingPostIds.remove(post.id));
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
@@ -246,18 +252,24 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
                                     itemCount: posts.length,
                                     itemBuilder: (_, i) {
                                       final post = posts[i];
-                                      return CommunityPostCard(
-                                        post: post,
-                                        currentUserId: AuthService
-                                            .instance
-                                            .currentUser
-                                            ?.id,
-                                        onTap: () => _openPost(post),
-                                        onLikeTap: () => _toggleLike(post),
-                                        onSaveTap: () => _toggleSave(post),
-                                        onEditTap: () => _editPost(post),
-                                        onDeleteTap: () => _deletePost(post),
-                                        onReportTap: () => _reportPost(post),
+                                      return PostRemovalAnimation(
+                                        key: ValueKey('post-${post.id}'),
+                                        removing: _removingPostIds.contains(
+                                          post.id,
+                                        ),
+                                        child: CommunityPostCard(
+                                          post: post,
+                                          currentUserId: AuthService
+                                              .instance
+                                              .currentUser
+                                              ?.id,
+                                          onTap: () => _openPost(post),
+                                          onLikeTap: () => _toggleLike(post),
+                                          onSaveTap: () => _toggleSave(post),
+                                          onEditTap: () => _editPost(post),
+                                          onDeleteTap: () => _deletePost(post),
+                                          onReportTap: () => _reportPost(post),
+                                        ),
                                       );
                                     },
                                   ),

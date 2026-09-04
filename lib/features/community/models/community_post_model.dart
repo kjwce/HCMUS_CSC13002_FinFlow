@@ -27,7 +27,7 @@ class CommunityPostModel {
       category: json['category'] as String? ?? 'General',
       likesCount: json['likes_count'] as int? ?? 0,
       commentsCount: json['comments_count'] as int? ?? 0,
-      createdAt: DateTime.parse(json['created_at'] as String),
+      createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
       isSpoiler: json['is_spoiler'] as bool? ?? false,
     );
   }
@@ -40,7 +40,7 @@ class CommunityPostModel {
     'category': category,
     'likes_count': likesCount,
     'comments_count': commentsCount,
-    'created_at': createdAt.toIso8601String(),
+    'created_at': createdAt.toUtc().toIso8601String(),
     'is_spoiler': isSpoiler,
   };
 

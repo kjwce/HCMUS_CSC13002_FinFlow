@@ -200,7 +200,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     _selectedCategory =
         widget.initialCategoryKey ?? (_isExpense ? 'Food' : 'Salary');
     _selectedWalletId = widget.initialWalletId;
-    _transactionDate = widget.initialDate;
+    _transactionDate = widget.initialDate ?? DateTime.now();
     _nameController.text = widget.initialName ?? '';
     if (widget.initialAmount != null) {
       _amountController.text = _addCommas(
@@ -1885,7 +1885,12 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
           ? merchantName!
           : AppStrings.choose('Scanned receipt', 'Hóa đơn đã quét');
       _selectedCategory = TransactionCategory.fromKey(dominantCategory.key).key;
-      _transactionDate = result.receiptDate;
+      if (result.receiptDate != null) {
+        _transactionDate = TransactionModel.withCalendarDate(
+          result.receiptDate!,
+          _transactionDate ?? DateTime.now(),
+        );
+      }
       _mode = _AddMode.manual;
       _selectedInputMode = null;
     });
@@ -2118,16 +2123,21 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
 
   Future<void> _pickDate() async {
     final today = DateTime.now();
-    final selectedDate = _transactionDate;
+    final selectedDate = _transactionDate ?? today;
     final picked = await showDatePicker(
       context: context,
-      initialDate: selectedDate == null || selectedDate.isAfter(today)
-          ? today
-          : selectedDate,
+      initialDate: selectedDate.isAfter(today) ? today : selectedDate,
       firstDate: DateTime(2000),
       lastDate: today,
     );
-    if (picked != null && mounted) setState(() => _transactionDate = picked);
+    if (picked != null && mounted) {
+      setState(
+        () => _transactionDate = TransactionModel.withCalendarDate(
+          picked,
+          selectedDate,
+        ),
+      );
+    }
   }
 
   static const _createCustomCategoryMenuValue =

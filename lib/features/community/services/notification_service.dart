@@ -198,12 +198,30 @@ class NotificationService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> archive(String notificationId) async {
-    await _update(notificationId, {'is_archived': true});
+  Future<void> archive(NotificationModel notification) async {
     _notifications = _notifications
-        .where((item) => item.id != notificationId)
+        .where((item) => item.id != notification.id)
         .toList(growable: false);
     notifyListeners();
+    try {
+      await _update(notification.id, {'is_archived': true});
+    } catch (_) {
+      _insertLocally(notification);
+      rethrow;
+    }
+  }
+
+  Future<void> restore(NotificationModel notification) async {
+    _insertLocally(notification.copyWith(isArchived: false));
+    try {
+      await _update(notification.id, {'is_archived': false});
+    } catch (_) {
+      _notifications = _notifications
+          .where((item) => item.id != notification.id)
+          .toList(growable: false);
+      notifyListeners();
+      rethrow;
+    }
   }
 
   Future<void> resolve(
@@ -300,10 +318,19 @@ class NotificationService extends ChangeNotifier {
   }
 
   Future<void> _update(String id, Map<String, dynamic> values) async {
+    final userId = _userId;
+    if (userId == null) return;
     await Supabase.instance.client
         .from('app_notifications')
         .update(values)
-        .eq('id', id);
+        .eq('id', id)
+        .eq('user_id', userId);
+  }
+
+  void _insertLocally(NotificationModel notification) {
+    if (_notifications.any((item) => item.id == notification.id)) return;
+    _notifications = [..._notifications, notification]..sort(_newestFirst);
+    notifyListeners();
   }
 
   void _replace(

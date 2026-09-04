@@ -24,12 +24,12 @@ class AdminMemberModel {
       fullName: json['full_name'] as String? ?? '',
       email: json['email'] as String? ?? '',
       avatarUrl: json['avatar_url'] as String?,
-      createdAt: DateTime.parse(json['created_at'] as String),
+      createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
       isMuted: json['is_community_muted'] as bool? ?? false,
       muteReason: json['community_mute_reason'] as String?,
       mutedAt: json['community_muted_at'] == null
           ? null
-          : DateTime.parse(json['community_muted_at'] as String),
+          : DateTime.parse(json['community_muted_at'] as String).toLocal(),
       postCount: postCount,
       receivedReportCount: receivedReportCount,
     );
