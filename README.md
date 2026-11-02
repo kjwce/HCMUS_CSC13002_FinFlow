@@ -68,6 +68,15 @@ The app features **AI-powered input and assistance** via Supabase Edge Functions
 - OAuth for Google, Facebook, Apple
 - Profile management with avatar upload; account deletion
 
+## Screen captures:
+
+<img width="309" height="695" alt="image" src="https://github.com/user-attachments/assets/5a6987c0-434e-4dca-94a3-1a515a2efa61" />
+
+*Home screen*
+
+<img width="289" height="556" alt="image" src="https://github.com/user-attachments/assets/711b07ba-4a6d-4b66-b87e-37246f30450c" />
+
+*(Transaction Screen)*
 ## Requirements
 
 Before running the project, ensure you have the following installed:
